@@ -2,20 +2,20 @@
 
 ## Technology Stack
 *   **OS**: Linux RT (Arch) with PREEMPT_RT kernel
-*   **Audio Layer**: PipeWire + PipeWire-plumber
+*   **Audio Core**: JACK2 (Primary) / ALSA Backend (Fallback)
 *   **Engine**: Ardour 8 Headless
-*   **Protocol**: OSC
+*   **Middleware Logic**: Lua Scripts (integrated within Ardour)
+*   **Protocol**: OSC / WebSocket (Native)
 *   **Interface**: Custom Web UI (HTML5/JS/CSS)
-*   **Backend UI**: Node.js or Python server with OSC library
 
 ## Current Development Stack (PoC - Proof of Concept)
 *   **Environment**: VirtualBox on Arch Linux
-*   **Virtual Audio (UPDATED)**: PipeWire Null-Sink with 16 virtual Mono channels for precise routing, or ALSA loopback with advanced ALSA/PipeWire configuration.
+*   **Virtual Audio (UPDATED)**: ALSA Loopback with 16 virtual Mono channels for precise routing, or advanced ALSA/JACK configuration.
 *   **Temporary GUI**: XFCE4 + LightDM (to be removed post-template)
 *   **OSC Testing**: Open Stage Control (standalone app)
 *   **Vibe Coding**: Cline + Gemini for UI and automation scripts
 
-## 3-Layer Architecture
+## Simplified 2-Layer Architecture
 ```
 ┌─────────────────────────────────────┐
 │   WEB UI (Proprietary)              │
@@ -27,16 +27,8 @@
 └──────────────┬──────────────────────┘
                │ OSC/WebSocket
 ┌──────────────▼──────────────────────┐
-│   MIDDLEWARE LAYER (Proprietary)    │
-│   - Node.js/Python Daemon           │
-│   - Session state management        │
-│   - Add-on system                   │
-│   - Scene/snapshot manager          │
-│   - Bank manager (enable/disable)   │
-└──────────────┬──────────────────────┘
-               │ Standard OSC
-┌──────────────▼──────────────────────┐
 │   ARDOUR HEADLESS (GPL)             │
+│   - Lua Scripts: Session, I/O Patch.|
 │   - 48ch Template (6 banks × 8ch)   │
 │   - Plugins in bypass               │
 │   - Static routing                  │
@@ -44,7 +36,7 @@
 └──────────────┬──────────────────────┘
                │ JACK API
 ┌──────────────▼──────────────────────┐
-│   PIPEWIRE + PLUMBER (GPL)          │
+│   JACK2 / ALSA Backend (GPL)        │
 │   - Hardware I/O management         │
 │   - Automatic audio connections     │
 └─────────────────────────────────────┘
@@ -59,7 +51,7 @@
 *   Bank 5: Tracks 33-40
 *   Bank 6: Tracks 41-48
 
-**On Startup:** Script queries PipeWire to detect available physical ports. Automatically activates only necessary banks (e.g., 16 I/O → Bank 1-2).
+**On Startup:** Script queries JACK to detect available physical ports. Automatically activates only necessary banks (e.g., 16 I/O → Bank 1-2).
 **Inactive banks**: Tracks disabled in Ardour, hidden in UI.
 **Runtime activation via OSC**: `/ardour/track/enable [bank_id]`
 
@@ -71,28 +63,11 @@
 
 ## RT Configuration and CPU Pinning
 ### Kernel Boot Parameters
-`isolcpus=0,1 nohz_full=0,1 rcu_nocbs=0,1 threadirqs intel_pstate=disable processor.max_cstate=1`
-
-### Dynamic Core Allocation System (UPDATED LOGIC)
-The system automatically detects P-cores and E-cores to define the following allocation profiles, ensuring maximum isolation for critical audio processing. Carla is hosted as a separate, pinned process for heavy reverb processing.
-
-| P-cores Total | Core Isolation (IRQ/PW/OS) | Carla (Heavy Reverbs) | Ardour (Mix Engine) | Max Heavy Reverbs Supported |
-| :------------ | :------------------------- | :-------------------- | :------------------ | :-------------------------- |
-| 4             | Core 0 (IRQ), Core 1 (PW)  | None/Internal         | Core 2-3 (2 cores)  | 0 (Convolutions Disabled)   |
-| 6             | Core 0 (IRQ), Core 1 (PW), Core 2 (OS) | Core 3 (1 core) | Core 4-5 (2 cores)  | 1-2                         |
-| 8             | Core 0 (IRQ), Core 1 (PW), Core 2 (OS) | Core 3-4 (2 cores) | Core 5-7 (3 cores)  | 4                           |
-| 12+           | Core 0 (IRQ), Core 1 (PW), Core 2 (OS) | Core 3-4 (2 cores) | Core 5-11+ (7+ cores)| 4+                          |
-
-*   **E-cores (if present)**: Dedicated to Middleware, background tasks, and non-RT processing.
+`threadirqs intel_pstate=disable processor.max_cstate=1`
 
 ### CPU Core Assignment (Implementation Details)
-*   **IRQ Pinning (P-cores):**
-    *   Core 0-1: Audio card IRQ (isolated)
-    *   `echo 03 > /proc/irq/[audio_irq]/smp_affinity`
-*   **Process Pinning (Dynamic):**
-    *   PipeWire: Pinned to its isolated core (e.g., `taskset -c 1` or `2`) + `chrt -f 85`
-    *   Carla (if enabled): Pinned to dedicated cores (e.g., `taskset -c 3,4`) + `chrt -f 78`
-    *   Ardour headless: Pinned to the remaining contiguous isolated P-cores (e.g., `taskset -c 5-7`) + `chrt -f 75`
+*   **IRQ Pinning**: Pin the audio card's IRQ to a dedicated core (via `smp_affinity`). **Priority: IRQ scheduling is more significant than process pinning.**
+*   **Process Pinning**: Remove explicit core pinning for JACK/Ardour/Carla. Use high RT priority (`chrt -f 80`/`75`) instead.
 
 ### Critical Disabling
 *   Hyper-Threading (Intel)
@@ -100,18 +75,14 @@ The system automatically detects P-cores and E-cores to define the following all
 *   Deep C-states (>C1)
 *   Swap during runtime (vm.swappiness = 10)
 
-### PipeWire Config (`/etc/pipewire/pipewire.conf`)
-```
-default.clock.quantum = 128
-default.clock.min-quantum = 128
-default.clock.max-quantum = 256
-default.clock.rate = 48000
-```
-*   **Buffer size**: fixed 128 or 256 samples (no runtime switching)
+## Hardware and BIOS Tuning
+*   **Hardware Selection**: Hardware must allow **dedicated hardware IRQ** for the soundcard.
+*   **BIOS Configuration**: **Mandatory:** Possibility to disable power-saving states like **C1E** and **NMI** (Non-Maskable Interrupts) in the BIOS.
+*   **CPU Selection**: **Recommendation:** Avoid modern CPUs with P/E cores, or ensure E-cores are disabled along with Hyper-Threading.
 
 ### Implementation Workflow for Dynamic Allocation
 1.  `/usr/local/bin/olms-detect-cpu`: Reads CPU topology and generates JSON output.
-2.  `/etc/olms/cpu-allocation.conf`: Generated by detect script, mapping IRQ/PipeWire/Ardour/Carla to specific cores based on the table above.
+2.  `/etc/olms/cpu-allocation.conf`: Generated by detect script, mapping IRQ/JACK/Ardour/Carla to specific cores based on the table above.
 3.  `/usr/local/bin/olms-apply-affinity`: Executes `taskset`, `chrt`, and writes to `/proc/irq/*/smp_affinity`.
 4.  `/etc/default/grub modifier script`: Adds `isolcpus=` dynamically based on the detected topology (Requires reboot after first run).
 5.  `systemd service`: `olms-affinity.service`: Executes `olms-apply-affinity` on boot (Before: `pipewire.service`, `ardour.service`).
@@ -119,28 +90,28 @@ default.clock.rate = 48000
 ## Business Model
 ### GPL Core (Free):
 *   OS + Configured Ardour headless
+*   **Include: All Lua Scripts** (Session, bank management, scene management, and I/O logic).
 *   Startup scripts, basic routing, bank management
 *   Minimal web UI (fader/mute/solo/bank selector)
 *   Open source plugins (a-*, LSP, x42, Calf)
 
 ### Proprietary Add-on Marketplace:
-*   Premium LV2/VST audio plugins
-*   External middleware modules (scene manager, automations, multi-user)
-*   Advanced UI themes and layouts
-*   Feature packs (advanced routing, premium metering, bank presets)
+*   Focus proprietary offerings on: **Premium LV2/VST audio plugins**, **Expert consulting/Setup assistance**, **Custom script development** (for specific client needs), and **Training courses** delivered via the platform.
+
+### Constraint Legal Structure:
+*   The entire **Core System (Engine + Logic) must be GPL**.
 
 ## Development
-*   **Phase 1 - PoC (2-3 months)**: Validation with Open Stage Control + Ardour headless. Latency/xruns/stability test on 2 banks (16ch). Runtime enable/disable banks validation. Environment: VirtualBox + ALSA loopback + Ardour GUI. **Deliverable**: Functional 16ch template with stable OSC control.
-*   **Phase 2 - Template (1-2 months)**: 48ch session with 6 pre-configured banks. Dynamic routing and bank activation scripts. IRQ pinning and CPU tuning scripts.
-*   **Phase 3 - UI Custom (2-3 months)**: Proprietary web UI development using vibe coding (Cline + Gemini). Components: fader, metering, plugin controls, routing matrix, bank selector.
-*   **Phase 4 - Marketplace (3-4 months)**: Add-on system, licensing (hardware fingerprint + online validation), documentation.
+*   **Phase 1 - PoC**: Validation with Open Stage Control + Ardour headless. Latency/xruns/stability test on 2 banks (16ch). Runtime enable/disable banks validation. Environment: VirtualBox + ALSA loopback + Ardour GUI. **Deliverable**: Functional 16ch template with stable OSC control.
+*   **Phase 2 - Template**: 48ch session with 6 pre-configured banks. Dynamic routing and bank activation scripts. IRQ pinning and CPU tuning scripts.
+*   **Phase 3 - UI Custom**: Proprietary web UI development using vibe coding (Cline + Gemini). Components: fader, metering, plugin controls, routing matrix, bank selector.
+*   **Phase 4 - Marketplace**: Add-on system, licensing (hardware fingerprint + online validation), documentation.
 
 ## Immediate PoC Roadmap
 ### 1. Base Setup (Day 1)
 *   ✓ Arch Linux installed
 *   ✓ XFCE4 + LightDM for temporary GUI
 *   Install Ardour 8 with GUI
-*   Configure PipeWire: 128/256 buffer, 48kHz
 *   Activate ALSA loopback: `sudo modprobe snd-aloop`
 
 ### 2. Template in GUI (Days 2-3)
@@ -158,7 +129,7 @@ default.clock.rate = 48000
 ### 4. Stability Test (Days 7-9)
 *   Play audio on all 16 tracks
 *   OSC stress test under load
-*   Monitor xruns with `pw-top`
+*   Monitor xruns with `jack_iodelay` / `jack_latency_test`
 *   Target: <2 xruns/hour
 
 ### 5. Headless Validation (Day 10)
@@ -189,7 +160,6 @@ default.clock.rate = 48000
 ## Key Architectural Choices
 *   **Why VirtualBox for PoC**: Zero hardware investment until concept is validated with contributors.
 *   **Why temporary GUI**: Manual template creation + visual OSC debugging, removed in production.
-*   **Why ALSA loopback/Null-Sink**: Simulates 16 distinct mono I/O channels for routing/stability testing, overcoming PipeWire's channel grouping issues.
+*   **Why ALSA loopback/Null-Sink**: Simulates 16 distinct mono I/O channels for routing/stability testing, overcoming JACK/ALSA configuration complexities.
 *   **Why Open Stage Control**: Quick drag-and-drop OSC testing before developing custom UI.
 *   **Why template manual first**: Understanding the Ardour workflow before automating with scripts.
-*   **Why dedicated cores for Carla (UPDATED)**: Heavy convolution reverb plugins require guaranteed, isolated CPU time. Pinning Carla to 1-2 dedicated P-cores ensures maximum stability for the core mix engine (Ardour) while enabling high-quality effects.
