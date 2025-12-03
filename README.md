@@ -6,7 +6,7 @@
 [![RTL Target](https://img.shields.io/badge/RTL%20Target-%3C%205ms%20(Goal)-brightgreen.svg)]()
 [![Stability](https://img.shields.io/badge/Stability-<2%20X--runs/hour-orange.svg)]()
 
-**OLMS:** The Open Live Mixing System. A project aimed at transforming any compatible Mini-PC into a professional, dedicated digital mixing console. Built on a Real-Time Linux core, Ardour Headless, and PipeWire, it targets a Round-Trip Latency (RTL) of less than $< 5 \text{ ms}$ and **<2 X-runs/hour**. Control is managed via a responsive web UI/OSC bridge. Open Core (GPLv3). This project is currently in a Proof of Concept (PoC) phase.
+**OLMS:** The Open Live Mixing System. A project aimed at transforming any compatible Mini-PC into a professional, dedicated digital mixing console. Built on a Real-Time Linux core, Ardour Headless, and JACK2/ALSA, it targets a Round-Trip Latency (RTL) of less than $< 5 \text{ ms}$ and **<2 X-runs/hour**. Control is managed via a responsive web UI/OSC bridge. Open Core (GPLv3). This project is currently in a Proof of Concept (PoC) phase.
 
 **Official Website:**
 
@@ -18,17 +18,16 @@
 
 For detailed technical specifications, refer to the [PROJECT_SPECS.md](https://github.com/Open-Live-Mixing-System-OLMS/Open-Live-Mixing-System/blob/main/PROJECT_SPECS.md) document.
 
-OLMS is built on a 3-layer architecture that ensures stability and performance:
+OLMS is built on a Simplified 2-Layer Architecture that ensures stability and performance:
 
 1.  **Web UI (Proprietary):** HTML5/JS/CSS-based user interface for controlling faders, mute, solo, pan, plugins, routing matrix, and metering.
-2.  **Middleware Layer (Proprietary):** A Node.js/Python daemon for managing session state, an add-on system, a scene/snapshot manager, and a bank manager.
-3.  **Ardour Headless (GPL):** The main audio engine, configured with 48-channel templates (6 banks of 8 channels), bypassed plugins, and static routing.
+2.  **Ardour Headless (GPL):** The main audio engine, configured with 48-channel templates (6 banks of 8 channels), bypassed plugins, and static routing. It integrates Lua Scripts for Session, Bank, Scene Management, and Dynamic I/O Patching.
 
 ### Block Track Management
 The system supports multi-channel configurations via 8-track "banks." At startup, a script detects available physical ports and activates only the necessary banks (e.g., 16 I/O → Banks 1-2). Inactive banks have their tracks disabled in Ardour and hidden in the UI but can be activated at runtime via OSC. Pre-configured templates are available for 16ch, 24ch, 32ch, and 48ch.
 
 ### Real-Time Configuration and CPU Pinning
-The system includes an advanced Real-Time (RT) kernel configuration and a dynamic CPU core allocation system. This ensures maximum isolation for critical audio processing, with processes like PipeWire, Ardour Headless, and Carla (for heavy reverbs) assigned to specific cores. This also includes pinning audio card IRQs and disabling features like Hyper-Threading and deep C-states to maximize stability and reduce latency.
+The system includes an advanced Real-Time (RT) kernel configuration. It focuses on simplifying IRQ pinning to a dedicated core for the audio card and using high RT priority for JACK/Ardour/Carla processes, rather than complex CPU core allocation. This also includes disabling features like Hyper-Threading and deep C-states to maximize stability and reduce latency.
 
 ---
 
@@ -59,13 +58,13 @@ We are committed to providing stable multi-channel live audio with **RTL below 5
 Our technology stack is built on solid open-source foundations:
 *   **Base Platform:** A custom Linux distribution with a **Real-Time (RT) kernel** for minimal latency.
 *   **Audio Core:** **Ardour** (DAW/Mixer) running in **headless mode** (without GUI), used as a stable LV2 host.
-*   **Audio Server:** **PipeWire (PW)**, replacing JACK, configured for maximum Real-Time (RT) priority.
+*   **Audio Server:** **JACK2 (Primary) / ALSA Backend (Fallback)**, configured for maximum Real-Time (RT) priority.
 *   **Control:** A complete, responsive, and touch-friendly **Web Browser** user interface (HTML5/JS) communicating with Ardour via an **OSC Bridge Server**.
-*   **Core Logic (Future Development):** An **OLMS Orchestrator Daemon (C++)** is envisioned to manage advanced features like redundancy, CPU Affinity, and failover mechanisms. This component is part of future development phases.
+*   **Core Logic:** **Lua Scripts (integrated within Ardour)** manage advanced features like Session, Bank, Scene Management, and Dynamic I/O Patching.
 
 ### The Open Core Pledge and Commercial Sustainability
 
-The entire critical part of the mixing system—the OLMS Distro, the RT Kernel, PipeWire configuration, Ardour Headless, the Web GUI, and the OSC Bridge Server—is **100% Open Source** and released under the **GPLv3 License**.
+The entire critical part of the mixing system—the OLMS Distro, the RT Kernel, JACK/ALSA configuration, Ardour Headless, Lua Scripts, the Web GUI, and the OSC Bridge Server—is **100% Open Source** and released under the **GPLv3 License**.
 
 Our path to sustainability is a **Hybrid Open Core Model**. The commercial strategy focuses on advanced, high-value features (e.g., Anti-Feedback System, Live Auto-Mixer) and the sale of **Service Level Agreements (SLA)** and **Officially Certified Hardware** (Mini-PCs guaranteed to meet RTL/X-run targets under full load). This model ensures stability and continuous development for the free core.
 

@@ -1,4 +1,4 @@
-# Open Live Mixing System (OLMS) - Complete Architecture v1.1
+# Open Live Mixing System (OLMS) - Complete Architecture v1.2
 
 ## Technology Stack
 *   **OS**: Linux RT (Arch) with PREEMPT_RT kernel
