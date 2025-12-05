@@ -1,4 +1,4 @@
-# Open Live Mixing System (OLMS) - Complete Architecture v1.2
+# Open Live Mixing System (OLMS) - Complete Architecture v1.3
 
 ## Technology Stack
 *   **OS**: Linux RT (Arch) with PREEMPT_RT kernel
@@ -66,7 +66,7 @@
 `threadirqs intel_pstate=disable processor.max_cstate=1`
 
 ### CPU Core Assignment (Implementation Details)
-*   **IRQ Pinning**: Pin the audio card's IRQ to a dedicated core (via `smp_affinity`). **Priority: IRQ scheduling is more significant than process pinning.**
+*   **IRQ Pinning**: Pin the audio card\\'s IRQ to a dedicated core (via `smp_affinity`). **Priority: IRQ scheduling is more significant than process pinning.**
 *   **Process Pinning**: Remove explicit core pinning for JACK/Ardour/Carla. Use high RT priority (`chrt -f 80`/`75`) instead.
 
 ### Critical Disabling
@@ -150,12 +150,33 @@
 *   **Xruns**: <2/hour with correct tuning
 *   **RAM overhead per inactive bank**: ~50-100MB
 
+## 🛑 Disk Guardrail & Stability
+
+Objective: Prevent catastrophic loss of recorded audio due to disk space exhaustion by proactively stopping the recording transport before the OS reports an I/O error.
+
+Mechanism: A dedicated systemd service, olms-disk-guard.service, is implemented to monitor the available space on the main partition (/) where recordings are stored (/var/olms/recordings/).
+
+Critical Threshold: The guardrail is triggered when the available free space drops below 10 GB (Target: 45 minutes of safety margin for 48ch @ 48kHz).
+
+Action on Trigger:
+
+    The service executes the disk_guard.sh script.
+
+    The script sends an OSC command to Ardour to stop the transport (/ardour/transport_stop i 1).
+
+    The script logs a CRITICAL error message.
+
+    (Future) The script sends a custom OSC message to the Web UI (/olms/status/disk_critical s "STOP") to display a prominent error overlay.
+
+Rationale: Ardour\\'s native protection is reactive (stops after the I/O error). OLMS uses this proactive system to ensure session integrity in critical live environments.
+
 ## Essential Scripts to Develop
 *   `irq_pinning.sh` - Configures IRQ affinity automatically
 *   `bank_manager.sh` - Enable/disable banks via OSC
 *   `hardware_detect.sh` - Detects I/O and suggests templates
 *   `rt_tuning.sh` - Applies kernel/CPU optimizations
 *   `ardour_launcher.sh` - Launches Ardour with correct RT parameters
+*   `disk_guard.sh` - Proactive safety script that monitors disk space and halts Ardour\\'s transport via OSC when the critical threshold (10 GB) is reached.
 
 ## Key Architectural Choices
 *   **Why VirtualBox for PoC**: Zero hardware investment until concept is validated with contributors.
@@ -163,3 +184,4 @@
 *   **Why ALSA loopback/Null-Sink**: Simulates 16 distinct mono I/O channels for routing/stability testing, overcoming JACK/ALSA configuration complexities.
 *   **Why Open Stage Control**: Quick drag-and-drop OSC testing before developing custom UI.
 *   **Why template manual first**: Understanding the Ardour workflow before automating with scripts.
+*   **Why dedicated olms user**: Ardour/JACK processes must not run as root for system stability and security. A dedicated olms service user is created, placed in the audio group, and granted Real-Time priority via /etc/security/limits.conf.
