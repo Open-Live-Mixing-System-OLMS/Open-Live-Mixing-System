@@ -1,0 +1,17 @@
+[Unit]
+Description=OLMS Ardour Headless Service
+After=olms-irq-pinning.service jack.service
+Wants=olms-irq-pinning.service jack.service
+Requires=jack.service
+
+[Service]
+Type=forking
+ExecStart=/usr/bin/ardour_launcher.sh
+Restart=on-failure
+RestartSec=5
+User=olms
+Group=audio
+WorkingDirectory=/var/olms
+
+[Install]
+WantedBy=multi-user.target

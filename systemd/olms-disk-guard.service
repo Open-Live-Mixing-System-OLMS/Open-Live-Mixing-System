@@ -1,0 +1,15 @@
+[Unit]
+Description=OLMS Disk Space Guard Service
+After=ardour.service
+Wants=ardour.service
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/disk_guard.sh
+Restart=always
+RestartSec=60
+User=root
+Group=root
+
+[Install]
+WantedBy=multi-user.target

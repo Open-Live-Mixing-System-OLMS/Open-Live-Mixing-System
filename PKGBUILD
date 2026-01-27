@@ -81,6 +81,14 @@ package() {
     cp -r engine "${pkgdir}/usr/lib/${pkgname}/"
     cp -r ui "${pkgdir}/usr/lib/${pkgname}/"
 
+    # Copy systemd service files
+    install -d "${pkgdir}/etc/systemd/system/"
+    install -m644 systemd/olms-rt-tuning.service "${pkgdir}/etc/systemd/system/"
+    install -m644 systemd/olms-irq-pinning.service "${pkgdir}/etc/systemd/system/"
+    install -m644 systemd/ardour.service "${pkgdir}/etc/systemd/system/"
+    install -m644 systemd/olms-affinity.service "${pkgdir}/etc/systemd/system/"
+    install -m644 systemd/olms-disk-guard.service "${pkgdir}/etc/systemd/system/"
+
     # Create directory for auth.json configuration as per OLMS_specs.md
     install -d "${pkgdir}/etc/olms/"
     # An initial auth.json or placeholder would go here

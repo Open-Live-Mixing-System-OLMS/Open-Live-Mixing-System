@@ -1,0 +1,14 @@
+[Unit]
+Description=OLMS Real-Time Tuning Service
+After=multi-user.target
+Wants=multi-user.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/rt_tuning.sh
+RemainAfterExit=yes
+User=root
+Group=root
+
+[Install]
+WantedBy=multi-user.target

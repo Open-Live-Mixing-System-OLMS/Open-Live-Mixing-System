@@ -1,0 +1,14 @@
+[Unit]
+Description=OLMS CPU Affinity Service
+After=ardour.service
+Wants=ardour.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/olms-apply-affinity
+RemainAfterExit=yes
+User=root
+Group=root
+
+[Install]
+WantedBy=multi-user.target

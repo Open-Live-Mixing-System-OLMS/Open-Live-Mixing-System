@@ -1,0 +1,14 @@
+[Unit]
+Description=OLMS IRQ Pinning Service
+After=olms-rt-tuning.service
+Wants=olms-rt-tuning.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/irq_pinning.sh
+RemainAfterExit=yes
+User=root
+Group=root
+
+[Install]
+WantedBy=multi-user.target

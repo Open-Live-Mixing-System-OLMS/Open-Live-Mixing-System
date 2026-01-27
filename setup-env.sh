@@ -43,4 +43,12 @@ touch scripts/disk_guard.sh
 echo "Updating Grub configuration..."
 sudo grub-mkconfig -o /boot/grub/grub.cfg
 
+# 7. Enable OLMS systemd services
+echo "Enabling OLMS systemd services..."
+sudo systemctl enable olms-rt-tuning.service
+sudo systemctl enable olms-irq-pinning.service
+sudo systemctl enable ardour.service
+sudo systemctl enable olms-affinity.service
+sudo systemctl enable olms-disk-guard.service
+
 echo "OLMS environment setup complete."

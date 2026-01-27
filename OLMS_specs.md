@@ -232,3 +232,197 @@ The core architecture manages 56 input channels, structured into standard banks 
 │   - Static routing                  │
 │   - Tracks can be disabled per bank │
 └─────────────────────────────────────┘
+
+## 🚀 Contributor Setup & Testing Guide
+
+This section provides instructions for contributors who want to test and develop OLMS without the complete X-Console distribution.
+
+### 1. Prerequisites for Contributors
+
+To set up a testing environment, you need:
+
+| Component | Version/Requirement | Purpose |
+| :--- | :--- | :--- |
+| **Operating System** | Arch Linux (recommended) | RT kernel support and package management |
+| **Audio System** | JACK2 + ALSA | Audio routing and hardware interface |
+| **DAW Engine** | Ardour 8 Headless | Audio processing and OSC control |
+| **Web Interface** | Open Stage Control | OSC/WebSocket bridge for testing |
+| **Scripts** | OLMS Core scripts | System configuration and startup |
+
+### 2. Manual Testing Environment Setup
+
+For contributors, OLMS provides a manual startup script that emulates the systemd service startup sequence without requiring the full distribution.
+
+#### 2.1 Using the Manual Startup Script
+
+The `scripts/olms-startup.sh` script provides a complete testing environment:
+
+```bash
+# Navigate to the OLMS-Core directory
+cd /path/to/OLMS-Core
+
+# Run the manual startup script
+./scripts/olms-startup.sh
+```
+
+**What the script does:**
+1. **Phase 1**: Executes RT optimization (`rt_tuning.sh`)
+2. **Phase 2**: Configures hardware IRQ pinning (`irq_pinning.sh`)
+3. **Phase 3**: Starts JACK and Ardour Headless (`ardour_launcher.sh`)
+4. **Phase 4**: Sets CPU affinity (`olms-apply-affinity`)
+5. **Phase 5**: Starts disk protection (`disk_guard.sh`)
+
+#### 2.2 Script Features
+
+- **Error Handling**: Each phase checks for success before proceeding
+- **Status Messages**: Real-time feedback on each operation
+- **Fallback Support**: Graceful handling when individual scripts are missing
+- **Monitoring Tools**: Built-in commands for system monitoring
+- **Clean Shutdown**: Instructions for proper system shutdown
+
+#### 2.3 Testing Workflow
+
+1. **Environment Preparation**:
+   ```bash
+   # Ensure all required packages are installed
+   sudo pacman -S alsa-utils ardour jack-example-tools pulseaudio-jack
+   
+   # Create necessary directories
+   sudo mkdir -p /var/olms
+   ```
+
+2. **Script Execution**:
+   ```bash
+   # Copy scripts to system locations (if needed)
+   sudo cp scripts/rt_tuning.sh /usr/bin/
+   sudo cp scripts/irq_pinning.sh /usr/bin/
+   sudo cp scripts/ardour_launcher.sh /usr/bin/
+   sudo cp scripts/disk_guard.sh /usr/bin/
+   
+   # Make scripts executable
+   sudo chmod +x /usr/bin/rt_tuning.sh
+   sudo chmod +x /usr/bin/irq_pinning.sh
+   sudo chmod +x /usr/bin/ardour_launcher.sh
+   sudo chmod +x /usr/bin/disk_guard.sh
+   
+   # Run the startup script
+   ./scripts/olms-startup.sh
+   ```
+
+3. **System Verification**:
+   ```bash
+   # Check JACK status
+   jack_control status
+   
+   # Monitor system logs
+   journalctl -f -u ardour.service
+   
+   # Verify disk space
+   df -h
+   ```
+
+### 3. Development and Debugging
+
+#### 3.1 Individual Component Testing
+
+Test each component separately for debugging:
+
+```bash
+# Test RT tuning only
+sudo /usr/bin/rt_tuning.sh
+
+# Test IRQ pinning only
+sudo /usr/bin/irq_pinning.sh
+
+# Test audio core only
+sudo /usr/bin/ardour_launcher.sh
+```
+
+#### 3.2 Performance Monitoring
+
+Monitor system performance during testing:
+
+```bash
+# Check CPU usage
+top -p $(pgrep -d',' ardour jackd)
+
+# Monitor audio latency
+jack_iodelay
+
+# Check for xruns
+jack_latency_test
+```
+
+#### 3.3 Troubleshooting Common Issues
+
+| Issue | Diagnosis | Solution |
+| :--- | :--- | :--- |
+| **JACK fails to start** | Check audio device permissions | `sudo usermod -aG audio $USER` |
+| **High latency** | Verify RT kernel and IRQ pinning | Check `rt_tuning.sh` output |
+| **xruns occur** | Increase buffer size or reduce load | Modify JACK parameters |
+| **Scripts not found** | Verify script installation paths | Check `/usr/bin/` directory |
+
+### 4. Integration with Development Workflow
+
+#### 4.1 Script Synchronization
+
+**IMPORTANT**: Any changes made to the manual startup script must be reflected in the corresponding systemd service files for production use:
+
+- `scripts/olms-startup.sh` ↔ `systemd/olms-*.service` files
+- Ensure parameter consistency between testing and production environments
+- Update documentation when making architectural changes
+
+#### 4.2 Template Development
+
+Contributors can modify the Ardour template for testing:
+
+```bash
+# Edit the template in GUI mode first
+ardour8 --template=engine/session-template/OLMS_48ch_6banks.template
+
+# Test changes with headless mode
+ardour8 --headless --template=engine/session-template/OLMS_48ch_6banks.template
+```
+
+#### 4.3 OSC Testing
+
+Test OSC communication with Open Stage Control:
+
+```bash
+# Start Open Stage Control
+open-stage-control --osc-port 3819
+
+# Test OSC commands
+oscsend osc.udp://localhost:3819 /strip/gain si "1" 0.8
+```
+
+### 5. Contributing Guidelines
+
+#### 5.1 Code Changes
+
+When contributing changes:
+
+1. **Test with Manual Script**: Always test changes using `scripts/olms-startup.sh`
+2. **Update Documentation**: Update this section when adding new components
+3. **Maintain Compatibility**: Ensure changes work with both testing and production environments
+4. **Add Error Handling**: Include proper error checking and user feedback
+
+#### 5.2 Script Maintenance
+
+Keep the manual startup script synchronized:
+
+- **File Paths**: Ensure script paths match installed locations
+- **Dependencies**: Document any new script dependencies
+- **Error Messages**: Provide clear error messages for troubleshooting
+- **Version Compatibility**: Test with different versions of dependencies
+
+#### 5.3 Testing Requirements
+
+Before submitting contributions:
+
+1. **Full Startup Test**: Verify complete system startup
+2. **Individual Component Test**: Test each script independently
+3. **Performance Test**: Ensure RT performance requirements are met
+4. **Documentation Test**: Verify all documentation is accurate and complete
+
+This manual testing approach allows contributors to work with OLMS without requiring the complete X-Console distribution, while maintaining compatibility with the production systemd-based architecture.
