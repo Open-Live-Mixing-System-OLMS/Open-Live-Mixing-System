@@ -426,3 +426,59 @@ Before submitting contributions:
 4. **Documentation Test**: Verify all documentation is accurate and complete
 
 This manual testing approach allows contributors to work with OLMS without requiring the complete X-Console distribution, while maintaining compatibility with the production systemd-based architecture.
+
+### 6. Testing vs Production Differences
+
+#### Audio Configuration
+- **Testing Mode** (default): Ardour launches with GUI for visual monitoring and debugging
+- **Production Mode** (`--prod`): Ardour runs headless for automated operation
+- **Virtual Mode** (`--virtual`): Uses JACK dummy backend when no audio hardware is available
+
+#### Hardware Requirements
+- **Testing**: Can work with or without audio hardware (falls back to virtual audio)
+- **Production**: Requires proper audio hardware configuration
+- **Virtual**: No audio hardware required, uses software-only audio processing
+
+#### Monitoring and Debugging
+- **Testing**: Full visual feedback, detailed logging, interactive debugging
+- **Production**: Minimal logging, automated monitoring, no user interface
+- **Virtual**: Software-only monitoring, useful for development without hardware
+
+#### Performance Characteristics
+- **Testing**: May have slightly higher latency due to GUI overhead
+- **Production**: Optimized for lowest possible latency and CPU usage
+- **Virtual**: Performance depends on system resources, no hardware constraints
+
+#### Use Cases
+- **Testing**: Development, debugging, feature validation, performance analysis
+- **Production**: Live performances, automated recording, headless operation
+- **Virtual**: Development without hardware, CI/CD pipelines, documentation
+
+#### Command Line Options
+
+The startup script supports the following options for different environments:
+
+```bash
+# Testing mode with GUI (default)
+./scripts/olms-startup.sh
+
+# Production mode (headless)
+./scripts/olms-startup.sh --prod
+
+# Virtual mode (no hardware required)
+./scripts/olms-startup.sh --virtual
+
+# Testing mode with virtual audio
+./scripts/olms-startup.sh --test --virtual
+```
+
+#### System Behavior Differences
+
+| Component | Testing Mode | Production Mode | Virtual Mode |
+| :--- | :--- | :--- | :--- |
+| **Ardour Interface** | Visible GUI window | No GUI, headless | No GUI, headless |
+| **JACK Backend** | ALSA/PulseAudio (if available) | ALSA/PulseAudio | Dummy (virtual) |
+| **Error Handling** | Interactive prompts | Silent operation | Silent operation |
+| **Logging Level** | Verbose with status messages | Minimal logging | Minimal logging |
+| **Startup Time** | Slower (GUI initialization) | Faster | Fastest |
+| **Resource Usage** | Higher (GUI overhead) | Lower | Lowest |

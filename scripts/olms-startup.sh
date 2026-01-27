@@ -24,12 +24,80 @@
 #   - /usr/bin/olms-apply-affinity
 #   - /usr/bin/disk_guard.sh
 #
-# Usage: ./scripts/olms-startup.sh
+# MODES:
+# - Testing Mode (default): Launches Ardour with GUI for development and monitoring
+# - Production Mode (--prod): Launches Ardour headless for automated operation
+# - Virtual Mode (--virtual): Uses virtual audio backend when no hardware is available
+#
+# Usage: ./scripts/olms-startup.sh [OPTIONS]
+# OPTIONS:
+#   --test, -t     Launch in testing mode with GUI (default)
+#   --prod, -p     Launch in production mode (headless)
+#   --virtual, -v  Force virtual audio backend (no hardware required)
+#   --help, -h     Show help message
 
 set -e
 
+# Default values
+MODE="test"
+FORCE_VIRTUAL=false
+
+# Function to show help
+show_help() {
+    echo "OLMS Manual Startup Script"
+    echo ""
+    echo "Usage: $0 [OPTIONS]"
+    echo ""
+    echo "OPTIONS:"
+    echo "  --test, -t     Launch in testing mode with GUI (default)"
+    echo "  --prod, -p     Launch in production mode (headless)"
+    echo "  --virtual, -v  Force virtual audio backend (no hardware required)"
+    echo "  --help, -h     Show this help message"
+    echo ""
+    echo "MODES:"
+    echo "  Testing Mode: Launches Ardour with GUI for development and monitoring"
+    echo "  Production Mode: Launches Ardour headless for automated operation"
+    echo "  Virtual Mode: Uses virtual audio backend when no hardware is available"
+    echo ""
+    echo "Examples:"
+    echo "  $0                   # Launch in testing mode with GUI"
+    echo "  $0 --prod            # Launch in production mode (headless)"
+    echo "  $0 --virtual         # Launch with virtual audio (no hardware)"
+    echo "  $0 --test --virtual  # Launch testing mode with virtual audio"
+}
+
+# Parse command line arguments
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -t|--test)
+            MODE="test"
+            shift
+            ;;
+        -p|--prod)
+            MODE="prod"
+            shift
+            ;;
+        -v|--virtual)
+            FORCE_VIRTUAL=true
+            shift
+            ;;
+        -h|--help)
+            show_help
+            exit 0
+            ;;
+        *)
+            echo "Unknown option: $1"
+            echo "Use --help for usage information"
+            exit 1
+            ;;
+    esac
+done
+
 echo "=== OLMS Manual Startup Script ==="
-echo "Starting OLMS system in testing mode..."
+echo "Starting OLMS system in $MODE mode..."
+if [ "$FORCE_VIRTUAL" = true ]; then
+    echo "Virtual audio mode enabled (no hardware required)"
+fi
 echo
 
 # Function to print status messages
@@ -69,9 +137,29 @@ fi
 echo
 
 print_status "Phase 3: Audio Core Startup"
-print_status "Starting JACK and Ardour Headless..."
+if [ "$MODE" = "prod" ]; then
+    print_status "Starting JACK and Ardour in production mode (headless)..."
+else
+    print_status "Starting JACK and Ardour in testing mode (with GUI)..."
+fi
+if [ "$FORCE_VIRTUAL" = true ]; then
+    print_status "Using virtual audio backend (no hardware required)"
+fi
+
+# Build ardour_launcher.sh arguments
+ARD_ARGS=""
+if [ "$MODE" = "prod" ]; then
+    ARD_ARGS="--prod"
+elif [ "$MODE" = "test" ]; then
+    ARD_ARGS="--test"
+fi
+
+if [ "$FORCE_VIRTUAL" = true ]; then
+    ARD_ARGS="$ARD_ARGS --virtual"
+fi
+
 if [ -f "/usr/bin/ardour_launcher.sh" ]; then
-    sudo /usr/bin/ardour_launcher.sh
+    sudo /usr/bin/ardour_launcher.sh $ARD_ARGS
     check_status "Audio Core Startup"
 else
     print_status "Warning: ardour_launcher.sh not found in /usr/bin/, skipping audio core startup"
