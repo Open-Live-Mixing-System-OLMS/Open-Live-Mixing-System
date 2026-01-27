@@ -1,5 +1,19 @@
 # Open Live Mixing System (OLMS) - GPL Core Engine and Logic (v 1.3)
 
+## TARGET FOLDER STRUCTURE
+olms-project/
+├── PKGBUILD                 # Arch package definition (Dependencies)
+├── setup-env.sh             # Bootstrap script (One-time: installation/permissions)
+├── scripts/                 # Operational scripts (On every startup/runtime)
+│   ├── rt_tuning.sh         # CPU/Kernel optimizations
+│   ├── audio_virtual.sh     # ALSA Loopback modules loading
+│   └── ardour_launcher.sh   # Ardour Headless launch command
+├── engine/                  # Audio Logic (OLMS Core)
+│   ├── session-template/    # Ardour .ardour template
+│   └── lua/                 # Lua scripts for bank management
+└── ui/                      # OSC Layout (Open Stage Control)
+
+
 ## Ardour Headless (GPL) Core
 
 
