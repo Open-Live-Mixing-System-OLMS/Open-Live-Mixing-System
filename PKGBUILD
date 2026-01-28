@@ -24,6 +24,7 @@ depends=(
     'dkms'
     'r8168-dkms'
     'r8168'
+    'libffado'
 )
 optdepends=(
     # Specifications mention Open Stage Control as web interface
