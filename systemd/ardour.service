@@ -6,7 +6,7 @@ Requires=jack.service
 
 [Service]
 Type=forking
-ExecStart=/usr/bin/ardour_launcher.sh
+ExecStart=/usr/bin/audio_engine.sh
 Restart=on-failure
 RestartSec=5
 User=olms

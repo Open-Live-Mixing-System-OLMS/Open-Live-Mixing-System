@@ -25,6 +25,7 @@ depends=(
     'r8168-dkms'
     'r8168'
     'libffado'
+    'xorg-server-xvfb'  # Required for headless Ardour in production mode
 )
 optdepends=(
     # Specifications mention Open Stage Control as web interface
@@ -70,6 +71,8 @@ package() {
     install -m755 scripts/audio_virtual.sh "${pkgdir}/usr/bin/"
     install -m755 scripts/ardour_launcher.sh "${pkgdir}/usr/bin/"
     install -m755 scripts/disk_guard.sh "${pkgdir}/usr/bin/"
+    install -m755 scripts/olms-apply-affinity.sh "${pkgdir}/usr/bin/olms-apply-affinity"
+    install -m755 scripts/cpu_shielding.sh "${pkgdir}/usr/bin/cpu_shielding"
 
     # Copy specifications to documentation
     install -m644 OLMS_specs.md "${pkgdir}/usr/share/doc/${pkgname}/"

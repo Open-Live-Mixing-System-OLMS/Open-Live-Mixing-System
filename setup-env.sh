@@ -39,6 +39,18 @@ touch scripts/ardour_launcher.sh
 touch scripts/audio_virtual.sh
 touch scripts/disk_guard.sh
 
+# Install CPU affinity configuration script
+echo "Installing CPU affinity configuration script..."
+sudo cp scripts/olms-apply-affinity.sh /usr/bin/olms-apply-affinity
+sudo chmod +x /usr/bin/olms-apply-affinity
+echo "✓ CPU affinity configuration script installed"
+
+# Install CPU shielding script
+echo "Installing CPU shielding script..."
+sudo cp scripts/cpu_shielding.sh /usr/bin/cpu_shielding
+sudo chmod +x /usr/bin/cpu_shielding
+echo "✓ CPU shielding script installed"
+
 # 6. Update Grub configuration after kernel/driver changes
 echo "Updating Grub configuration..."
 sudo grub-mkconfig -o /boot/grub/grub.cfg

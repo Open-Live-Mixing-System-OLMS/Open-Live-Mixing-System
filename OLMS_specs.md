@@ -7,17 +7,257 @@ olms-project/
 ├── scripts/                 # Operational scripts (On every startup/runtime)
 │   ├── rt_tuning.sh         # CPU/Kernel optimizations
 │   ├── audio_virtual.sh     # ALSA Loopback modules loading
-│   ├── ardour_launcher.sh   # Ardour Headless launch command
-│   ├── olms-startup.sh      # Manual startup script for testing
+│   ├── audio_engine.sh      # Audio engine launch command (renamed from ardour_launcher.sh)
+│   ├── olms-startup.sh      # Main startup script for complete system initialization
 │   ├── olms-test-launcher.sh # Test launcher script
+│   ├── prepare_machine.sh   # Machine preparation orchestrator
 │   ├── setup_realtime_privileges.sh # Realtime privileges setup
 │   ├── usb_audio_session_adapter.sh # USB audio session adaptation
-│   └── prepare_machine.sh   # Manual machine preparation script
+│   ├── irq_pinning.sh       # Hardware IRQ pinning (NEW)
+│   ├── olms-apply-affinity.sh # CPU affinity configuration (NEW)
+│   └── disk_guard.sh        # Disk space monitoring (NEW)
+├── config/                  # System configuration files (NEW - Centralized Management)
+│   ├── realtime/            # Realtime privileges configuration
+│   │   ├── 99-realtime.conf # Optimized realtime privileges for OLMS
+│   │   └── README.md        # Realtime configuration documentation
+│   ├── systemd/             # Systemd service configurations
+│   │   ├── olms-affinity.service         # CPU affinity service
+│   │   ├── olms-irq-pinning.service      # IRQ pinning service
+│   │   └── olms-rt-tuning.service        # RT tuning service
+│   └── scripts/             # Configuration management scripts
+│       ├── install-symlinks.sh           # Install system symlinks
+│       ├── remove-symlinks.sh            # Remove system symlinks
+│       └── test_complete_system.sh       # Complete system test
 ├── engine/                  # Audio Logic (OLMS Core)
 │   ├── session-template/    # Ardour .ardour template
 │   │   └── OLMS-POC/        # Proof of Concept template
 │   └── lua/                 # Lua scripts for bank management
 └── ui/                      # OSC Layout (Open Stage Control)
+
+## 🔧 Configuration Management Architecture (NEW)
+
+OLMS implements a centralized configuration management system using symbolic links (symlinks) to maintain version-controlled system configurations while enabling seamless system integration.
+
+### 📁 Configuration Structure Overview
+
+The `config/` directory serves as the central repository for all system-critical configuration files, organized into logical subdirectories:
+
+```
+config/
+├── realtime/           # Realtime privileges and audio system configuration
+│   ├── 99-realtime.conf    # Optimized realtime privileges for JACK/Ardour
+│   └── README.md           # Realtime configuration documentation
+├── systemd/            # Systemd service configurations
+│   ├── olms-affinity.service      # CPU affinity management service
+│   ├── olms-irq-pinning.service   # Hardware IRQ pinning service
+│   └── olms-rt-tuning.service     # Realtime system tuning service
+└── scripts/            # Configuration management utilities
+    ├── install-symlinks.sh        # System symlink installation
+    ├── remove-symlinks.sh         # System symlink removal
+    └── test_complete_system.sh    # Comprehensive system testing
+```
+
+### 🔄 Symlink Management System
+
+#### **Installation Process**
+The `config/scripts/install-symlinks.sh` script creates system-wide symlinks that point to the version-controlled configuration files:
+
+```bash
+# Example symlink creation
+sudo ln -sf /path/to/OLMS-Core/config/realtime/99-realtime.conf \
+           /etc/security/limits.d/99-realtime.conf
+```
+
+#### **Key Benefits**
+- **Version Control**: All configuration files are tracked in Git
+- **Easy Deployment**: Single command installation across systems
+- **Rollback Capability**: Simple symlink removal for system restoration
+- **Consistency**: Ensures identical configurations across development and production
+- **Documentation**: Each configuration includes inline documentation
+
+#### **Installation Commands**
+```bash
+# Install all symlinks
+./config/scripts/install-symlinks.sh
+
+# Install for specific user
+./config/scripts/install-symlinks.sh --user john
+
+# Verify installation
+./config/scripts/install-symlinks.sh --verify
+
+# Remove symlinks
+./config/scripts/install-symlinks.sh --remove
+```
+
+### ⚡ Optimized Realtime Privileges
+
+The `config/realtime/99-realtime.conf` file provides maximum realtime privileges specifically optimized for professional audio production:
+
+#### **Privilege Levels**
+- **Realtime Priority**: 99 (maximum)
+- **Memory Lock**: Unlimited
+- **Nice Value**: -20 (highest priority)
+- **File Descriptors**: 524,288
+- **Process Limits**: 131,072
+
+#### **Target Applications**
+- JACK Audio Connection Kit
+- Ardour DAW
+- USB Audio Interfaces
+- Audio Plugins and VSTs
+- System audio services
+
+#### **Group-Based Configuration**
+```bash
+# Primary configuration uses audio group
+@audio - rtprio 99
+@audio - memlock unlimited
+@audio - nice -20
+
+# Fallback for individual users
+* - rtprio 99
+* - memlock unlimited
+```
+
+### 🧪 System Testing and Verification
+
+The `config/scripts/test_complete_system.sh` script provides comprehensive testing of the entire OLMS system:
+
+#### **Test Coverage**
+1. **Realtime Privileges**: Verifies privilege configuration and user group membership
+2. **CPU Shielding**: Validates cgroup allocation and process isolation
+3. **Audio Processes**: Checks JACK/Ardour process management and RT priority
+4. **IRQ Pinning**: Validates hardware interrupt configuration
+5. **System Integration**: End-to-end system functionality
+
+#### **Test Execution**
+```bash
+# Run complete system test
+./config/scripts/test_complete_system.sh
+
+# Run quick test (skip some checks)
+./config/scripts/test_complete_system.sh --quick
+
+# Test from any directory
+cd /any/path && /path/to/OLMS-Core/config/scripts/test_complete_system.sh
+```
+
+#### **Test Output Example**
+```
+=== OLMS Complete System Test ===
+
+✓ Realtime privileges: PASSED
+✓ CPU shielding: PASSED
+✓ Audio processes: PASSED
+✓ IRQ pinning: PASSED
+
+✓ ALL TESTS PASSED - OLMS system is properly configured
+Your OLMS system is ready for professional audio production!
+```
+
+### 🚀 Integration with System Startup
+
+The symlink-based configuration integrates seamlessly with the existing startup architecture:
+
+#### **Startup Sequence Integration**
+```
+olms-startup.sh
+├── Phase 1: rt_tuning.sh (uses optimized realtime.conf)
+├── Phase 2: irq_pinning.sh
+├── Phase 3: prepare_machine.sh
+├── Phase 4: audio_engine.sh
+└── Phase 5: olms-apply-affinity.sh (CPU shielding with cgroups)
+```
+
+#### **Systemd Service Integration**
+The systemd service files in `config/systemd/` can be symlinked to `/etc/systemd/system/` for automated system management:
+
+```bash
+# Enable CPU affinity service
+sudo systemctl enable olms-affinity.service
+
+# Enable IRQ pinning service
+sudo systemctl enable olms-irq-pinning.service
+
+# Enable RT tuning service
+sudo systemctl enable olms-rt-tuning.service
+```
+
+### 📋 Configuration Management Workflow
+
+#### **Development Workflow**
+1. **Modify Configuration**: Edit files in `config/` directory
+2. **Test Changes**: Use `install-symlinks.sh` to test locally
+3. **Run Tests**: Execute `test_complete_system.sh` for validation
+4. **Commit Changes**: Version control tracks all modifications
+5. **Deploy**: Use installation script for production deployment
+
+#### **Deployment Workflow**
+1. **Clone Repository**: Get latest OLMS-Core version
+2. **Install Symlinks**: Run `install-symlinks.sh` on target system
+3. **Verify Installation**: Use `--verify` flag for confirmation
+4. **Test System**: Run comprehensive system test
+5. **Enable Services**: Activate systemd services as needed
+
+#### **Maintenance Workflow**
+1. **Update Configuration**: Modify files in `config/` directory
+2. **Test Locally**: Verify changes in development environment
+3. **Deploy Updates**: Re-run installation script on target systems
+4. **Validate**: Confirm system functionality with tests
+
+### 🎯 Key Advantages
+
+#### **For Developers**
+- **Centralized Management**: All configurations in one location
+- **Version Control**: Complete history and change tracking
+- **Easy Testing**: Rapid deployment and rollback capabilities
+- **Documentation**: Inline comments and README files
+
+#### **For System Administrators**
+- **Consistent Deployment**: Identical configurations across systems
+- **Automated Installation**: Single command setup
+- **Easy Maintenance**: Simple update and rollback procedures
+- **System Integration**: Seamless integration with existing infrastructure
+
+#### **For Production Systems**
+- **Stability**: Tested and validated configurations
+- **Performance**: Optimized settings for audio production
+- **Reliability**: Proven configuration patterns
+- **Monitoring**: Comprehensive testing and verification tools
+
+This centralized configuration management system ensures that OLMS maintains high-quality, consistent, and reliable system configurations across all deployment scenarios while providing maximum flexibility for development and maintenance.
+
+## Script Architecture Documentation
+
+For detailed information about the script implementation, architecture, and usage examples, see: [SCRIPTS_IMPLEMENTATION_SUMMARY.md](./SCRIPTS_IMPLEMENTATION_SUMMARY.md)
+
+### Key Architectural Changes
+
+**Hierarchical Script Design:**
+- `olms-startup.sh` acts as the main coordinator for complete system startup
+- `prepare_machine.sh` acts as a specialized orchestrator for machine preparation
+- `audio_engine.sh` handles audio engine startup independently
+- Individual scripts handle specific phases of system preparation
+- Scripts can be used independently for testing and debugging
+- Synchronized with systemd services for production deployment
+
+**Startup Sequence:**
+```
+olms-startup.sh (Main Coordinator)
+├── Phase 1: rt_tuning.sh
+├── Phase 2: irq_pinning.sh  
+├── Phase 3: prepare_machine.sh [args]
+│   ├── Phase 1: rt_tuning.sh
+│   └── Phase 2: irq_pinning.sh
+├── Phase 4: audio_engine.sh [args]
+└── Phase 5: olms-apply-affinity.sh (applied AFTER audio processes are running)
+```
+
+**Independent Usage:**
+- **Complete System**: `./scripts/olms-startup.sh [mode]`
+- **Machine Prep Only**: `./scripts/prepare_machine.sh [mode]`
+- **Audio Engine Only**: `./scripts/audio_engine.sh [mode]`
 
 
 ## Ardour Headless (GPL) Core

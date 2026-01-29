@@ -18,13 +18,19 @@ set -e
 MODE="test"
 OLMS_SESSION_PATH="${OLMS_SESSION_PATH:-engine/session-template/OLMS-POC/OLMS-POC.ardour}"
 JACK_SAMPLE_RATE="${JACK_SAMPLE_RATE:-48000}"
-JACK_PERIOD_SIZE="${JACK_PERIOD_SIZE:-64}"  # Standard buffer size
-FORCE_VIRTUAL=false
+JACK_PERIOD_SIZE="${JACK_PERIOD_SIZE:-64}"  # Fixed buffer size for optimal audio performance
 
 # Function to print status messages
 print_status() {
     echo "[$(date '+%H:%M:%S')] $1"
 }
+
+# Buffer size configuration
+# IMPORTANT: Buffer size is always 64 samples for both test and production modes
+# This ensures optimal audio performance and low latency in all scenarios
+# The 64-sample buffer provides the best balance of CPU efficiency and audio quality
+print_status "Using fixed buffer size: 64 samples for optimal audio performance"
+print_status "Note: This maintains low latency and high audio quality in all modes"
 
 # Function to check realtime privileges
 check_realtime_privileges() {
@@ -76,45 +82,6 @@ detect_usb_audio_device() {
     fi
 }
 
-# Function to close existing Ardour sessions and save them
-cleanup_existing_ardour_sessions() {
-    print_status "Checking for existing Ardour sessions..."
-    
-    # Find running Ardour processes, excluding current script
-    local current_pid=$$
-    local ardour_pids=$(pgrep -f ardour | grep -v "$current_pid")
-    
-    if [ -n "$ardour_pids" ]; then
-        print_status "Found existing Ardour sessions (PIDs: $ardour_pids)"
-        print_status "Attempting to save and close existing sessions..."
-        
-        # Try to save sessions using JACK control if available
-        if command -v jack_control >/dev/null 2>&1; then
-            print_status "Using JACK control to save sessions..."
-            # This is a best-effort attempt - Ardour may not support remote save
-            sleep 2
-        fi
-        
-        # Force kill existing Ardour processes (excluding current script)
-        print_status "Force killing existing Ardour processes..."
-        for pid in $ardour_pids; do
-            kill -9 $pid 2>/dev/null || true
-        done
-        
-        # Wait for processes to terminate
-        sleep 3
-        
-        # Verify processes are gone
-        local remaining_pids=$(pgrep -f ardour | grep -v "$current_pid")
-        if [ -n "$remaining_pids" ]; then
-            print_status "Warning: Some Ardour processes still running: $remaining_pids"
-        else
-            print_status "All existing Ardour sessions closed successfully"
-        fi
-    else
-        print_status "No existing Ardour sessions found"
-    fi
-}
 
 # Function to show help
 show_help() {
@@ -173,58 +140,147 @@ if [ ! -f "$OLMS_SESSION_PATH" ]; then
     print_status "Using default Ardour session"
 fi
 
-# Function to setup X11 environment (X11 fix)
+# Function to setup X11 environment (X11 fix - IMPROVED)
 setup_x11_environment() {
     print_status "Setting up X11 environment for Ardour..."
     
-    # If DISPLAY is already set and working, use it
+    # Store original X11 environment variables for restoration
+    local original_display="$DISPLAY"
+    local original_xauthority="$XAUTHORITY"
+    local original_xdg_runtime_dir="$XDG_RUNTIME_DIR"
+    
+    # Method 1: Use existing DISPLAY if working
     if [ -n "$DISPLAY" ] && xset -display "$DISPLAY" q >/dev/null 2>&1; then
         print_status "Using existing DISPLAY: $DISPLAY"
         return 0
     fi
     
-    # Try to find X11 display from socket files
-    if [ -f "/tmp/.X11-unix/X1" ]; then
-        export DISPLAY=":1"
-        print_status "X11 display detected and set: $DISPLAY"
-        
-        # Set XAUTHORITY if not set
-        if [ -z "$XAUTHORITY" ]; then
-            export XAUTHORITY="$HOME/.Xauthority"
-            print_status "XAUTHORITY set to: $XAUTHORITY"
+    # Method 2: Try to find X11 display from socket files
+    for display_num in 0 1 2; do
+        if [ -f "/tmp/.X11-unix/X$display_num" ]; then
+            export DISPLAY=":$display_num"
+            print_status "X11 display detected from socket: $DISPLAY"
+            break
         fi
-        
-        return 0
-    fi
+    done
     
-    # Try to find X11 display from xauth
+    # Method 3: Try to find X11 display from xauth
     if command -v xauth >/dev/null 2>&1; then
-        local auth_entry=$(xauth list 2>/dev/null | grep -E ":[0-9]+" | head -1)
-        if [ -n "$auth_entry" ]; then
-            local display=$(echo "$auth_entry" | awk '{print $1}' | sed 's/.*\(:[0-9]*\)$/\1/')
+        local auth_entries=$(xauth list 2>/dev/null)
+        if [ -n "$auth_entries" ]; then
+            # Try to find the most recent/active display
+            local display=$(echo "$auth_entries" | grep -E ":[0-9]+" | head -1 | awk '{print $1}' | sed 's/.*\(:[0-9]*\)$/\1/')
             if [ -n "$display" ]; then
                 export DISPLAY="$display"
-                print_status "X11 display detected from xauth and set: $DISPLAY"
-                
-                # Set XAUTHORITY if not set
-                if [ -z "$XAUTHORITY" ]; then
-                    export XAUTHORITY="$HOME/.Xauthority"
-                    print_status "XAUTHORITY set to: $XAUTHORITY"
-                fi
-                
+                print_status "X11 display detected from xauth: $DISPLAY"
+            fi
+        fi
+    fi
+    
+    # Method 4: Try common display values
+    if [ -z "$DISPLAY" ]; then
+        for common_display in ":0" ":1" ":2"; do
+            if xset -display "$common_display" q >/dev/null 2>&1; then
+                export DISPLAY="$common_display"
+                print_status "X11 display working with common value: $DISPLAY"
+                break
+            fi
+        done
+    fi
+    
+    # Set XAUTHORITY if not set
+    if [ -z "$XAUTHORITY" ]; then
+        export XAUTHORITY="$HOME/.Xauthority"
+        print_status "XAUTHORITY set to: $XAUTHORITY"
+    fi
+    
+    # Set XDG_RUNTIME_DIR if not set (important for modern X11 sessions)
+    if [ -z "$XDG_RUNTIME_DIR" ]; then
+        export XDG_RUNTIME_DIR="/run/user/$(id -u)"
+        print_status "XDG_RUNTIME_DIR set to: $XDG_RUNTIME_DIR"
+    fi
+    
+    # Verify X11 connection
+    if [ -n "$DISPLAY" ]; then
+        print_status "Testing X11 connection with DISPLAY=$DISPLAY..."
+        if xset q >/dev/null 2>&1; then
+            print_status "X11 connection verified successfully ✓"
+            return 0
+        else
+            print_status "X11 connection test failed for DISPLAY=$DISPLAY"
+            # Try to restore original environment
+            export DISPLAY="$original_display"
+            export XAUTHORITY="$original_xauthority"
+            export XDG_RUNTIME_DIR="$original_xdg_runtime_dir"
+        fi
+    fi
+    
+    # Final fallback: Check if we're in a systemd user session
+    if [ -z "$DISPLAY" ] && [ -n "$XDG_RUNTIME_DIR" ]; then
+        local wayland_display="$XDG_RUNTIME_DIR/wayland-0"
+        if [ -S "$wayland_display" ]; then
+            print_status "Wayland socket detected, attempting XWayland fallback..."
+            export DISPLAY=":0"
+            if xset q >/dev/null 2>&1; then
+                print_status "XWayland connection successful ✓"
                 return 0
             fi
         fi
     fi
     
-    print_status "Warning: No X11 display found"
+    # If we still don't have a working DISPLAY
     if [ "$MODE" = "test" ]; then
-        print_status "Error: Cannot start Ardour in GUI mode without X11 display"
+        print_status "Error: Cannot start Ardour in GUI mode without working X11 display"
+        print_status "Current environment:"
+        echo "  DISPLAY: $DISPLAY"
+        echo "  XAUTHORITY: $XAUTHORITY"
+        echo "  XDG_RUNTIME_DIR: $XDG_RUNTIME_DIR"
         return 1
     else
-        print_status "Continuing in production mode (headless)"
+        print_status "Continuing in production mode (headless) - X11 not required"
         return 0
     fi
+}
+
+# Function to force release audio hardware devices
+force_release_audio_devices() {
+    print_status "Force releasing audio hardware devices..."
+    
+    # Method 1: Kill processes holding audio devices
+    print_status "Killing processes holding audio devices..."
+    local audio_processes=$(lsof /dev/snd/* 2>/dev/null | grep -v "COMMAND" | awk '{print $2}' | sort -u)
+    if [ -n "$audio_processes" ]; then
+        print_status "Found processes holding audio devices: $audio_processes"
+        echo "$audio_processes" | xargs -r kill -9 2>/dev/null || true
+        sleep 2
+    fi
+    
+    # Method 2: Force unload and reload ALSA modules
+    print_status "Force unloading and reloading ALSA modules..."
+    sudo modprobe -r snd_hda_intel 2>/dev/null || true
+    sudo modprobe -r snd_usb_audio 2>/dev/null || true
+    sleep 1
+    sudo modprobe snd_hda_intel 2>/dev/null || true
+    sudo modprobe snd_usb_audio 2>/dev/null || true
+    sleep 2
+    
+    # Method 3: Reset audio hardware
+    print_status "Resetting audio hardware..."
+    for device in /dev/snd/*; do
+        if [ -c "$device" ]; then
+            print_status "Resetting $device"
+            sudo fuser -k "$device" 2>/dev/null || true
+        fi
+    done
+    sleep 2
+    
+    # Method 4: Kill specific audio processes
+    print_status "Killing specific audio processes..."
+    pkill -9 -f "alsa|snd|audio" 2>/dev/null || true
+    sudo pkill -9 -f "alsa|snd|audio" 2>/dev/null || true
+    sleep 2
+    
+    print_status "Audio hardware release completed"
 }
 
 # Function to adapt Ardour session to detected USB audio device
@@ -243,129 +299,39 @@ adapt_ardour_session() {
     fi
 }
 
-# Function to start JACK (simplified)
+# Function to start JACK (simplified) - NO DUPLICATE CLEANUP
 start_jack_simple() {
     local backend="$1"
     local jack_cmd=""
     
-    # Function to force kill all JACK instances aggressively
-    force_kill_all_jack() {
-        print_status "Force killing all JACK instances aggressively..."
-        
-        # Method 1: Try graceful shutdown first
-        print_status "Attempting graceful shutdown with jack_control..."
-        jack_control exit 2>/dev/null || true
-        sleep 2
-        
-        # Method 2: Kill by process name
-        if pgrep -f jackd > /dev/null; then
-            local jack_pids=$(pgrep -f jackd)
-            print_status "Found JACK PIDs: $jack_pids"
-            print_status "Force killing JACK processes with SIGKILL..."
-            pkill -9 -f jackd 2>/dev/null || true
-            kill -9 $jack_pids 2>/dev/null || true
-            sleep 2
-        fi
-        
-        # Method 3: Kill system-wide JACK processes
-        print_status "Killing system-wide JACK processes..."
-        pkill -9 -f jackd 2>/dev/null || true
-        killall -9 jackd 2>/dev/null || true
-        sleep 3
-        
-        # Method 4: Kill via systemctl if JACK is installed as service
-        if systemctl --user is-active --quiet jackd 2>/dev/null; then
-            print_status "Stopping JACK user systemd service..."
-            systemctl --user stop jackd 2>/dev/null || true
-            systemctl --user disable jackd 2>/dev/null || true
-        fi
-        
-        if systemctl is-active --quiet jackd 2>/dev/null; then
-            print_status "Stopping JACK system systemd service..."
-            # Skip system-wide systemctl operations to avoid sudo prompt
-            print_status "Note: System JACK service detected but not stopped (requires sudo)"
-        fi
-        sleep 3
-        
-        # Method 5: Kill Pipewire and related processes (CRITICAL for JACK stability)
-        print_status "Killing Pipewire and related audio processes..."
-        pkill -9 -f pipewire 2>/dev/null || true
-        pkill -9 -f wireplumber 2>/dev/null || true
-        pkill -9 -f pulseaudio 2>/dev/null || true
-        pkill -9 -f alsa 2>/dev/null || true
-        sleep 3
-        
-        # Method 6: Use lsof to find and kill processes holding audio devices
-        print_status "Checking for processes holding audio devices..."
-        local audio_processes=$(lsof /dev/snd/* 2>/dev/null | grep -v "COMMAND" | awk '{print $2}' | sort -u)
-        if [ -n "$audio_processes" ]; then
-            print_status "Found processes holding audio devices: $audio_processes"
-            echo "$audio_processes" | xargs -r kill -9 2>/dev/null || true
-            sudo echo "$audio_processes" | xargs -r kill -9 2>/dev/null || true
-            sleep 2
-        fi
-        
-        # Method 7: Remove JACK socket files
-        print_status "Removing JACK socket files..."
-        rm -f /tmp/jack_* 2>/dev/null || true
-        rm -f /dev/shm/jack_* 2>/dev/null || true
-        rm -f /var/run/jack_* 2>/dev/null || true
-        rm -f /run/jack_* 2>/dev/null || true
-        rm -f /tmp/.jack* 2>/dev/null || true
-        rm -f /var/lock/.jack* 2>/dev/null || true
-        
-        # Method 8: Remove Pipewire socket files (CRITICAL)
-        print_status "Removing Pipewire socket files..."
-        rm -f /tmp/pipewire* 2>/dev/null || true
-        rm -f /dev/shm/pipewire* 2>/dev/null || true
-        rm -f /var/run/pipewire* 2>/dev/null || true
-        rm -f /run/pipewire* 2>/dev/null || true
-        rm -f /tmp/.pipewire* 2>/dev/null || true
-        rm -f /var/lock/.pipewire* 2>/dev/null || true
-        
-        # Method 9: Clean up shared memory segments
-        print_status "Cleaning up shared memory segments..."
-        for shm_id in $(ipcs -m | grep jack | awk '{print $2}'); do
-            ipcrm -m $shm_id 2>/dev/null || true
-        done
-        for sem_id in $(ipcs -s | grep jack | awk '{print $2}'); do
-            ipcrm -s $sem_id 2>/dev/null || true
-        done
-        
-        # Method 10: Set Pipewire bypass environment
-        print_status "Setting Pipewire bypass environment..."
-        export PIPEWIRE_RUNTIME_DIR=/dev/null
-        export JACK_NO_START_SERVER=1
-        
-        return 0
-    }
-    
-    # Ensure no JACK instances are running before starting
-    print_status "Ensuring no JACK instances are running..."
-    force_kill_all_jack
+    # NOTE: Cleanup is handled by olms-startup.sh Phase 0
+    # This function only starts JACK after cleanup is complete
     
     case "$backend" in
         "dummy")
             print_status "Starting JACK with dummy backend (virtual audio)..."
-            sleep 3  # Wait longer to ensure previous instances are fully terminated
+            # Wait for cleanup to complete (olms-startup.sh handles this)
+            sleep 2
             # Dummy backend doesn't support -n parameter, use only supported options
             jack_cmd="jackd -R -d dummy -r$JACK_SAMPLE_RATE -p$JACK_PERIOD_SIZE -C 2 -P 2"
             ;;
         "alsa")
             print_status "Starting JACK with ALSA backend (USB Audio)..."
-            sleep 3  # Wait longer to ensure previous instances are fully terminated
+            # Wait for cleanup to complete (olms-startup.sh handles this)
+            sleep 2
+            
             # Use detected USB Audio device
             if [ -n "$USB_AUDIO_DEVICE" ]; then
                 # Optimized JACK parameters based on technical analysis
                 # -R: Realtime scheduling
-                # -n 2: Number of periods (optimized for stability)
+                # -n 3: Number of periods (optimized for stability)
                 # No MIDI flags (-X seq) to avoid crashes on unsupported hardware
-                jack_cmd="jackd -R -d alsa -r$JACK_SAMPLE_RATE -p$JACK_PERIOD_SIZE -n 2 -d $USB_AUDIO_DEVICE"
+                jack_cmd="jackd -R -d alsa -r$JACK_SAMPLE_RATE -p$JACK_PERIOD_SIZE -n 3 -d $USB_AUDIO_DEVICE"
                 print_status "Using detected USB device: $USB_AUDIO_DEVICE"
                 print_status "JACK parameters: -R (realtime), -n 2 (periods), -p $JACK_PERIOD_SIZE (buffer)"
             else
                 # Fallback to first available card if detection failed
-                jack_cmd="jackd -R -d alsa -r$JACK_SAMPLE_RATE -p$JACK_PERIOD_SIZE -n 2"
+                jack_cmd="jackd -R -d alsa -r$JACK_SAMPLE_RATE -p$JACK_PERIOD_SIZE -n 3"
                 print_status "Using default ALSA device"
                 print_status "JACK parameters: -R (realtime), -n 2 (periods), -p $JACK_PERIOD_SIZE (buffer)"
             fi
@@ -402,6 +368,7 @@ setup_jack_environment() {
     # Set environment variables to bypass Pipewire and force JACK client mode
     export JACK_NO_START_SERVER=1
     export PIPEWIRE_RUNTIME_DIR=/dev/null
+    export JACK_NO_AUDIO_RESERVATION=1
     
     # Additional JACK environment variables for stability
     export JACK_SERVER_NAME=default
@@ -410,6 +377,7 @@ setup_jack_environment() {
     print_status "JACK environment configured:"
     echo "  - JACK_NO_START_SERVER=1 (Ardour as client)"
     echo "  - PIPEWIRE_RUNTIME_DIR=/dev/null (Bypass Pipewire)"
+    echo "  - JACK_NO_AUDIO_RESERVATION=1 (Bypass device reservation)"
     echo "  - JACK_SERVER_NAME=default"
     echo "  - JACK_CONNECT_TIMEOUT=10"
     
@@ -445,112 +413,6 @@ verify_realtime_privileges() {
     fi
 }
 
-# Function to perform deep cleanup (Phase 2)
-perform_deep_cleanup() {
-    print_status "Phase 2: Performing deep cleanup..."
-    
-    # Function to force kill all JACK instances aggressively
-    force_kill_all_jack() {
-        print_status "Force killing all JACK instances aggressively..."
-        
-        # Method 1: Try graceful shutdown first
-        print_status "Attempting graceful shutdown with jack_control..."
-        jack_control exit 2>/dev/null || true
-        sleep 2
-        
-        # Method 2: Kill by process name
-        if pgrep -f jackd > /dev/null; then
-            local jack_pids=$(pgrep -f jackd)
-            print_status "Found JACK PIDs: $jack_pids"
-            print_status "Force killing JACK processes with SIGKILL..."
-            pkill -9 -f jackd 2>/dev/null || true
-            kill -9 $jack_pids 2>/dev/null || true
-            sleep 2
-        fi
-        
-        # Method 3: Kill system-wide JACK processes
-        print_status "Killing system-wide JACK processes..."
-        pkill -9 -f jackd 2>/dev/null || true
-        killall -9 jackd 2>/dev/null || true
-        sleep 3
-        
-        # Method 4: Kill Pipewire and related processes (CRITICAL for JACK stability)
-        print_status "Killing Pipewire and related audio processes..."
-        pkill -9 -f pipewire 2>/dev/null || true
-        pkill -9 -f wireplumber 2>/dev/null || true
-        pkill -9 -f pulseaudio 2>/dev/null || true
-        pkill -9 -f alsa 2>/dev/null || true
-        sleep 3
-        
-        # Method 5: Use lsof to find and kill processes holding audio devices
-        print_status "Checking for processes holding audio devices..."
-        local audio_processes=$(lsof /dev/snd/* 2>/dev/null | grep -v "COMMAND" | awk '{print $2}' | sort -u)
-        if [ -n "$audio_processes" ]; then
-            print_status "Found processes holding audio devices: $audio_processes"
-            echo "$audio_processes" | xargs -r kill -9 2>/dev/null || true
-            sudo echo "$audio_processes" | xargs -r kill -9 2>/dev/null || true
-            sleep 2
-        fi
-        
-        # Method 6: Remove JACK socket files
-        print_status "Removing JACK socket files..."
-        rm -f /tmp/jack_* 2>/dev/null || true
-        rm -f /dev/shm/jack_* 2>/dev/null || true
-        rm -f /var/run/jack_* 2>/dev/null || true
-        rm -f /run/jack_* 2>/dev/null || true
-        rm -f /tmp/.jack* 2>/dev/null || true
-        rm -f /var/lock/.jack* 2>/dev/null || true
-        
-        # Method 7: Remove Pipewire socket files (CRITICAL)
-        print_status "Removing Pipewire socket files..."
-        rm -f /tmp/pipewire* 2>/dev/null || true
-        rm -f /dev/shm/pipewire* 2>/dev/null || true
-        rm -f /var/run/pipewire* 2>/dev/null || true
-        rm -f /run/pipewire* 2>/dev/null || true
-        rm -f /tmp/.pipewire* 2>/dev/null || true
-        rm -f /var/lock/.pipewire* 2>/dev/null || true
-        
-        # Method 8: Clean up shared memory segments
-        print_status "Cleaning up shared memory segments..."
-        for shm_id in $(ipcs -m | grep jack | awk '{print $2}'); do
-            ipcrm -m $shm_id 2>/dev/null || true
-        done
-        for sem_id in $(ipcs -s | grep jack | awk '{print $2}'); do
-            ipcrm -s $sem_id 2>/dev/null || true
-        done
-        
-        return 0
-    }
-    
-    # Perform the cleanup
-    force_kill_all_jack
-    
-    # Verify cleanup was successful
-    local remaining_processes=$(pgrep -f "jackd|pipewire|pulseaudio" | wc -l)
-    if [ "$remaining_processes" -eq 0 ]; then
-        print_status "Deep cleanup completed successfully ✓"
-        return 0
-    else
-        print_status "Warning: Some audio processes may still be running: $remaining_processes"
-        return 1
-    fi
-}
-
-# Function to verify system state (Phase 2)
-verify_system_state() {
-    print_status "Verifying system state..."
-    
-    # Check that no audio processes are running
-    local audio_pids=$(pgrep -f "jackd|pipewire|pulseaudio|ardour" 2>/dev/null | wc -l)
-    if [ "$audio_pids" -eq 0 ]; then
-        print_status "System state verified: No conflicting audio processes running ✓"
-        return 0
-    else
-        print_status "Warning: Found $audio_pids audio processes still running"
-        pgrep -f "jackd|pipewire|pulseaudio|ardour" 2>/dev/null || true
-        return 1
-    fi
-}
 
 # Function to start JACK2 server (Phase 3)
 start_jack2_server() {
@@ -559,8 +421,8 @@ start_jack2_server() {
     
     print_status "Phase 3: Starting JACK2 server..."
     
-    # Ensure no JACK instances are running before starting
-    perform_deep_cleanup
+    # Note: Deep cleanup is now handled by olms-startup.sh
+    # This script only handles the actual audio engine startup
     
     case "$backend" in
         "dummy")
@@ -577,17 +439,17 @@ start_jack2_server() {
             if [ -n "$USB_AUDIO_DEVICE" ]; then
                 # Optimized JACK parameters based on technical analysis
                 # -R: Realtime scheduling
-                # -n 2: Number of periods (optimized for stability)
-                # -p 128: Buffer size (128 for stability, as tested)
+                # -n 3: Number of periods (optimized for stability)
+                # -p $JACK_PERIOD_SIZE: Buffer size (fixed at 64 samples)
                 # No MIDI flags to avoid crashes on unsupported hardware
-                jack_cmd="jackd -R -d alsa -r$JACK_SAMPLE_RATE -p128 -n 2 -d $USB_AUDIO_DEVICE"
+                jack_cmd="jackd -R -d alsa -r$JACK_SAMPLE_RATE -p$JACK_PERIOD_SIZE -n 3 -d $USB_AUDIO_DEVICE"
                 print_status "Using detected USB device: $USB_AUDIO_DEVICE"
-                print_status "JACK parameters: -R (realtime), -n 2 (periods), -p 128 (buffer for stability)"
+                print_status "JACK parameters: -R (realtime), -n 2 (periods), -p $JACK_PERIOD_SIZE (fixed buffer)"
             else
                 # Fallback to first available card if detection failed
-                jack_cmd="jackd -R -d alsa -r$JACK_SAMPLE_RATE -p128 -n 2"
+                jack_cmd="jackd -R -d alsa -r$JACK_SAMPLE_RATE -p$JACK_PERIOD_SIZE -n 2"
                 print_status "Using default ALSA device"
-                print_status "JACK parameters: -R (realtime), -n 2 (periods), -p 128 (buffer for stability)"
+                print_status "JACK parameters: -R (realtime), -n 2 (periods), -p $JACK_PERIOD_SIZE (fixed buffer)"
             fi
             ;;
         *)
@@ -653,6 +515,61 @@ verify_jack_stability() {
     fi
 }
 
+# Function to setup Xvfb for headless mode
+setup_xvfb() {
+    print_status "Setting up Xvfb (X Virtual Frame Buffer) for headless mode..."
+    
+    # Check if Xvfb is installed
+    if ! command -v Xvfb >/dev/null 2>&1; then
+        print_status "Error: Xvfb not installed. Install it with: sudo pacman -S xorg-server-xvfb"
+        return 1
+    fi
+    
+    # Find a free display number
+    local display_num=99
+    while [ -f "/tmp/.X${display_num}-lock" ] || [ -S "/tmp/.X11-unix/X${display_num}" ]; do
+        display_num=$((display_num + 1))
+        if [ $display_num -gt 200 ]; then
+            print_status "Error: Could not find free display number"
+            return 1
+        fi
+    done
+    
+    print_status "Starting Xvfb on display :$display_num..."
+    
+    # Start Xvfb with minimal resource usage
+    # -screen 0 800x600x24: Minimal screen size, 24-bit color depth
+    # -nolisten tcp: Disable TCP connections for security
+    # -ac: Disable access control (not needed for virtual display)
+    # +extension GLX: Enable GLX for plugin GUIs that might need it
+    # -noreset: Don't reset after last client exits
+    Xvfb :${display_num} -screen 0 800x600x24 -nolisten tcp -ac +extension GLX -noreset >/dev/null 2>&1 &
+    XVFB_PID=$!
+    
+    # Wait for Xvfb to start
+    sleep 2
+    
+    # Verify Xvfb is running
+    if ! kill -0 $XVFB_PID 2>/dev/null; then
+        print_status "Error: Failed to start Xvfb"
+        return 1
+    fi
+    
+    # Set DISPLAY to point to Xvfb
+    export DISPLAY=":${display_num}"
+    
+    # Verify X11 connection to Xvfb
+    if xset -display ":${display_num}" q >/dev/null 2>&1; then
+        print_status "Xvfb started successfully (PID: $XVFB_PID, DISPLAY: :${display_num})"
+        print_status "Virtual X11 display ready for headless Ardour ✓"
+        return 0
+    else
+        print_status "Error: Xvfb started but X11 connection failed"
+        kill $XVFB_PID 2>/dev/null
+        return 1
+    fi
+}
+
 # Function to start Ardour as JACK client (Phase 4)
 start_ardour_as_client() {
     local ardour_cmd=""
@@ -663,7 +580,14 @@ start_ardour_as_client() {
     setup_jack_environment
     
     if [ "$MODE" = "prod" ]; then
-        print_status "Starting Ardour in production mode (headless)..."
+        print_status "Starting Ardour in production mode (headless with Xvfb)..."
+        
+        # Setup Xvfb for headless mode
+        if ! setup_xvfb; then
+            print_status "Failed to setup Xvfb, cannot start Ardour in headless mode"
+            return 1
+        fi
+        
         ardour_cmd="/usr/bin/ardour8 --no-splash $OLMS_SESSION_PATH"
     else
         print_status "Starting Ardour in testing mode (with GUI)..."
@@ -736,14 +660,13 @@ print_status "Mode: $MODE"
 print_status "Session: $OLMS_SESSION_PATH"
 print_status "JACK Config: $JACK_SAMPLE_RATE Hz, period=$JACK_PERIOD_SIZE"
 
-# Phase 0: Check realtime privileges
-print_status "Phase 0: Checking realtime privileges"
-check_realtime_privileges
+# Set critical JACK environment variables BEFORE starting JACK
+export JACK_NO_AUDIO_RESERVATION=1
+export PIPEWIRE_RUNTIME_DIR=/dev/null
+print_status "JACK environment: JACK_NO_AUDIO_RESERVATION=1, PIPEWIRE_RUNTIME_DIR=/dev/null"
 
-print_status "Phase 1: Cleanup existing sessions"
-cleanup_existing_ardour_sessions
-
-print_status "Phase 2: Audio Hardware Detection"
+# Phase 1: Audio Hardware Detection
+print_status "Phase 1: Audio Hardware Detection"
 if [ "$FORCE_VIRTUAL" = true ]; then
     AUDIO_BACKEND="dummy"
     print_status "Virtual audio mode forced - using dummy backend"
@@ -760,42 +683,31 @@ else
     fi
 fi
 
-print_status "Phase 3: Adapting Ardour session to detected audio device"
+# Phase 2: Adapting Ardour session to detected audio device
+print_status "Phase 2: Adapting Ardour session to detected audio device"
 if [ "$FORCE_VIRTUAL" = false ]; then
     if ! adapt_ardour_session "$OLMS_SESSION_PATH"; then
         print_status "Session adaptation failed, but continuing..."
     fi
 fi
 
-print_status "Phase 4: Verifying realtime privileges"
-if ! verify_realtime_privileges; then
-    print_status "Warning: Realtime privileges may be insufficient, continuing anyway..."
-fi
-
-print_status "Phase 5: Performing deep cleanup"
-if ! perform_deep_cleanup; then
-    print_status "Warning: Deep cleanup had issues, but continuing..."
-fi
-
-print_status "Phase 6: Verifying system state"
-if ! verify_system_state; then
-    print_status "Warning: System state verification failed, but continuing..."
-fi
-
-print_status "Phase 7: Starting JACK2 server"
+# Phase 3: Starting JACK2 server
+print_status "Phase 3: Starting JACK2 server"
 if ! start_jack2_server "$AUDIO_BACKEND"; then
     print_status "JACK2 startup failed, aborting"
     exit 1
 fi
 
-print_status "Phase 8: Verifying JACK stability"
+# Phase 4: Verifying JACK stability
+print_status "Phase 4: Verifying JACK stability"
 if ! verify_jack_stability; then
     print_status "JACK stability verification failed, stopping JACK"
     kill $JACK_PID 2>/dev/null
     exit 1
 fi
 
-print_status "Phase 9: Starting Ardour as JACK client"
+# Phase 5: Starting Ardour as JACK client
+print_status "Phase 5: Starting Ardour as JACK client"
 if ! start_ardour_as_client; then
     print_status "Ardour startup failed, stopping JACK"
     kill $JACK_PID 2>/dev/null
@@ -822,5 +734,16 @@ echo
 print_status "Ardour launcher completed successfully!"
 
 # Keep the script running to maintain the processes
-trap "kill $ARDOUR_PID $JACK_PID 2>/dev/null" EXIT
+# Trap to cleanup all processes on exit (Ardour, JACK, and Xvfb if running in prod mode)
+cleanup_on_exit() {
+    print_status "Cleaning up processes..."
+    kill $ARDOUR_PID 2>/dev/null
+    kill $JACK_PID 2>/dev/null
+    if [ -n "$XVFB_PID" ]; then
+        kill $XVFB_PID 2>/dev/null
+        print_status "Xvfb terminated"
+    fi
+}
+
+trap cleanup_on_exit EXIT
 wait

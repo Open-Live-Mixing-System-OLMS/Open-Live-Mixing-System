@@ -13,20 +13,31 @@ print_status() {
 
 # Funzione per rilevare la scheda audio USB e ottenere i nomi delle porte
 detect_usb_audio_ports() {
+    print_status "Phase 1: USB Audio Hardware Detection"
+    print_status "Scanning for USB audio devices..."
+    
     local ports=()
     
     # Rilevamento tramite aplay -l
+    print_status "Checking audio playback devices with aplay -l..."
     local usb_cards=$(aplay -l 2>/dev/null | grep -i "usb.*audio\|audio.*usb" | grep -E "card [0-9]+:" | head -1)
     
     if [ -n "$usb_cards" ]; then
+        print_status "USB audio card detected in playback list"
         local card_number=$(echo "$usb_cards" | sed 's/.*card \([0-9]*\):.*/\1/')
         local device_name=$(echo "$usb_cards" | sed 's/.*: \([^,]*\).*/\1/')
         
+        print_status "Card number: $card_number"
+        print_status "Device name: $device_name"
+        
         # Otteniamo il nome completo della scheda da arecord -l
+        print_status "Getting detailed card information with arecord -l..."
         local full_card_info=$(arecord -l 2>/dev/null | grep "card $card_number:" | head -1)
         if [ -n "$full_card_info" ]; then
             # Estraiamo il nome completo della scheda (es. "USB Audio CODEC")
             local full_device_name=$(echo "$full_card_info" | sed 's/.*\[ *\([^]]*\) *\].*/\1/')
+            
+            print_status "Full device name: $full_device_name"
             
             # Per una scheda USB a 2 canali, creiamo i nomi delle porte
             # Basandoci sul fatto che abbiamo 2 canali, creiamo solo 2 porte
@@ -34,6 +45,7 @@ detect_usb_audio_ports() {
             ports+=("$full_device_name:capture_2")
             
             # Stampa i risultati solo alla fine per evitare problemi di parsing
+            print_status "✓ USB audio device detection completed successfully"
             print_status "Scheda USB rilevata: $device_name (card $card_number)"
             print_status "Nome completo scheda: $full_device_name"
             
@@ -46,10 +58,15 @@ detect_usb_audio_ports() {
             done
             echo -e "$port_output"
             return 0
+        else
+            print_status "Warning: Could not get detailed card information"
         fi
+    else
+        print_status "No USB audio cards found in playback list"
     fi
     
     # Fallback: rilevamento generico
+    print_status "Using generic USB audio device fallback..."
     local generic_name="USB Audio Device"
     for i in {1..2}; do
         ports+=("$generic_name:capture_$i")

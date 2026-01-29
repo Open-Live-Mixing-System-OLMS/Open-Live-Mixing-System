@@ -25,12 +25,14 @@ setup_realtime_privileges() {
     local username="$1"
     local limits_file="/etc/security/limits.d/99-realtime.conf"
     
-    print_status "Setting up realtime privileges for user: $username"
+    print_status "Phase 1: Setting up realtime privileges for user: $username"
     
     # Create the limits directory if it doesn't exist
+    print_status "Creating limits directory: /etc/security/limits.d/"
     sudo mkdir -p /etc/security/limits.d/
     
     # Create the realtime limits configuration
+    print_status "Creating realtime privileges configuration file..."
     sudo tee "$limits_file" > /dev/null << EOF
 # Realtime privileges for OLMS audio system
 # This file configures realtime scheduling and memory locking for audio applications
@@ -44,9 +46,10 @@ $username - rtprio 98
 $username - memlock unlimited
 EOF
     
-    print_status "Created realtime privileges configuration at: $limits_file"
-    print_status "Contents:"
+    print_status "✓ Realtime privileges configuration created at: $limits_file"
+    print_status "Configuration contents:"
     sudo cat "$limits_file"
+    print_status "Realtime privileges setup completed successfully"
 }
 
 # Function to add user to realtime group
