@@ -7,9 +7,15 @@ olms-project/
 ├── scripts/                 # Operational scripts (On every startup/runtime)
 │   ├── rt_tuning.sh         # CPU/Kernel optimizations
 │   ├── audio_virtual.sh     # ALSA Loopback modules loading
-│   └── ardour_launcher.sh   # Ardour Headless launch command
+│   ├── ardour_launcher.sh   # Ardour Headless launch command
+│   ├── olms-startup.sh      # Manual startup script for testing
+│   ├── olms-test-launcher.sh # Test launcher script
+│   ├── setup_realtime_privileges.sh # Realtime privileges setup
+│   ├── usb_audio_session_adapter.sh # USB audio session adaptation
+│   └── prepare_machine.sh   # Manual machine preparation script
 ├── engine/                  # Audio Logic (OLMS Core)
 │   ├── session-template/    # Ardour .ardour template
+│   │   └── OLMS-POC/        # Proof of Concept template
 │   └── lua/                 # Lua scripts for bank management
 └── ui/                      # OSC Layout (Open Stage Control)
 
@@ -235,7 +241,7 @@ The core architecture manages 56 input channels, structured into standard banks 
 
 ## 🚀 Contributor Setup & Testing Guide
 
-This section provides instructions for contributors who want to test and develop OLMS without the complete X-Console distribution.
+This section provides instructions for contributors who want to test and develop OLMS without the complete automated distribution.
 
 ### 1. Prerequisites for Contributors
 
@@ -320,6 +326,36 @@ cd /path/to/OLMS-Core
    # Verify disk space
    df -h
    ```
+
+#### 2.4 Manual Machine Preparation with prepare_machine Script
+
+For contributors working on Arch RT systems without the complete automated distribution, the `prepare_machine.sh` script provides a coordinated approach to manual system preparation. This script acts as a workflow orchestrator that ensures proper system configuration before audio engine startup.
+
+**Concept Overview:**
+The `prepare_machine.sh` script implements a sequential workflow that guarantees correct system configuration before audio engine initialization. It is designed specifically for contributors working on machines without the automated distribution, providing a controlled environment for development and testing.
+
+**Workflow Architecture:**
+The script follows a structured approach with distinct phases:
+- **Phase 1**: Real-time system optimization (RT tuning)
+- **Phase 2**: Hardware configuration (IRQ pinning)
+- **Phase 3**: CPU resource allocation (affinity settings)
+- **Phase 4**: Audio engine coordination (ardour_launcher.sh invocation)
+
+**Integration with ardour_launcher.sh:**
+The `prepare_machine.sh` script functions as a wrapper that prepares the system environment before delegating audio engine startup to `ardour_launcher.sh`. This ensures that all system dependencies are properly configured before the audio engine is launched, maintaining the separation between system preparation and audio processing.
+
+**Testing vs Production Workflow:**
+- **Development Environment**: The `prepare_machine.sh` script enables step-by-step manual testing with full control over each preparation phase
+- **Production Environment**: The same preparation steps are automated through systemd services for reliable, hands-off operation
+- This approach provides a clear migration path from manual development workflows to automated production deployment
+
+**Contributor Benefits:**
+- **Complete Control**: Contributors maintain full oversight of the system preparation process
+- **Debugging Support**: Each phase can be monitored and debugged individually
+- **Flexible Testing**: Individual preparation phases can be tested in isolation
+- **Gradual Automation**: Provides a foundation for transitioning to fully automated deployment
+
+This coordinated approach ensures that contributors can reliably prepare their development environment while maintaining compatibility with the production automation infrastructure.
 
 ### 3. Development and Debugging
 
