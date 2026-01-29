@@ -1,0 +1,18 @@
+PROJECT_SPECS.md
+x-console_specs.md
+.clinerules
+~/Desktop/OLMS-Startup.desktop
+scripts/ardour_launcher_final.sh
+
+# Ardour session files (generated automatically, machine-specific)
+*.ardour
+*.ardour.bak
+instant.xml
+
+# Ardour session template directory (exclude all files in this directory)
+engine/session-template/OLMS-POC/*.ardour
+engine/session-template/OLMS-POC/*.ardour.bak
+engine/session-template/OLMS-POC/instant.xml
+
+# To get the base Ardour session template, use the file at:
+# engine/session-template/OLMS-POC/OLMS-POC.ardour
