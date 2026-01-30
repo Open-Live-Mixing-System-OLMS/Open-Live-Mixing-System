@@ -20,42 +20,112 @@ print_status() {
 
 # Function to detect audio hardware and IRQ numbers
 detect_audio_hardware() {
-    print_status "Phase 1: Audio Hardware Detection"
-    print_status "Scanning for audio hardware and IRQ assignments..."
+    print_status "=== DIAGNOSTICA AUDIO COMPLETA ==="
+    print_status "Fase 1: Rilevamento hardware audio e assegnazione IRQ"
     
-    # NEW: CRITICAL FIX - Extract ONLY audio IRQs from /proc/interrupts
-    # We need to extract ONLY IRQs that contain "snd" or "audio" in their description
+    local all_audio_irqs=""
     
-    print_status "Performing strict audio IRQ filtering..."
+    # METODO 1: Rilevamento tradizionale (schede integrate)
+    print_status "Metodo 1: Rilevamento IRQ audio tradizionali..."
+    local traditional_irqs=$(grep -iE "snd|audio|sound|hda|hdaudio|intel.*audio|realtek|creative|emu" /proc/interrupts 2>/dev/null | awk '{print $1}' | sed 's/://' | grep -E '^[0-9]+$' | sort -u | tr '\n' ' ')
     
-    # Extract ONLY IRQs that have "snd" or "audio" in their description  
-    local audio_only_irqs=""
+    if [ -n "$traditional_irqs" ]; then
+        print_status "IRQ audio tradizionali trovate: $traditional_irqs"
+        all_audio_irqs="$all_audio_irqs $traditional_irqs"
+    fi
     
-    # Method: Use grep directly to find audio IRQs with timeout
-    if [ -f "/proc/interrupts" ]; then
-        audio_only_irqs=$(timeout 5 grep -iE "snd|audio" /proc/interrupts 2>/dev/null | awk '{print $1}' | sed 's/://' | grep -E '^[0-9]+$' | sort -u | tr '\n' ' ')
-        if [ -n "$audio_only_irqs" ]; then
-            print_status "Found audio-only IRQs: $audio_only_irqs"
+    # METODO 2: Rilevamento USB AUDIO (CRITICO FIX)
+    print_status "Metodo 2: Rilevamento controller USB per audio..."
+    
+    # Controlliamo se ci sono dispositivi audio USB rilevati da ALSA
+    local usb_audio_detected=false
+    if arecord -l 2>/dev/null | grep -q "USB Audio\|usb.*audio\|audio.*usb"; then
+        print_status "✓ Dispositivo audio USB rilevato in ALSA (capture)"
+        usb_audio_detected=true
+    fi
+    
+    if aplay -l 2>/dev/null | grep -q "USB Audio\|usb.*audio\|audio.*usb"; then
+        print_status "✓ Dispositivo audio USB rilevato in ALSA (playback)"
+        usb_audio_detected=true
+    fi
+    
+    if [ "$usb_audio_detected" = true ]; then
+        print_status "USB audio device detected, searching for USB controller IRQs..."
+        
+        # Ricerchiamo le IRQ dei controller USB
+        local usb_controller_irqs=$(grep -iE "xhci_hcd|ehci_hcd|uhci_hcd" /proc/interrupts 2>/dev/null | awk '{print $1}' | sed 's/://' | grep -E '^[0-9]+$' | sort -u | tr '\n' ' ')
+        
+        if [ -n "$usb_controller_irqs" ]; then
+            print_status "Controller USB IRQs trovate: $usb_controller_irqs"
+            all_audio_irqs="$all_audio_irqs $usb_controller_irqs"
+            
+            # Aggiungiamo anche eventuali IRQ con "usb" nella descrizione
+            local usb_irqs=$(grep -iE "usb" /proc/interrupts 2>/dev/null | awk '{print $1}' | sed 's/://' | grep -E '^[0-9]+$' | sort -u | tr '\n' ' ')
+            if [ -n "$usb_irqs" ]; then
+                print_status "IRQ USB aggiuntive trovate: $usb_irqs"
+                all_audio_irqs="$all_audio_irqs $usb_irqs"
+            fi
+        else
+            print_status "Attenzione: Dispositivo USB rilevato ma nessun controller USB trovato"
         fi
+    else
+        print_status "Nessun dispositivo audio USB rilevato"
+    fi
+    
+    # METODO 3: Fallback per IRQ audio generiche
+    print_status "Metodo 3: Ricerca fallback per IRQ audio..."
+    local fallback_irqs=$(grep -iE "snd|audio|sound|hda|hdaudio|intel.*audio|realtek|creative|emu" /proc/interrupts 2>/dev/null | awk '{print $1}' | sed 's/://' | grep -E '^[0-9]+$' | sort -u | tr '\n' ' ')
+    
+    if [ -n "$fallback_irqs" ]; then
+        print_status "IRQ audio di fallback trovate: $fallback_irqs"
+        all_audio_irqs="$all_audio_irqs $fallback_irqs"
     fi
     
     # Validate and filter IRQs
     local unique_audio_irqs=""
     
-    if [ -n "$audio_only_irqs" ]; then
-        for irq in $audio_only_irqs; do
+    # Uniamo tutte le IRQ trovate dai diversi metodi
+    local combined_irqs="$all_audio_irqs"
+    
+    print_status "DEBUG: combined_irqs = '$combined_irqs'"
+    
+    if [ -n "$combined_irqs" ]; then
+        for irq in $combined_irqs; do
+            print_status "DEBUG: Processing IRQ $irq"
             # Validate IRQ number
             if [[ "$irq" =~ ^[0-9]+$ ]] && [ "$irq" -ge 0 ] && [ "$irq" -le 4095 ]; then
                 # Double-check that this IRQ is actually audio-related
-                local irq_description=$(grep "^$irq:" /proc/interrupts 2>/dev/null | cut -d' ' -f4-)
-                if echo "$irq_description" | grep -qiE "snd|audio|sound"; then
+                local irq_description=$(grep "^[ ]*$irq:" /proc/interrupts 2>/dev/null | awk '{for(i=4;i<=NF;i++) printf "%s ", $i; print ""}' | xargs)
+                print_status "DEBUG: IRQ $irq description: '$irq_description'"
+                if echo "$irq_description" | grep -qiE "snd|audio|sound|hda|hdaudio|usb.*audio|intel.*audio|realtek|creative|emu|xhci_hcd|ehci_hcd|uhci_hcd"; then
+                    print_status "DEBUG: IRQ $irq passed audio check"
                     # Only add if not already in the list
                     if ! echo "$unique_audio_irqs" | grep -q " $irq "; then
                         unique_audio_irqs="$unique_audio_irqs $irq "
+                        print_status "DEBUG: Added IRQ $irq to unique list"
+                    else
+                        print_status "DEBUG: IRQ $irq already in unique list"
                     fi
+                else
+                    print_status "DEBUG: IRQ $irq failed audio check"
                 fi
+            else
+                print_status "DEBUG: IRQ $irq failed validation"
             fi
         done
+    fi
+    
+    # NEW: If we still have no IRQs, try a more direct approach
+    if [ -z "$unique_audio_irqs" ] && [ -f "/proc/interrupts" ]; then
+        print_status "No audio IRQs found with filtering, trying direct extraction..."
+        
+        # Extract all IRQs that have descriptions containing audio keywords
+        local direct_irqs=$(grep -iE "snd|audio|sound|hda|hdaudio|usb.*audio|intel.*audio|realtek|creative|emu" /proc/interrupts 2>/dev/null | awk '{print $1}' | sed 's/://' | grep -E '^[0-9]+$' | sort -u)
+        
+        if [ -n "$direct_irqs" ]; then
+            print_status "Found direct audio IRQs: $direct_irqs"
+            unique_audio_irqs="$direct_irqs"
+        fi
     fi
     
     # Trim whitespace

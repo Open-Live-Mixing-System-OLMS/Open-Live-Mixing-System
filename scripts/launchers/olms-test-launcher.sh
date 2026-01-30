@@ -243,6 +243,53 @@ print_status "=== OLMS Test Launcher Complete ==="
 print_success "OLMS system is now running in testing mode"
 print_status "GUI is available for development and monitoring"
 echo
+print_status "Monitoring Ardour startup (this will keep the terminal open)..."
+echo
+
+# Phase 6: Monitor Ardour Startup
+print_status "Phase 6: Monitoring Ardour Startup"
+print_status "Waiting for Ardour GUI to become available..."
+
+# Function to check if Ardour is running
+check_ardour_status() {
+    local ardour_pids=$(pgrep -f ardour 2>/dev/null)
+    if [ -n "$ardour_pids" ]; then
+        echo "Ardour processes found: $ardour_pids"
+        for pid in $ardour_pids; do
+            local process_info=$(ps -p $pid -o pid,cmd 2>/dev/null | tail -n 1)
+            if [ -n "$process_info" ]; then
+                echo "  PID $pid: $process_info"
+            fi
+        done
+        return 0
+    else
+        return 1
+    fi
+}
+
+# Wait for Ardour to start with timeout
+MAX_WAIT_TIME=60
+WAIT_INTERVAL=3
+elapsed_time=0
+
+while [ $elapsed_time -lt $MAX_WAIT_TIME ]; do
+    if check_ardour_status; then
+        print_success "Ardour is now running and ready!"
+        break
+    else
+        print_status "Ardour not yet ready (waited ${elapsed_time}s/${MAX_WAIT_TIME}s)"
+        sleep $WAIT_INTERVAL
+        elapsed_time=$((elapsed_time + WAIT_INTERVAL))
+    fi
+done
+
+# Final check
+if ! check_ardour_status; then
+    print_status "Warning: Ardour may still be starting up"
+    print_status "Check the system manually if needed"
+fi
+
+echo
 print_status "To monitor the system:"
 echo "  - Check JACK status: jack_control status"
 echo "  - Monitor logs: journalctl -f -u ardour.service"
@@ -254,6 +301,20 @@ echo "  - Stop JACK: pkill jackd"
 echo "  - Stop any background processes from this script"
 echo
 print_status "Test launcher completed successfully!"
+print_status "Terminal will remain open for monitoring. Press Ctrl+C to exit."
 
-# Keep the script running to maintain the processes
+# Keep the script running to maintain the processes and allow monitoring
 trap "print_status 'Test launcher script completed'" EXIT
+
+# Wait for user to press Ctrl+C or for Ardour to be stopped
+while true; do
+    # Check if Ardour is still running
+    if ! pgrep -f ardour > /dev/null 2>&1; then
+        print_status "Ardour process has stopped. Exiting monitor..."
+        break
+    fi
+    
+    # Show current status every 10 seconds
+    sleep 10
+    print_status "Monitoring... Ardour is still running"
+done

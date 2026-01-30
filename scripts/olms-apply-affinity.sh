@@ -25,13 +25,57 @@ get_process_pids() {
     pgrep -f "$process_pattern" 2>/dev/null || true
 }
 
-# Function to set process priorities with RT scheduling (CORRECTED)
+# Function to check if user has realtime privileges
+check_realtime_privileges() {
+    print_status "Checking realtime privileges..."
+    
+    # Check if user is in realtime group
+    if groups $USER | grep -q "realtime"; then
+        print_status "✓ User is in realtime group"
+    else
+        print_status "⚠ User is not in realtime group"
+        print_status "  To fix: sudo usermod -aG realtime $USER"
+        print_status "  Then log out and log back in"
+    fi
+    
+    # Check if user is in audio group
+    if groups $USER | grep -q "audio"; then
+        print_status "✓ User is in audio group"
+    else
+        print_status "⚠ User is not in audio group"
+        print_status "  To fix: sudo usermod -aG audio $USER"
+        print_status "  Then log out and log back in"
+    fi
+    
+    # Check current realtime priority limit
+    local rt_limit=$(ulimit -r)
+    print_status "Current realtime priority limit: $rt_limit"
+    
+    if [ "$rt_limit" -ge 99 ]; then
+        print_status "✓ Realtime privileges are active"
+        return 0
+    else
+        print_status "⚠ Realtime privileges may not be fully active (limit: $rt_limit)"
+        print_status "  Expected: 99, Got: $rt_limit"
+        print_status "  This may cause RT priority setting to fail"
+        print_status "  To fix: Check /etc/security/limits.d/99-realtime.conf configuration"
+        return 1
+    fi
+}
+
+# Function to set process priorities with RT scheduling (IMPROVED)
 set_process_rt_priority() {
     local process_pattern="$1"
     local rt_priority="$2"
     local process_name="$3"
     
     print_status "Setting RT priority for $process_name processes..."
+    
+    # Check privileges before attempting to set RT priority
+    if ! check_realtime_privileges; then
+        print_status "Warning: Realtime privileges may not be fully configured"
+        print_status "  This may cause RT priority setting to fail"
+    fi
     
     local pids=$(get_process_pids "$process_pattern")
     if [ -z "$pids" ]; then
@@ -42,17 +86,41 @@ set_process_rt_priority() {
     for pid in $pids; do
         if [ -d "/proc/$pid" ]; then
             local process_cmd=$(ps -p "$pid" -o cmd= 2>/dev/null | head -1)
+            local current_policy=$(chrt -p "$pid" 2>/dev/null | grep "policy" | awk '{print $3}')
+            local current_priority=$(chrt -p "$pid" 2>/dev/null | grep "priority" | awk '{print $3}')
+            
+            # Check if process already has correct RT configuration
+            if [ "$current_policy" = "SCHED_FIFO" ] && [ "$current_priority" = "$rt_priority" ]; then
+                print_status "✓ PID $pid ($process_cmd) already has correct RT configuration (SCHED_FIFO, priority $rt_priority)"
+                continue
+            fi
+            
             print_status "Setting RT priority for PID $pid ($process_cmd) to $rt_priority"
             
-            # Use chrt for RT scheduling (CORRECT STRATEGY)
-            chrt -f "$rt_priority" -p "$pid" 2>/dev/null || {
-                print_status "Warning: Failed to set RT priority for PID $pid (may need realtime privileges)"
-            }
+            # Use chrt for RT scheduling with improved error handling
+            if ! chrt -f "$rt_priority" -p "$pid" 2>/dev/null; then
+                # Check if the process already has RT scheduling but different priority
+                local new_policy=$(chrt -p "$pid" 2>/dev/null | grep "policy" | awk '{print $3}')
+                local new_priority=$(chrt -p "$pid" 2>/dev/null | grep "priority" | awk '{print $3}')
+                
+                if [ "$new_policy" = "SCHED_FIFO" ] && [ -n "$new_priority" ]; then
+                    print_status "  ⚠ PID $pid ($process_cmd): Process has RT scheduling but wrong priority"
+                    print_status "    Current: SCHED_FIFO, priority $new_priority"
+                    print_status "    Expected: SCHED_FIFO, priority $rt_priority"
+                    print_status "    This may cause audio performance issues"
+                else
+                    print_status "  ✗ PID $pid ($process_cmd): Failed to set RT priority"
+                    print_status "    This process will not have realtime scheduling"
+                    print_status "    Check: user privileges, process permissions, and system limits"
+                fi
+            else
+                print_status "  ✓ PID $pid ($process_cmd): RT priority set successfully"
+            fi
             
             # Also set nice value for additional priority
-            renice -5 "$pid" > /dev/null 2>&1 || {
+            if ! renice -5 "$pid" > /dev/null 2>&1; then
                 print_status "Warning: Failed to set nice value for PID $pid"
-            }
+            fi
         fi
     done
 }
@@ -148,10 +216,10 @@ configure_cpu_masks() {
     # Create CPU mask for system processes (core 0 only)
     SYSTEM_CPU_MASK=$(printf "0x%x" $((1 << 0)))
     
-    # Calculate expected mask for validation (for cores 2,3 on 4-core system: 0xc)
-    # This is for backward compatibility with the validation function
+    # Calculate expected mask for validation (for all cores >=2)
+    # This should match the actual audio core allocation
     local expected_mask=0
-    for ((i=2; i<4; i++)); do  # Only for first 4 cores (2,3)
+    for ((i=2; i<CPU_CORES; i++)); do  # All cores >=2
         expected_mask=$((expected_mask | (1 << i)))
     done
     EXPECTED_CPU_MASK=$(printf "0x%x" $expected_mask)
@@ -161,6 +229,23 @@ configure_cpu_masks() {
     print_status "System CPU cores: $SYSTEM_CPU_CORES (mask: $SYSTEM_CPU_MASK)"
     print_status "Expected mask for validation: $EXPECTED_CPU_MASK"
     print_status "Total available CPU cores: $CPU_CORES"
+}
+
+# Function to get actual CPU affinity from taskset output
+get_actual_affinity() {
+    local pid="$1"
+    if [ -d "/proc/$pid" ]; then
+        # Use taskset to get the actual affinity
+        local affinity_output=$(taskset -p "$pid" 2>/dev/null)
+        if [ $? -eq 0 ]; then
+            # Extract the hex mask from output like "pid 123's current affinity mask: 0xf"
+            echo "$affinity_output" | awk -F': ' '{print $2}' | tr -d ' '
+        else
+            echo "error"
+        fi
+    else
+        echo "notfound"
+    fi
 }
 
 # Function to apply RT priorities to running processes (CORRECTED)
@@ -191,7 +276,26 @@ apply_cpu_affinity() {
             if [ -d "/proc/$pid" ]; then
                 local process_cmd=$(ps -p "$pid" -o cmd= 2>/dev/null | head -1)
                 print_status "Setting affinity for JACK PID $pid ($process_cmd) to cores $AUDIO_CPU_CORES"
-                taskset -cp $AUDIO_CPU_CORES "$pid" > /dev/null 2>&1 || {
+                
+                # Use the correct format for taskset (comma-separated list for multiple cores)
+                # For cores 2+ we need to use "2,3,4,..." format
+                local affinity_cores="$AUDIO_CPU_CORES"
+                # Convert range format to comma-separated if needed
+                if [[ "$affinity_cores" == *"-"* ]]; then
+                    # Convert range like "2-3" to "2,3" or "2-5" to "2,3,4,5"
+                    local start_core=$(echo "$affinity_cores" | cut -d'-' -f1)
+                    local end_core=$(echo "$affinity_cores" | cut -d'-' -f2)
+                    affinity_cores=""
+                    for ((i=start_core; i<=end_core; i++)); do
+                        if [ -z "$affinity_cores" ]; then
+                            affinity_cores="$i"
+                        else
+                            affinity_cores="$affinity_cores,$i"
+                        fi
+                    done
+                fi
+                
+                taskset -cp "$affinity_cores" "$pid" > /dev/null 2>&1 || {
                     print_status "Warning: Failed to set affinity for JACK PID $pid"
                 }
             fi
@@ -206,7 +310,25 @@ apply_cpu_affinity() {
             if [ -d "/proc/$pid" ]; then
                 local process_cmd=$(ps -p "$pid" -o cmd= 2>/dev/null | head -1)
                 print_status "Setting affinity for Ardour PID $pid ($process_cmd) to cores $AUDIO_CPU_CORES"
-                taskset -cp $AUDIO_CPU_CORES "$pid" > /dev/null 2>&1 || {
+                
+                # Use the correct format for taskset (comma-separated list for multiple cores)
+                local affinity_cores="$AUDIO_CPU_CORES"
+                # Convert range format to comma-separated if needed
+                if [[ "$affinity_cores" == *"-"* ]]; then
+                    # Convert range like "2-3" to "2,3" or "2-5" to "2,3,4,5"
+                    local start_core=$(echo "$affinity_cores" | cut -d'-' -f1)
+                    local end_core=$(echo "$affinity_cores" | cut -d'-' -f2)
+                    affinity_cores=""
+                    for ((i=start_core; i<=end_core; i++)); do
+                        if [ -z "$affinity_cores" ]; then
+                            affinity_cores="$i"
+                        else
+                            affinity_cores="$affinity_cores,$i"
+                        fi
+                    done
+                fi
+                
+                taskset -cp "$affinity_cores" "$pid" > /dev/null 2>&1 || {
                     print_status "Warning: Failed to set affinity for Ardour PID $pid"
                 }
                 
@@ -228,15 +350,27 @@ validate_affinity_configuration() {
     
     for pid in $jack_pids $ardour_pids; do
         if [ -n "$pid" ]; then
-            local current_affinity=$(taskset -p "$pid" | awk -F': ' '{print $2}')
-            # Use the calculated expected mask for validation
+            local actual_affinity=$(get_actual_affinity "$pid")
             local expected_mask="$EXPECTED_CPU_MASK"
             
-            if [ "$current_affinity" != "$expected_mask" ]; then
-                print_status "CRITICAL FAILURE: PID $pid has wrong affinity: $current_affinity (expected: $expected_mask)"
+            if [ "$actual_affinity" = "error" ]; then
+                print_status "ERROR: Cannot read affinity for PID $pid"
+                validation_passed=false
+            elif [ "$actual_affinity" = "notfound" ]; then
+                print_status "ERROR: Process PID $pid not found"
                 validation_passed=false
             else
-                print_status "✓ PID $pid correctly pinned to cores $AUDIO_CPU_CORES"
+                # Normalize both values for comparison (remove 0x prefix if present)
+                local normalized_actual="${actual_affinity#0x}"
+                local normalized_expected="${expected_mask#0x}"
+                
+                if [ "$normalized_actual" != "$normalized_expected" ]; then
+                    print_status "CRITICAL FAILURE: PID $pid has wrong affinity: $actual_affinity (expected: $expected_mask)"
+                    print_status "  Normalized comparison: $normalized_actual != $normalized_expected"
+                    validation_passed=false
+                else
+                    print_status "✓ PID $pid correctly pinned to cores $AUDIO_CPU_CORES (affinity: $actual_affinity)"
+                fi
             fi
         fi
     done

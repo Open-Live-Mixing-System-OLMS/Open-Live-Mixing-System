@@ -63,4 +63,100 @@ sudo systemctl enable ardour.service
 sudo systemctl enable olms-affinity.service
 sudo systemctl enable olms-disk-guard.service
 
+# Function to print status messages
+print_status() {
+    echo "[$(date '+%H:%M:%S')] $1"
+}
+
+# Function to setup realtime privileges
+setup_realtime_privileges() {
+    print_status "Setting up realtime privileges..."
+    
+    # Create audio group if it doesn't exist
+    if ! getent group audio >/dev/null; then
+        print_status "Creating audio group..."
+        sudo groupadd audio
+    fi
+    
+    # Create realtime group if it doesn't exist
+    if ! getent group realtime >/dev/null; then
+        print_status "Creating realtime group..."
+        sudo groupadd realtime
+    fi
+    
+    # Add user to audio group if not already a member
+    if ! groups $USER | grep -q "audio"; then
+        print_status "Adding user to audio group..."
+        sudo usermod -aG audio $USER
+    fi
+    
+    # Add user to realtime group if not already a member
+    if ! groups $USER | grep -q "realtime"; then
+        print_status "Adding user to realtime group..."
+        sudo usermod -aG realtime $USER
+    fi
+    
+    # Create symlink for realtime privileges configuration
+    print_status "Creating realtime privileges configuration..."
+    sudo ln -sf /home/francesco_ssh/Progetti/OLMS-Core/config/realtime/99-realtime.conf /etc/security/limits.d/99-realtime.conf
+    
+    print_status "Realtime privileges setup completed!"
+    print_status "Note: You may need to log out and log back in for group changes to take effect"
+}
+
+# Function to verify realtime privileges configuration
+verify_realtime_privileges() {
+    print_status "Verifying realtime privileges configuration..."
+    
+    # Check if user is in audio group
+    if groups $USER | grep -q "audio"; then
+        print_status "✓ User is in audio group"
+    else
+        print_status "✗ User is not in audio group"
+        return 1
+    fi
+    
+    # Check if user is in realtime group
+    if groups $USER | grep -q "realtime"; then
+        print_status "✓ User is in realtime group"
+    else
+        print_status "✗ User is not in realtime group"
+        return 1
+    fi
+    
+    # Check if realtime configuration file exists
+    if [ -f "/etc/security/limits.d/99-realtime.conf" ]; then
+        print_status "✓ Realtime configuration file exists"
+    else
+        print_status "✗ Realtime configuration file not found"
+        return 1
+    fi
+    
+    # Check current realtime priority limit
+    local rt_limit=$(ulimit -r)
+    print_status "Current realtime priority limit: $rt_limit"
+    
+    if [ "$rt_limit" -ge 99 ]; then
+        print_status "✓ Realtime privileges are active"
+        return 0
+    else
+        print_status "✗ Realtime privileges may not be fully active (limit: $rt_limit)"
+        print_status "  Expected: 99, Got: $rt_limit"
+        return 1
+    fi
+}
+
+# Setup realtime privileges
+print_status "Setting up realtime privileges..."
+setup_realtime_privileges
+
+# Verify realtime privileges
+print_status "Verifying realtime privileges..."
+if verify_realtime_privileges; then
+    print_status "✓ Realtime privileges verification successful"
+else
+    print_status "✗ Realtime privileges verification failed"
+    print_status "Please check the configuration and try again"
+fi
+
 echo "OLMS environment setup complete."

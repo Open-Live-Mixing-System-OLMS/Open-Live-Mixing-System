@@ -313,7 +313,7 @@ start_jack_simple() {
             # Wait for cleanup to complete (olms-startup.sh handles this)
             sleep 2
             # Dummy backend doesn't support -n parameter, use only supported options
-            jack_cmd="jackd -R -d dummy -r$JACK_SAMPLE_RATE -p$JACK_PERIOD_SIZE -C 2 -P 2"
+            jack_cmd="taskset -c 2-$(($(nproc)-1)) chrt -f 80 jackd -R -d dummy -r$JACK_SAMPLE_RATE -p$JACK_PERIOD_SIZE -C 2 -P 2"
             ;;
         "alsa")
             print_status "Starting JACK with ALSA backend (USB Audio)..."
@@ -326,14 +326,19 @@ start_jack_simple() {
                 # -R: Realtime scheduling
                 # -n 3: Number of periods (optimized for stability)
                 # No MIDI flags (-X seq) to avoid crashes on unsupported hardware
-                jack_cmd="jackd -R -d alsa -r$JACK_SAMPLE_RATE -p$JACK_PERIOD_SIZE -n 3 -d $USB_AUDIO_DEVICE"
+                # Use all cores >=2 for audio processing
+                local audio_cores="2-$(($(nproc)-1))"
+                jack_cmd="taskset -c $audio_cores chrt -f 80 jackd -R -d alsa -r$JACK_SAMPLE_RATE -p$JACK_PERIOD_SIZE -n 3 -d $USB_AUDIO_DEVICE"
                 print_status "Using detected USB device: $USB_AUDIO_DEVICE"
                 print_status "JACK parameters: -R (realtime), -n 2 (periods), -p $JACK_PERIOD_SIZE (buffer)"
+                print_status "Audio cores: $audio_cores"
             else
                 # Fallback to first available card if detection failed
-                jack_cmd="jackd -R -d alsa -r$JACK_SAMPLE_RATE -p$JACK_PERIOD_SIZE -n 3"
+                local audio_cores="2-$(($(nproc)-1))"
+                jack_cmd="taskset -c $audio_cores chrt -f 80 jackd -R -d alsa -r$JACK_SAMPLE_RATE -p$JACK_PERIOD_SIZE -n 3"
                 print_status "Using default ALSA device"
                 print_status "JACK parameters: -R (realtime), -n 2 (periods), -p $JACK_PERIOD_SIZE (buffer)"
+                print_status "Audio cores: $audio_cores"
             fi
             ;;
         *)
@@ -344,7 +349,7 @@ start_jack_simple() {
     
     print_status "JACK command: $jack_cmd"
     
-    # Start JACK in background
+    # Start JACK in background with proper error handling
     eval $jack_cmd &
     JACK_PID=$!
     
@@ -429,7 +434,8 @@ start_jack2_server() {
             print_status "Starting JACK with dummy backend (virtual audio)..."
             sleep 3  # Wait longer to ensure previous instances are fully terminated
             # Dummy backend doesn't support -n parameter, use only supported options
-            jack_cmd="jackd -R -d dummy -r$JACK_SAMPLE_RATE -p$JACK_PERIOD_SIZE -C 2 -P 2"
+            local audio_cores="2-$(($(nproc)-1))"
+            jack_cmd="taskset -c $audio_cores jackd -R -d dummy -r$JACK_SAMPLE_RATE -p$JACK_PERIOD_SIZE -C 2 -P 2"
             ;;
         "alsa")
             print_status "Starting JACK with ALSA backend (USB Audio)..."
@@ -442,14 +448,19 @@ start_jack2_server() {
                 # -n 3: Number of periods (optimized for stability)
                 # -p $JACK_PERIOD_SIZE: Buffer size (fixed at 64 samples)
                 # No MIDI flags to avoid crashes on unsupported hardware
-                jack_cmd="jackd -R -d alsa -r$JACK_SAMPLE_RATE -p$JACK_PERIOD_SIZE -n 3 -d $USB_AUDIO_DEVICE"
+                # Use all cores >=2 for audio processing
+                local audio_cores="2-$(($(nproc)-1))"
+                jack_cmd="taskset -c $audio_cores jackd -R -d alsa -r$JACK_SAMPLE_RATE -p$JACK_PERIOD_SIZE -n 3 -d $USB_AUDIO_DEVICE"
                 print_status "Using detected USB device: $USB_AUDIO_DEVICE"
                 print_status "JACK parameters: -R (realtime), -n 2 (periods), -p $JACK_PERIOD_SIZE (fixed buffer)"
+                print_status "Audio cores: $audio_cores"
             else
                 # Fallback to first available card if detection failed
-                jack_cmd="jackd -R -d alsa -r$JACK_SAMPLE_RATE -p$JACK_PERIOD_SIZE -n 2"
+                local audio_cores="2-$(($(nproc)-1))"
+                jack_cmd="taskset -c $audio_cores jackd -R -d alsa -r$JACK_SAMPLE_RATE -p$JACK_PERIOD_SIZE -n 2"
                 print_status "Using default ALSA device"
                 print_status "JACK parameters: -R (realtime), -n 2 (periods), -p $JACK_PERIOD_SIZE (fixed buffer)"
+                print_status "Audio cores: $audio_cores"
             fi
             ;;
         *)
@@ -570,6 +581,41 @@ setup_xvfb() {
     fi
 }
 
+# Function to verify RT priority was applied successfully
+verify_rt_priority_after_startup() {
+    print_status "Verifying RT priority after startup..."
+    
+    # Check JACK process RT priority
+    if [ -n "$JACK_PID" ] && kill -0 $JACK_PID 2>/dev/null; then
+        local jack_policy=$(chrt -p "$JACK_PID" 2>/dev/null | grep "policy" | awk '{print $3}')
+        local jack_priority=$(chrt -p "$JACK_PID" 2>/dev/null | grep "priority" | awk '{print $3}')
+        
+        if [ "$jack_policy" = "SCHED_FIFO" ] && [ "$jack_priority" = "80" ]; then
+            print_status "✓ JACK process has correct RT priority (SCHED_FIFO, priority 80)"
+        else
+            print_status "⚠ JACK process RT priority not set correctly"
+            print_status "  Current policy: $jack_policy"
+            print_status "  Current priority: $jack_priority"
+            print_status "  Expected: SCHED_FIFO, priority 80"
+        fi
+    fi
+    
+    # Check Ardour process RT priority
+    if [ -n "$ARDOUR_PID" ] && kill -0 $ARDOUR_PID 2>/dev/null; then
+        local ardour_policy=$(chrt -p "$ARDOUR_PID" 2>/dev/null | grep "policy" | awk '{print $3}')
+        local ardour_priority=$(chrt -p "$ARDOUR_PID" 2>/dev/null | grep "priority" | awk '{print $3}')
+        
+        if [ "$ardour_policy" = "SCHED_FIFO" ] && [ "$ardour_priority" = "75" ]; then
+            print_status "✓ Ardour process has correct RT priority (SCHED_FIFO, priority 75)"
+        else
+            print_status "⚠ Ardour process RT priority not set correctly"
+            print_status "  Current policy: $ardour_policy"
+            print_status "  Current priority: $ardour_priority"
+            print_status "  Expected: SCHED_FIFO, priority 75"
+        fi
+    fi
+}
+
 # Function to start Ardour as JACK client (Phase 4)
 start_ardour_as_client() {
     local ardour_cmd=""
@@ -588,7 +634,9 @@ start_ardour_as_client() {
             return 1
         fi
         
-        ardour_cmd="/usr/bin/ardour8 --no-splash $OLMS_SESSION_PATH"
+        # Use all cores >=2 for Ardour in production mode
+        local audio_cores="2-$(($(nproc)-1))"
+        ardour_cmd="taskset -c $audio_cores chrt -f 75 /usr/bin/ardour8 --no-splash $OLMS_SESSION_PATH"
     else
         print_status "Starting Ardour in testing mode (with GUI)..."
         
@@ -605,7 +653,9 @@ start_ardour_as_client() {
             print_status "X11 connection verified successfully"
         fi
         
-        ardour_cmd="/usr/bin/ardour8 $OLMS_SESSION_PATH"
+        # Use all cores >=2 for Ardour in testing mode
+        local audio_cores="2-$(($(nproc)-1))"
+        ardour_cmd="taskset -c $audio_cores chrt -f 75 /usr/bin/ardour8 $OLMS_SESSION_PATH"
     fi
     
     # Verify JACK is ready before starting Ardour
@@ -618,6 +668,7 @@ start_ardour_as_client() {
     # Start Ardour
     print_status "Starting Ardour with command: $ardour_cmd"
     print_status "Environment: JACK_NO_START_SERVER=1, PIPEWIRE_RUNTIME_DIR=/dev/null"
+    print_status "Audio cores: $audio_cores"
     $ardour_cmd &
     ARDOUR_PID=$!
     
@@ -627,6 +678,9 @@ start_ardour_as_client() {
     # Check if Ardour is running
     if kill -0 $ARDOUR_PID 2>/dev/null; then
         print_status "Ardour started successfully as JACK client (PID: $ARDOUR_PID)"
+        
+        # Verify RT priority was applied correctly
+        verify_rt_priority_after_startup
         
         # Final verification: check if Ardour is connected to JACK
         print_status "Verifying Ardour-JACK connection..."

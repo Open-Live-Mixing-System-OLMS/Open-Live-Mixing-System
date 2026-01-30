@@ -4,7 +4,12 @@
 # 
 # This script configures kernel parameters and CPU settings for optimal real-time audio performance.
 # 
-# Usage: sudo ./scripts/rt_tuning.sh
+# Usage: sudo ./scripts/rt_tuning.sh [--mode prod|test|light]
+# 
+# Modes:
+#   prod  - Production mode: 95% CPU for RT tasks (default)
+#   test  - Testing mode: 80% CPU for RT tasks (leaves 20% for GUI/debug tools)
+#   light - Light testing mode: 60% CPU for RT tasks (for heavy debug environments)
 # 
 # This script performs the following optimizations:
 # - Configures kernel parameters for real-time performance
@@ -13,6 +18,55 @@
 # - Configures memory locking limits
 
 set -e
+
+# Default mode is production (95% RT)
+MODE="prod"
+RT_RUNTIME_VALUE=950000
+RT_PERCENTAGE=95
+
+# Parse command line arguments
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --mode)
+            MODE="$2"
+            shift 2
+            ;;
+        -h|--help)
+            echo "Usage: $0 [--mode prod|test|light]"
+            echo ""
+            echo "Modes:"
+            echo "  prod  - Production mode: 95% CPU for RT tasks (default)"
+            echo "  test  - Testing mode: 80% CPU for RT tasks (leaves 20% for GUI/debug tools)"
+            echo "  light - Light testing mode: 60% CPU for RT tasks (for heavy debug environments)"
+            exit 0
+            ;;
+        *)
+            echo "Unknown option: $1"
+            echo "Use --help for usage information"
+            exit 1
+            ;;
+    esac
+done
+
+# Set RT values based on mode
+case $MODE in
+    prod)
+        RT_RUNTIME_VALUE=950000
+        RT_PERCENTAGE=95
+        ;;
+    test)
+        RT_RUNTIME_VALUE=800000
+        RT_PERCENTAGE=80
+        ;;
+    light)
+        RT_RUNTIME_VALUE=600000
+        RT_PERCENTAGE=60
+        ;;
+    *)
+        echo "Error: Invalid mode '$MODE'. Use prod, test, or light."
+        exit 1
+        ;;
+esac
 
 # Function to print status messages
 print_status() {
@@ -31,25 +85,29 @@ check_status() {
 }
 
 print_status "=== OLMS Real-time System Optimization ==="
-print_status "Starting RT tuning configuration..."
+print_status "Starting RT tuning configuration in $MODE mode ($RT_PERCENTAGE% CPU for RT tasks)..."
 
 # Phase 1: Kernel Parameter Configuration
 print_status "Phase 1: Kernel Parameter Configuration"
 print_status "Configuring kernel parameters for real-time performance..."
 
 # Set kernel.sched_rt_runtime_us to allow more real-time CPU time
-print_status "Setting kernel.sched_rt_runtime_us to 950000 (95% of CPU time for RT tasks)..."
-echo 'kernel.sched_rt_runtime_us = 950000' | sudo tee -a /etc/sysctl.d/99-olms-rt.conf
+print_status "Setting kernel.sched_rt_runtime_us to $RT_RUNTIME_VALUE ($RT_PERCENTAGE% of CPU time for RT tasks)..."
+# Remove any existing entries to avoid duplicates
+sudo sed -i '/^kernel\.sched_rt_runtime_us/d' /etc/sysctl.d/99-olms-rt.conf 2>/dev/null || true
+echo "kernel.sched_rt_runtime_us = $RT_RUNTIME_VALUE" | sudo tee -a /etc/sysctl.d/99-olms-rt.conf
 check_status "Kernel RT runtime configuration"
 
 # Set kernel.sched_rt_period_us to 1000000 (1 second period)
 print_status "Setting kernel.sched_rt_period_us to 1000000 (1 second period)..."
+# Remove any existing entries to avoid duplicates
+sudo sed -i '/^kernel\.sched_rt_period_us/d' /etc/sysctl.d/99-olms-rt.conf 2>/dev/null || true
 echo 'kernel.sched_rt_period_us = 1000000' | sudo tee -a /etc/sysctl.d/99-olms-rt.conf
 check_status "Kernel RT period configuration"
 
-# Apply kernel parameters
+# Apply kernel parameters (suppress verbose output)
 print_status "Applying kernel parameters..."
-sudo sysctl -p /etc/sysctl.d/99-olms-rt.conf
+sudo sysctl -p /etc/sysctl.d/99-olms-rt.conf >/dev/null 2>&1
 check_status "Kernel parameter application"
 echo
 
@@ -79,10 +137,12 @@ echo
 print_status "Phase 4: Memory Configuration"
 print_status "Configuring memory locking limits..."
 
-# Set memory locking limits for realtime group
-print_status "Setting memory locking limits for realtime group..."
-echo '@realtime - rtprio 99' | sudo tee -a /etc/security/limits.d/99-olms-realtime.conf
-echo '@realtime - memlock unlimited' | sudo tee -a /etc/security/limits.d/99-olms-realtime.conf
+# Note: Memory limits are configured via the symlinked 99-realtime.conf file
+# This ensures consistent configuration across all OLMS components
+print_status "Memory limits configured via /etc/security/limits.d/99-realtime.conf"
+print_status "  - realtime group: rtprio 99, memlock unlimited"
+print_status "  - audio group: rtprio 99, memlock unlimited"
+print_status "  - all users: rtprio 99, memlock unlimited"
 check_status "Memory locking configuration"
 echo
 
@@ -94,12 +154,13 @@ print_status "Verifying RT tuning configuration..."
 print_status "Verifying kernel parameters..."
 RT_RUNTIME=$(cat /proc/sys/kernel/sched_rt_runtime_us)
 RT_PERIOD=$(cat /proc/sys/kernel/sched_rt_period_us)
-print_status "RT runtime: $RT_RUNTIME us"
-print_status "RT period: $RT_PERIOD us"
-if [ "$RT_RUNTIME" = "950000" ] && [ "$RT_PERIOD" = "1000000" ]; then
-    print_status "Kernel parameters verified ✓"
+echo "    RT runtime: $RT_RUNTIME us"
+echo "    RT period: $RT_PERIOD us"
+if [ "$RT_RUNTIME" = "$RT_RUNTIME_VALUE" ] && [ "$RT_PERIOD" = "1000000" ]; then
+    echo "    Kernel parameters verified ✓"
 else
-    print_status "Kernel parameters verification failed ✗"
+    echo "    Kernel parameters verification failed ✗"
+    echo "    Expected RT runtime: $RT_RUNTIME_VALUE, got: $RT_RUNTIME"
     exit 1
 fi
 
@@ -107,29 +168,28 @@ fi
 print_status "Verifying CPU governor settings..."
 for i in $(seq 0 $((CPU_COUNT - 1))); do
     GOVERNOR=$(cat /sys/devices/system/cpu/cpu$i/cpufreq/scaling_governor)
-    print_status "CPU $i governor: $GOVERNOR"
+    echo "    CPU $i governor: $GOVERNOR"
     if [ "$GOVERNOR" != "performance" ]; then
-        print_status "CPU $i governor verification failed ✗"
+        echo "    CPU $i governor verification failed ✗"
         exit 1
     fi
 done
 
-print_status "CPU governor verification completed ✓"
+echo "    CPU governor verification completed ✓"
 echo
 
 print_status "=== RT Tuning Configuration Complete ==="
-print_status "Real-time system optimization completed successfully!"
-print_status ""
-print_status "Benefits:"
+echo "Real-time system optimization completed successfully!"
+echo ""
+echo "Benefits:"
 echo "  - Increased real-time CPU time allocation (95%)"
 echo "  - Performance CPU governor for consistent clock speeds"
 echo "  - Disabled power-saving states for reduced latency"
 echo "  - Enhanced memory locking for audio buffers"
 echo ""
-print_status "To verify manually:"
+echo "To verify manually:"
 echo "  - Check RT parameters: cat /proc/sys/kernel/sched_rt_runtime_us"
 echo "  - Check CPU governor: cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor"
 echo "  - Check memory limits: ulimit -l"
 echo ""
-print_status "Note: Reboot required for C-state changes to take effect"
-print_status "RT tuning configuration completed successfully!"
+echo "Note: Reboot required for C-state changes to take effect"

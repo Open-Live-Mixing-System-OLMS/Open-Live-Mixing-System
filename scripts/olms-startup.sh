@@ -182,14 +182,22 @@ force_cleanup_startup_processes() {
         print_status "Found existing OLMS startup script processes (PIDs: $startup_pids)"
         print_status "Attempting to terminate existing processes..."
         
-        # Use a single, aggressive approach with timeout
+        # Use a multi-phase cleanup approach with kill -9 as final fallback
         local max_attempts=3
         local attempt=1
         
         while [ $attempt -le $max_attempts ] && [ -n "$startup_pids" ]; do
             print_status "Cleanup attempt $attempt/$max_attempts..."
             
-            # Kill all processes at once
+            # Phase 1: Try graceful termination first
+            if [ $attempt -eq 1 ]; then
+                print_status "  Attempting graceful termination (SIGTERM)..."
+                echo "$startup_pids" | xargs -r sudo kill -TERM 2>/dev/null || true
+                sleep 2
+            fi
+            
+            # Phase 2: Force kill with SIGKILL
+            print_status "  Force killing with SIGKILL..."
             echo "$startup_pids" | xargs -r sudo kill -9 2>/dev/null || true
             
             # Wait briefly
@@ -237,19 +245,37 @@ cleanup_existing_ardour_sessions() {
             sleep 2
         fi
         
-        # Force kill existing Ardour processes (excluding current script)
-        print_status "Force killing existing Ardour processes..."
-        for pid in $ardour_pids; do
-            kill -9 $pid 2>/dev/null || true
+        # Use multi-phase cleanup approach with kill -9 as final fallback
+        local max_attempts=3
+        local attempt=1
+        
+        while [ $attempt -le $max_attempts ] && [ -n "$ardour_pids" ]; do
+            print_status "Ardour cleanup attempt $attempt/$max_attempts..."
+            
+            # Phase 1: Try graceful termination first
+            if [ $attempt -eq 1 ]; then
+                print_status "  Attempting graceful termination (SIGTERM)..."
+                echo "$ardour_pids" | xargs -r kill -TERM 2>/dev/null || true
+                sleep 2
+            fi
+            
+            # Phase 2: Force kill with SIGKILL
+            print_status "  Force killing with SIGKILL..."
+            echo "$ardour_pids" | xargs -r kill -9 2>/dev/null || true
+            
+            # Wait for processes to terminate
+            sleep 2
+            
+            # Check again
+            ardour_pids=$(pgrep -f ardour | grep -v "$current_pid")
+            attempt=$((attempt + 1))
         done
         
-        # Wait for processes to terminate
-        sleep 3
-        
-        # Verify processes are gone
+        # Final verification
         local remaining_pids=$(pgrep -f ardour | grep -v "$current_pid")
         if [ -n "$remaining_pids" ]; then
-            print_status "Warning: Some Ardour processes still running: $remaining_pids"
+            print_status "Warning: Some Ardour processes could not be terminated: $remaining_pids"
+            print_status "Proceeding with startup anyway..."
         else
             print_status "All existing Ardour sessions closed successfully"
         fi
@@ -307,16 +333,36 @@ perform_deep_cleanup() {
         jack_control exit 2>/dev/null || true
         sleep 2
         
-        # Method 2: Kill by process name
+        # Method 2: Kill by process name with multi-phase approach
         if pgrep -f jackd > /dev/null; then
             local jack_pids=$(pgrep -f jackd)
             print_status "Found JACK PIDs: $jack_pids"
-            print_status "Force killing JACK processes with SIGKILL..."
-            pkill -9 -f jackd 2>/dev/null || true
-            for pid in $jack_pids; do
-                sudo kill -9 $pid 2>/dev/null || true
+            
+            # Use multi-phase cleanup approach with kill -9 as final fallback
+            local max_attempts=3
+            local attempt=1
+            
+            while [ $attempt -le $max_attempts ] && [ -n "$jack_pids" ]; do
+                print_status "JACK cleanup attempt $attempt/$max_attempts..."
+                
+                # Phase 1: Try graceful termination first
+                if [ $attempt -eq 1 ]; then
+                    print_status "  Attempting graceful termination (SIGTERM)..."
+                    echo "$jack_pids" | xargs -r sudo kill -TERM 2>/dev/null || true
+                    sleep 2
+                fi
+                
+                # Phase 2: Force kill with SIGKILL
+                print_status "  Force killing with SIGKILL..."
+                echo "$jack_pids" | xargs -r sudo kill -9 2>/dev/null || true
+                
+                # Wait for processes to terminate
+                sleep 2
+                
+                # Check again
+                jack_pids=$(pgrep -f jackd)
+                attempt=$((attempt + 1))
             done
-            sleep 2
         fi
         
         # Method 3: Kill system-wide JACK processes
@@ -338,9 +384,32 @@ perform_deep_cleanup() {
         local audio_processes=$(lsof /dev/snd/* 2>/dev/null | grep -v "COMMAND" | awk '{print $2}' | sort -u)
         if [ -n "$audio_processes" ]; then
             print_status "Found processes holding audio devices: $audio_processes"
-            echo "$audio_processes" | xargs -r kill -9 2>/dev/null || true
-            sudo echo "$audio_processes" | xargs -r kill -9 2>/dev/null || true
-            sleep 2
+            
+            # Use multi-phase cleanup approach with kill -9 as final fallback
+            local max_attempts=3
+            local attempt=1
+            
+            while [ $attempt -le $max_attempts ] && [ -n "$audio_processes" ]; do
+                print_status "Audio device cleanup attempt $attempt/$max_attempts..."
+                
+                # Phase 1: Try graceful termination first
+                if [ $attempt -eq 1 ]; then
+                    print_status "  Attempting graceful termination (SIGTERM)..."
+                    echo "$audio_processes" | xargs -r sudo kill -TERM 2>/dev/null || true
+                    sleep 2
+                fi
+                
+                # Phase 2: Force kill with SIGKILL
+                print_status "  Force killing with SIGKILL..."
+                echo "$audio_processes" | xargs -r sudo kill -9 2>/dev/null || true
+                
+                # Wait for processes to terminate
+                sleep 2
+                
+                # Check again
+                audio_processes=$(lsof /dev/snd/* 2>/dev/null | grep -v "COMMAND" | awk '{print $2}' | sort -u)
+                attempt=$((attempt + 1))
+            done
         fi
         
         # Method 6: Remove JACK socket files
@@ -417,12 +486,33 @@ verify_system_state() {
             done
         fi
         
-        # Attempt one final cleanup for stubborn processes
-        print_status "Attempting final cleanup for stubborn processes..."
-        pkill -9 -f "jackd|pipewire|pulseaudio|ardour" 2>/dev/null || true
-        sleep 1
+        # Use multi-phase final cleanup approach with kill -9 as final fallback
+        local max_attempts=3
+        local attempt=1
         
-        # Re-check after final cleanup
+        while [ $attempt -le $max_attempts ] && [ -n "$running_processes" ]; do
+            print_status "Final cleanup attempt $attempt/$max_attempts..."
+            
+            # Phase 1: Try graceful termination first
+            if [ $attempt -eq 1 ]; then
+                print_status "  Attempting graceful termination (SIGTERM)..."
+                echo "$running_processes" | xargs -r sudo kill -TERM 2>/dev/null || true
+                sleep 2
+            fi
+            
+            # Phase 2: Force kill with SIGKILL
+            print_status "  Force killing with SIGKILL..."
+            echo "$running_processes" | xargs -r sudo kill -9 2>/dev/null || true
+            
+            # Wait for processes to terminate
+            sleep 2
+            
+            # Check again
+            running_processes=$(pgrep -f "jackd|pipewire|pulseaudio|ardour" 2>/dev/null)
+            attempt=$((attempt + 1))
+        done
+        
+        # Final verification
         local remaining_pids=$(pgrep -f "jackd|pipewire|pulseaudio|ardour" 2>/dev/null | wc -l)
         if [ "$remaining_pids" -eq 0 ]; then
             print_status "Final cleanup successful - all processes terminated"
@@ -504,12 +594,28 @@ print_status "Stopping irqbalance service..."
 sudo systemctl stop irqbalance 2>/dev/null || true
 sudo systemctl disable irqbalance 2>/dev/null || true
 
-print_status "Executing rt_tuning.sh..."
+# Determine RT tuning mode based on startup mode
+RT_MODE="prod"
+if [ "$MODE" = "test" ]; then
+    RT_MODE="test"
+fi
+
+print_status "Executing rt_tuning.sh in $RT_MODE mode..."
 if [ -f "$(dirname "$0")/rt_tuning.sh" ]; then
-    sudo "$(dirname "$0")/rt_tuning.sh"
+    sudo "$(dirname "$0")/rt_tuning.sh" --mode "$RT_MODE"
     check_status "RT Tuning"
 else
     print_status "Warning: rt_tuning.sh not found in local scripts directory, skipping RT tuning"
+fi
+echo
+
+print_status "Phase 1.5: Realtime Privileges Verification"
+print_status "Verifying realtime privileges configuration..."
+if [ -f "$(dirname "$0")/setup_realtime_privileges.sh" ]; then
+    sudo "$(dirname "$0")/setup_realtime_privileges.sh" --verify
+    check_status "Realtime privileges verification"
+else
+    print_status "Warning: setup_realtime_privileges.sh not found, skipping verification"
 fi
 echo
 

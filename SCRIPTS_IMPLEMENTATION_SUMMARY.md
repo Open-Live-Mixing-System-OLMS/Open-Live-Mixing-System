@@ -8,10 +8,12 @@ This document summarizes the implementation of the OLMS machine preparation scri
 
 ### 1. Main Coordinator
 - **`scripts/olms-startup.sh`** - Primary startup script that coordinates the complete system initialization
-  - Phase 1: Real-time System Optimization (calls `rt_tuning.sh`)
-  - Phase 2: Hardware Configuration (calls `irq_pinning.sh`)
-  - Phase 3: Machine Preparation (calls `prepare_machine.sh`)
-  - Phase 4: Audio Engine Startup (calls `audio_engine.sh`)
+  - **Fase 0**: Pulizia Audio (termina processi audio esistenti)
+  - **Fase 1**: Ottimizzazione RT + Stop IRQ Balance (esegue `rt_tuning.sh`)
+  - **Fase 2**: Pinning IRQ Hardware (esegue `irq_pinning.sh`)
+  - **Fase 3**: Preparazione Macchina (esegue `prepare_machine.sh`)
+  - **Fase 4**: Avvio Motore Audio (esegue `audio_engine.sh` in background)
+  - **Fase 5**: Configurazione Affinità CPU (esegue `olms-apply-affinity.sh`)
 
 ### 2. Specialized Orchestrators
 - **`scripts/prepare_machine.sh`** - Machine preparation orchestrator for system configuration
@@ -20,7 +22,7 @@ This document summarizes the implementation of the OLMS machine preparation scri
   - Phase 3: CPU Resource Allocation (calls `olms-apply-affinity.sh`)
   - Phase 4: Audio Engine Coordination (returns control to `olms-startup.sh`)
 
-### 2. Individual Phase Scripts
+### 3. Individual Phase Scripts
 
 #### Phase 1: Real-time System Optimization
 - **`scripts/rt_tuning.sh`** (existing) - CPU/Kernel optimizations
@@ -40,17 +42,20 @@ This document summarizes the implementation of the OLMS machine preparation scri
 - **`scripts/olms-apply-affinity.sh`** (newly created) - CPU affinity configuration
   - Sets CPU affinity for audio processes (JACK, Ardour)
   - Configures process priorities (nice/renice values)
+  - Applica priorità RT (SCHED_FIFO) ai processi audio
   - Allocates dedicated CPU cores for audio processing
   - Verifies CPU affinity settings
 
 #### Phase 4: Audio Engine Coordination
 - **`scripts/audio_engine.sh`** (renamed from ardour_launcher.sh) - Audio engine launch
-  - Starts JACK and Ardour Headless
+  - Starts JACK2 server with optimized parameters
+  - Avvia Ardour come client JACK (non master)
   - Supports testing mode (with GUI) and production mode (headless)
   - Handles virtual audio backend when no hardware is available
+  - Configura ambiente X11/Xvfb per modalità GUI/headless
   - Provides comprehensive error handling and status reporting
 
-### 3. Additional System Scripts
+### 4. Additional System Scripts
 
 #### System Monitoring
 - **`scripts/disk_guard.sh`** (newly created) - Disk space monitoring
@@ -67,6 +72,19 @@ This document summarizes the implementation of the OLMS machine preparation scri
 
 - **`scripts/usb_audio_session_adapter.sh`** (existing) - USB audio session adaptation
   - Adapts Ardour session to detected USB audio devices
+  - Rileva automaticamente i nomi delle porte della scheda audio USB
+  - Mappa le connessioni system:capture/playback ai nomi effettivi
+
+### 5. Launchers
+- **`scripts/launchers/olms-test-launcher.sh`** - Test environment launcher
+  - Avvia il sistema in modalità testing con GUI
+  - Fornisce feedback visivo e capacità di debugging
+  - Include monitoraggio dettagliato del sistema
+
+- **`scripts/launchers/olms-prod-launcher.sh`** - Production environment launcher
+  - Avvia il sistema in modalità produzione (headless)
+  - Ottimizzato per operazioni automatizzate
+  - Minima interazione utente richiesta
 
 ## Architecture Benefits
 
@@ -81,7 +99,7 @@ The scripts are designed to work both in development/testing mode and production
 
 **Development Mode (Manual):**
 ```bash
-./scripts/prepare_machine.sh --test
+./scripts/olms-startup.sh --test
 ```
 
 **Production Mode (Systemd):**
@@ -98,6 +116,19 @@ systemctl enable olms-disk-guard.service
 - Clear status messages with timestamps
 - Graceful fallback when individual scripts are missing
 - Detailed help and usage information
+- Meccanismi di retry e fallback per processi "stubborn"
+
+## Architettura CPU OLMS (4+ Core)
+
+- **Core 0**: Sistema operativo, servizi di base, I/O generale
+- **Core 1**: IRQ controller per la scheda audio USB (pinning IRQ)
+- **Core 2+**: Processi JACK2 e thread DSP di Ardour (affinità CPU)
+
+## Modalità di Avvio
+
+1. **Test Mode**: Avvio con GUI per sviluppo e monitoraggio
+2. **Production Mode**: Avvio headless per operazioni automatizzate
+3. **Virtual Mode**: Backend audio virtuale quando non c'è hardware disponibile
 
 ## Usage Examples
 
@@ -152,6 +183,15 @@ sudo ./scripts/olms-apply-affinity.sh --audio-core 1
 ./scripts/disk_guard.sh --interval 30 --warning 80 --critical 90
 ```
 
+### Launchers
+```bash
+# Test environment launcher
+./scripts/launchers/olms-test-launcher.sh
+
+# Production environment launcher
+./scripts/launchers/olms-prod-launcher.sh
+```
+
 ## File Structure
 ```
 scripts/
@@ -163,7 +203,10 @@ scripts/
 ├── olms-apply-affinity.sh       # Phase 3: CPU allocation (NEW)
 ├── disk_guard.sh                # System monitoring (NEW)
 ├── setup_realtime_privileges.sh # Setup utilities
-└── usb_audio_session_adapter.sh # Audio adaptation
+├── usb_audio_session_adapter.sh # Audio adaptation
+└── launchers/
+    ├── olms-test-launcher.sh    # Test environment launcher
+    └── olms-prod-launcher.sh    # Production environment launcher
 ```
 
 ## Systemd Service Integration
@@ -192,3 +235,6 @@ The scripts are synchronized with the following systemd services:
 - Error handling includes fallback mechanisms for missing dependencies
 - Scripts are designed for both development and production environments
 - All scripts follow consistent naming conventions and error reporting
+- Sistema progettato per essere robusto con meccanismi di retry, fallback e gestione degli errori
+- Ogni script può essere eseguito autonomamente o come parte della catena completa
+- Permette sia testing incrementale che avvio completo del sistema

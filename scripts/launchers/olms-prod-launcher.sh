@@ -266,6 +266,65 @@ print_status "=== OLMS Production Launcher Complete ==="
 print_success "OLMS system is now running in production mode"
 print_status "Headless operation enabled for automated performance/recording"
 echo
+print_status "Monitoring system startup (this will keep the terminal open)..."
+echo
+
+# Phase 6: Monitor System Startup
+print_status "Phase 6: Monitoring System Startup"
+print_status "Waiting for all audio processes to be ready..."
+
+# Function to check if audio processes are running
+check_audio_status() {
+    local jack_pids=$(pgrep -f jackd 2>/dev/null)
+    local ardour_pids=$(pgrep -f ardour 2>/dev/null)
+    
+    if [ -n "$jack_pids" ]; then
+        echo "JACK processes found: $jack_pids"
+        for pid in $jack_pids; do
+            local process_info=$(ps -p $pid -o pid,cmd 2>/dev/null | tail -n 1)
+            if [ -n "$process_info" ]; then
+                echo "  JACK PID $pid: $process_info"
+            fi
+        done
+    fi
+    
+    if [ -n "$ardour_pids" ]; then
+        echo "Ardour processes found: $ardour_pids"
+        for pid in $ardour_pids; do
+            local process_info=$(ps -p $pid -o pid,cmd 2>/dev/null | tail -n 1)
+            if [ -n "$process_info" ]; then
+                echo "  Ardour PID $pid: $process_info"
+            fi
+        done
+        return 0
+    else
+        return 1
+    fi
+}
+
+# Wait for audio processes to start with timeout
+MAX_WAIT_TIME=60
+WAIT_INTERVAL=3
+elapsed_time=0
+
+while [ $elapsed_time -lt $MAX_WAIT_TIME ]; do
+    if check_audio_status; then
+        print_success "All audio processes are now running and ready!"
+        break
+    else
+        print_status "Audio processes not yet ready (waited ${elapsed_time}s/${MAX_WAIT_TIME}s)"
+        sleep $WAIT_INTERVAL
+        elapsed_time=$((elapsed_time + WAIT_INTERVAL))
+    fi
+done
+
+# Final check
+if ! check_audio_status; then
+    print_status "Warning: Some audio processes may still be starting up"
+    print_status "Check the system manually if needed"
+fi
+
+echo
 print_status "Production system monitoring:"
 echo "  - Check JACK status: jack_control status"
 echo "  - Monitor logs: journalctl -f -u ardour.service"
@@ -278,6 +337,20 @@ echo "  - Stop JACK: pkill jackd"
 echo "  - Stop any background processes from this script"
 echo
 print_status "Production launcher completed successfully!"
+print_status "Terminal will remain open for monitoring. Press Ctrl+C to exit."
 
-# Keep the script running to maintain the processes
+# Keep the script running to maintain the processes and allow monitoring
 trap "print_status 'Production launcher script completed'" EXIT
+
+# Wait for user to press Ctrl+C or for audio processes to be stopped
+while true; do
+    # Check if audio processes are still running
+    if ! pgrep -f "jackd|ardour" > /dev/null 2>&1; then
+        print_status "Audio processes have stopped. Exiting monitor..."
+        break
+    fi
+    
+    # Show current status every 10 seconds
+    sleep 10
+    print_status "Monitoring... Audio processes are still running"
+done

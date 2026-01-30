@@ -495,6 +495,80 @@ To set up a testing environment, you need:
 | **Web Interface** | Open Stage Control | OSC/WebSocket bridge for testing |
 | **Scripts** | OLMS Core scripts | System configuration and startup |
 
+### 2. Realtime Privileges Configuration
+
+**IMPORTANT**: OLMS requires proper realtime privileges for optimal audio performance. The system has been configured with enhanced realtime privileges management.
+
+#### 2.1 Automatic Configuration
+
+The `setup-env.sh` script automatically configures realtime privileges:
+
+```bash
+# Run the setup script to configure realtime privileges
+./setup-env.sh
+```
+
+This script will:
+- Create the `audio` and `realtime` groups if they don't exist
+- Add the current user to both groups
+- Install the optimized realtime configuration file
+- Verify the configuration is working correctly
+
+#### 2.2 Manual Configuration
+
+If you need to configure realtime privileges manually:
+
+```bash
+# Create required groups
+sudo groupadd audio
+sudo groupadd realtime
+
+# Add user to groups
+sudo usermod -aG audio,realtime $USER
+
+# Install realtime configuration
+sudo ln -sf /path/to/OLMS-Core/config/realtime/99-realtime.conf /etc/security/limits.d/99-realtime.conf
+
+# Verify configuration
+ulimit -r  # Should show 99
+groups $USER  # Should show both audio and realtime
+```
+
+#### 2.3 Verification
+
+After configuration, verify the realtime privileges are working:
+
+```bash
+# Check realtime priority limit
+ulimit -r  # Should be 99
+
+# Check memory lock limit
+ulimit -l  # Should be unlimited
+
+# Check group membership
+groups $USER  # Should include audio and realtime
+
+# Test with JACK
+jackd -d alsa -d hw:0 -r 48000 -p 64 -n 3
+```
+
+#### 2.4 Troubleshooting
+
+If you encounter realtime privilege issues:
+
+1. **Check Group Membership**: Ensure user is in both `audio` and `realtime` groups
+2. **Log Out/In**: Group changes require re-login to take effect
+3. **Verify Configuration**: Check that `/etc/security/limits.d/99-realtime.conf` is properly installed
+4. **Check Limits**: Verify `ulimit -r` returns 99
+
+#### 2.5 Common Issues
+
+| Issue | Solution |
+| :--- | :--- |
+| **ulimit -r shows 97 instead of 99** | Check realtime configuration file and user group membership |
+| **JACK fails with realtime priority errors** | Verify user is in audio and realtime groups, check ulimit settings |
+| **Ardour processes can't get RT priority** | Ensure realtime privileges are configured correctly, check system limits |
+
 ### 2. Manual Testing Environment Setup
 
 For contributors, OLMS provides a manual startup script that emulates the systemd service startup sequence without requiring the full distribution.
