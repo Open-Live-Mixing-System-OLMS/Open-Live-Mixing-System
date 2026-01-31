@@ -38,11 +38,11 @@ setup_realtime_privileges() {
 # This file configures realtime scheduling and memory locking for audio applications
 
 # Grant realtime privileges to the realtime group
-@realtime - rtprio 98
+@realtime - rtprio 99
 @realtime - memlock unlimited
 
 # Also grant directly to the specified user (fallback)
-$username - rtprio 98
+$username - rtprio 99
 $username - memlock unlimited
 EOF
     

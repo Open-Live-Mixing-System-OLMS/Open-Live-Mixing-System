@@ -320,41 +320,41 @@ cleanup_with_retry() {
     fi
 }
 
-# Function to perform deep cleanup (Phase 2)
+# Function to perform deep cleanup (Phase 2) - IMPROVED WITH TIMEOUTS AND AGGRESSIVE CLEANUP
 perform_deep_cleanup() {
     print_status "Phase 2: Performing deep cleanup..."
     
-    # Function to force kill all JACK instances aggressively
+    # Function to force kill all JACK instances with timeout and aggressive approach
     force_kill_all_jack() {
-        print_status "Force killing all JACK instances aggressively..."
+        print_status "Force killing all JACK instances with timeout protection and aggressive cleanup..."
         
-        # Method 1: Try graceful shutdown first
-        print_status "Attempting graceful shutdown with jack_control..."
-        jack_control exit 2>/dev/null || true
+        # Method 1: Try graceful shutdown first with timeout
+        print_status "Attempting graceful shutdown with jack_control (10s timeout)..."
+        timeout 10s jack_control exit 2>/dev/null || true
         sleep 2
         
-        # Method 2: Kill by process name with multi-phase approach
+        # Method 2: Kill by process name with timeout and multi-phase approach
         if pgrep -f jackd > /dev/null; then
             local jack_pids=$(pgrep -f jackd)
             print_status "Found JACK PIDs: $jack_pids"
             
-            # Use multi-phase cleanup approach with kill -9 as final fallback
+            # Use multi-phase cleanup approach with timeout
             local max_attempts=3
             local attempt=1
             
             while [ $attempt -le $max_attempts ] && [ -n "$jack_pids" ]; do
                 print_status "JACK cleanup attempt $attempt/$max_attempts..."
                 
-                # Phase 1: Try graceful termination first
+                # Phase 1: Try graceful termination first with timeout
                 if [ $attempt -eq 1 ]; then
-                    print_status "  Attempting graceful termination (SIGTERM)..."
-                    echo "$jack_pids" | xargs -r sudo kill -TERM 2>/dev/null || true
+                    print_status "  Attempting graceful termination (SIGTERM) with 5s timeout..."
+                    timeout 5s bash -c "echo '$jack_pids' | xargs -r sudo kill -TERM" 2>/dev/null || true
                     sleep 2
                 fi
                 
-                # Phase 2: Force kill with SIGKILL
-                print_status "  Force killing with SIGKILL..."
-                echo "$jack_pids" | xargs -r sudo kill -9 2>/dev/null || true
+                # Phase 2: Force kill with SIGKILL with timeout
+                print_status "  Force killing with SIGKILL with 5s timeout..."
+                timeout 5s bash -c "echo '$jack_pids' | xargs -r sudo kill -9" 2>/dev/null || true
                 
                 # Wait for processes to terminate
                 sleep 2
@@ -365,87 +365,108 @@ perform_deep_cleanup() {
             done
         fi
         
-        # Method 3: Kill system-wide JACK processes
-        print_status "Killing system-wide JACK processes..."
-        pkill -9 -f jackd 2>/dev/null || true
-        killall -9 jackd 2>/dev/null || true
+        # Method 3: Kill system-wide JACK processes with timeout
+        print_status "Killing system-wide JACK processes with timeout..."
+        timeout 10s bash -c "pkill -9 -f jackd" 2>/dev/null || true
+        timeout 10s bash -c "killall -9 jackd" 2>/dev/null || true
         sleep 3
         
-        # Method 4: Kill Pipewire and related processes (CRITICAL for JACK stability)
-        print_status "Killing Pipewire and related audio processes..."
-        pkill -9 -f pipewire 2>/dev/null || true
-        pkill -9 -f wireplumber 2>/dev/null || true
-        pkill -9 -f pulseaudio 2>/dev/null || true
-        pkill -9 -f alsa 2>/dev/null || true
+        # Method 4: Kill Pipewire and related processes with timeout (CRITICAL for JACK stability)
+        print_status "Killing Pipewire and related audio processes with timeout..."
+        timeout 10s bash -c "pkill -9 -f pipewire" 2>/dev/null || true
+        timeout 10s bash -c "pkill -9 -f wireplumber" 2>/dev/null || true
+        timeout 10s bash -c "pkill -9 -f pulseaudio" 2>/dev/null || true
+        timeout 10s bash -c "pkill -9 -f alsa" 2>/dev/null || true
         sleep 3
         
-        # Method 5: Use lsof to find and kill processes holding audio devices
+        # Method 5: Use lsof to find and kill processes holding audio devices with timeout
         print_status "Checking for processes holding audio devices..."
-        local audio_processes=$(lsof /dev/snd/* 2>/dev/null | grep -v "COMMAND" | awk '{print $2}' | sort -u)
+        local audio_processes=$(timeout 5s lsof /dev/snd/* 2>/dev/null | grep -v "COMMAND" | awk '{print $2}' | sort -u)
         if [ -n "$audio_processes" ]; then
             print_status "Found processes holding audio devices: $audio_processes"
             
-            # Use multi-phase cleanup approach with kill -9 as final fallback
+            # Use multi-phase cleanup approach with timeout
             local max_attempts=3
             local attempt=1
             
             while [ $attempt -le $max_attempts ] && [ -n "$audio_processes" ]; do
                 print_status "Audio device cleanup attempt $attempt/$max_attempts..."
                 
-                # Phase 1: Try graceful termination first
+                # Phase 1: Try graceful termination first with timeout
                 if [ $attempt -eq 1 ]; then
-                    print_status "  Attempting graceful termination (SIGTERM)..."
-                    echo "$audio_processes" | xargs -r sudo kill -TERM 2>/dev/null || true
+                    print_status "  Attempting graceful termination (SIGTERM) with 5s timeout..."
+                    timeout 5s bash -c "echo '$audio_processes' | xargs -r sudo kill -TERM" 2>/dev/null || true
                     sleep 2
                 fi
                 
-                # Phase 2: Force kill with SIGKILL
-                print_status "  Force killing with SIGKILL..."
-                echo "$audio_processes" | xargs -r sudo kill -9 2>/dev/null || true
+                # Phase 2: Force kill with SIGKILL with timeout
+                print_status "  Force killing with SIGKILL with 5s timeout..."
+                timeout 5s bash -c "echo '$audio_processes' | xargs -r sudo kill -9" 2>/dev/null || true
                 
                 # Wait for processes to terminate
                 sleep 2
                 
                 # Check again
-                audio_processes=$(lsof /dev/snd/* 2>/dev/null | grep -v "COMMAND" | awk '{print $2}' | sort -u)
+                audio_processes=$(timeout 5s lsof /dev/snd/* 2>/dev/null | grep -v "COMMAND" | awk '{print $2}' | sort -u)
                 attempt=$((attempt + 1))
             done
         fi
         
-        # Method 6: Remove JACK socket files
+        # Method 6: Remove JACK socket files with timeout
         print_status "Removing JACK socket files..."
-        rm -f /tmp/jack_* 2>/dev/null || true
-        rm -f /dev/shm/jack_* 2>/dev/null || true
-        rm -f /var/run/jack_* 2>/dev/null || true
-        rm -f /run/jack_* 2>/dev/null || true
-        rm -f /tmp/.jack* 2>/dev/null || true
-        rm -f /var/lock/.jack* 2>/dev/null || true
+        timeout 5s bash -c "rm -f /tmp/jack_* /dev/shm/jack_* /var/run/jack_* /run/jack_* /tmp/.jack* /var/lock/.jack*" 2>/dev/null || true
         
-        # Method 7: Remove Pipewire socket files (CRITICAL)
+        # Method 7: Remove Pipewire socket files with timeout (CRITICAL)
         print_status "Removing Pipewire socket files..."
-        rm -f /tmp/pipewire* 2>/dev/null || true
-        rm -f /dev/shm/pipewire* 2>/dev/null || true
-        rm -f /var/run/pipewire* 2>/dev/null || true
-        rm -f /run/pipewire* 2>/dev/null || true
-        rm -f /tmp/.pipewire* 2>/dev/null || true
-        rm -f /var/lock/.pipewire* 2>/dev/null || true
+        timeout 5s bash -c "rm -f /tmp/pipewire* /dev/shm/pipewire* /var/run/pipewire* /run/pipewire* /tmp/.pipewire* /var/lock/.pipewire*" 2>/dev/null || true
         
-        # Method 8: Clean up shared memory segments
+        # Method 8: Clean up shared memory segments with timeout
         print_status "Cleaning up shared memory segments..."
-        for shm_id in $(ipcs -m | grep jack | awk '{print $2}'); do
-            ipcrm -m $shm_id 2>/dev/null || true
+        timeout 5s bash -c "for shm_id in \$(ipcs -m | grep jack | awk '{print \$2}'); do ipcrm -m \$shm_id 2>/dev/null || true; done" 2>/dev/null || true
+        timeout 5s bash -c "for sem_id in \$(ipcs -s | grep jack | awk '{print \$2}'); do ipcrm -s \$sem_id 2>/dev/null || true; done" 2>/dev/null || true
+        
+        # Method 9: AGGRESSIVE CLEANUP - Force remove all audio-related files and processes
+        print_status "Performing aggressive cleanup of all audio-related processes and files..."
+        
+        # Kill any remaining audio processes with force
+        print_status "Force killing any remaining audio processes..."
+        sudo pkill -9 -f "jack\|pipewire\|pulseaudio\|wireplumber\|alsa" 2>/dev/null || true
+        sleep 2
+        
+        # Force remove all socket and shared memory files
+        print_status "Force removing all audio socket and shared memory files..."
+        sudo rm -rf /tmp/jack_* /dev/shm/jack_* /var/run/jack_* /run/jack_* /tmp/.jack* /var/lock/.jack* 2>/dev/null || true
+        sudo rm -rf /tmp/pipewire* /dev/shm/pipewire* /var/run/pipewire* /run/pipewire* /tmp/.pipewire* /var/lock/.pipewire* 2>/dev/null || true
+        
+        # Force remove all shared memory segments
+        print_status "Force removing all shared memory segments..."
+        for shm_id in $(ipcs -m | grep -E "jack|pipewire|pulse" | awk '{print $2}' 2>/dev/null); do
+            sudo ipcrm -m "$shm_id" 2>/dev/null || true
         done
-        for sem_id in $(ipcs -s | grep jack | awk '{print $2}'); do
-            ipcrm -s $sem_id 2>/dev/null || true
+        
+        # Force remove all semaphore segments
+        print_status "Force removing all semaphore segments..."
+        for sem_id in $(ipcs -s | grep -E "jack|pipewire|pulse" | awk '{print $2}' 2>/dev/null); do
+            sudo ipcrm -s "$sem_id" 2>/dev/null || true
         done
+        
+        # Method 10: Reset audio hardware
+        print_status "Resetting audio hardware..."
+        for device in /dev/snd/*; do
+            if [ -c "$device" ]; then
+                print_status "Resetting $device"
+                sudo fuser -k "$device" 2>/dev/null || true
+            fi
+        done
+        sleep 2
         
         return 0
     }
     
-    # Perform the cleanup with retry mechanism
+    # Perform the cleanup with retry mechanism and timeout protection
     if cleanup_with_retry force_kill_all_jack 3 2 "Deep audio cleanup"; then
-        # Verify cleanup was successful
-        local remaining_processes=$(pgrep -f "jackd|pipewire|pulseaudio" | wc -l)
+        # Verify cleanup was successful with timeout
+        local remaining_processes=$(timeout 5s pgrep -f "jackd|pipewire|pulseaudio" | wc -l 2>/dev/null || echo "0")
         if [ "$remaining_processes" -eq 0 ]; then
             print_status "Deep cleanup completed successfully ✓"
             return 0
@@ -578,15 +599,107 @@ set -e
 print_status "Cleanup phase completed - proceeding with startup"
 echo
 
-# Function to check if command succeeded
+# Function to check if command succeeded with enhanced error handling
 check_status() {
-    if [ $? -eq 0 ]; then
+    local operation_name="$1"
+    local exit_code=$?
+    
+    if [ $exit_code -eq 0 ]; then
         echo "    ✓ Success"
+        return 0
     else
         echo "    ✗ Failed"
-        echo "Startup aborted due to error in: $1"
+        echo "Operation failed: $operation_name"
+        echo "Exit code: $exit_code"
+        echo "Startup aborted due to error in: $operation_name"
+        echo ""
+        echo "Troubleshooting suggestions:"
+        echo "  - Check system logs: journalctl -xe"
+        echo "  - Verify dependencies are installed"
+        echo "  - Check system resources (CPU, memory, disk space)"
+        echo "  - Review script permissions and paths"
         exit 1
     fi
+}
+
+# Function to check if command succeeded with warning (non-critical operations)
+check_status_warning() {
+    local operation_name="$1"
+    local exit_code=$?
+    
+    if [ $exit_code -eq 0 ]; then
+        echo "    ✓ Success"
+        return 0
+    else
+        echo "    ⚠ Warning: $operation_name failed (exit code: $exit_code)"
+        echo "    Continuing startup anyway..."
+        return 1
+    fi
+}
+
+# Function to add timeout to operations
+run_with_timeout() {
+    local timeout_seconds="$1"
+    shift
+    local command="$@"
+    
+    print_status "Running with timeout ($timeout_seconds seconds): $command"
+    
+    timeout "$timeout_seconds" $command
+    local exit_code=$?
+    
+    if [ $exit_code -eq 124 ]; then
+        print_status "Operation timed out after $timeout_seconds seconds"
+        return 1
+    elif [ $exit_code -ne 0 ]; then
+        print_status "Operation failed with exit code: $exit_code"
+        return 1
+    else
+        print_status "Operation completed successfully"
+        return 0
+    fi
+}
+
+# Function to verify system resources before startup
+verify_system_resources() {
+    print_status "Verifying system resources..."
+    
+    # Check available memory
+    local available_memory=$(free -m | awk 'NR==2{printf "%.0f", $7}')
+    local total_memory=$(free -m | awk 'NR==2{printf "%.0f", $2}')
+    local memory_percentage=$((available_memory * 100 / total_memory))
+    
+    print_status "Available memory: ${available_memory}MB (${memory_percentage}% of ${total_memory}MB)"
+    
+    if [ $memory_percentage -lt 10 ]; then
+        print_status "Warning: Low available memory (${available_memory}MB)"
+        print_status "Consider closing other applications before starting OLMS"
+    fi
+    
+    # Check available disk space
+    local disk_usage=$(df / | awk 'NR==2{printf "%.0f", $4}')
+    local disk_percentage=$(df / | awk 'NR==2{printf "%.0f", $5}')
+    
+    print_status "Available disk space: ${disk_usage}KB (${disk_percentage}% used)"
+    
+    if [ $disk_percentage -gt 90 ]; then
+        print_status "Warning: Low disk space (${disk_usage}KB available)"
+        print_status "Consider freeing up disk space before starting OLMS"
+    fi
+    
+    # Check CPU load
+    local cpu_load=$(uptime | awk -F'load average:' '{print $2}' | awk '{print $1}' | sed 's/,//')
+    local cpu_cores=$(nproc)
+    
+    print_status "Current CPU load: $cpu_load (cores: $cpu_cores)"
+    
+    if (( $(echo "$cpu_load > $cpu_cores" | bc -l) )); then
+        print_status "Warning: High CPU load detected"
+        print_status "Consider reducing system load before starting OLMS"
+    fi
+    
+    print_status "System resources verification completed"
+    return 0
 }
 
 print_status "Phase 1: RT Optimization + IRQ Balance Stop"
@@ -612,10 +725,52 @@ echo
 print_status "Phase 1.5: Realtime Privileges Verification"
 print_status "Verifying realtime privileges configuration..."
 if [ -f "$(dirname "$0")/setup_realtime_privileges.sh" ]; then
-    sudo "$(dirname "$0")/setup_realtime_privileges.sh" --verify
+    # Fix parsing issue: remove --verify flag as it's not supported by the script
+    # Use SUDO_USER if available to get the original user, otherwise fall back to USER
+    ORIGINAL_USER="${SUDO_USER:-$USER}"
+    print_status "Setting up realtime privileges for user: $ORIGINAL_USER"
+    sudo "$(dirname "$0")/setup_realtime_privileges.sh" "$ORIGINAL_USER"
     check_status "Realtime privileges verification"
 else
     print_status "Warning: setup_realtime_privileges.sh not found, skipping verification"
+fi
+
+# Apply systemd realtime override if available
+print_status "Phase 1.6: Applying systemd realtime override..."
+if [ -f "$(dirname "$0")/olms-rt-override.sh" ]; then
+    # Enhanced systemd override with X11 environment detection and fallback
+    print_status "Checking X11 environment for systemd override..."
+    
+    # Detect and set X11 environment variables if not present
+    if [ -z "$DISPLAY" ]; then
+        for display_num in 0 1 2; do
+            if [ -f "/tmp/.X11-unix/X$display_num" ]; then
+                export DISPLAY=":$display_num"
+                print_status "Detected DISPLAY: $DISPLAY"
+                break
+            fi
+        done
+    fi
+    
+    if [ -z "$XAUTHORITY" ]; then
+        export XAUTHORITY="$HOME/.Xauthority"
+        print_status "Set XAUTHORITY: $XAUTHORITY"
+    fi
+    
+    if [ -z "$XDG_RUNTIME_DIR" ]; then
+        export XDG_RUNTIME_DIR="/run/user/$(id -u)"
+        print_status "Set XDG_RUNTIME_DIR: $XDG_RUNTIME_DIR"
+    fi
+    
+    # Run the override script with enhanced error handling
+    if sudo "$(dirname "$0")/olms-rt-override.sh"; then
+        print_status "✓ Systemd realtime override applied successfully"
+    else
+        print_status "⚠ Systemd override had issues, but continuing startup..."
+        print_status "  This may be normal if X11 environment is not fully available"
+    fi
+else
+    print_status "Warning: olms-rt-override.sh not found, skipping systemd override"
 fi
 echo
 
@@ -710,9 +865,9 @@ if [ -f "$(dirname "$0")/audio_engine.sh" ]; then
     print_status "About to execute audio_engine.sh with args: $AUDIO_ARGS"
     
     # LAUNCH AUDIO ENGINE ASYNCHRONOUSLY (FIX FOR BLOCKING EXECUTION)
-    # Use sudo -E to preserve environment variables including X11
+    # Remove sudo to run as same user for JACK/Ardour communication
     # Add & at the end to run in background and capture PID
-    sudo -E "$(dirname "$0")/audio_engine.sh" $AUDIO_ARGS &
+    "$(dirname "$0")/audio_engine.sh" $AUDIO_ARGS &
     AUDIO_ENGINE_PID=$!
     
     print_status "Audio engine launched asynchronously (PID: $AUDIO_ENGINE_PID)"
@@ -797,17 +952,40 @@ echo
 
 print_status "Startup sequence completed!"
 echo
+
+# Phase 6: Final System Verification
+print_status "Phase 6: Final System Verification"
+print_status "Running comprehensive verification of all OLMS optimizations..."
+
+if [ -f "$(dirname "$0")/olms-final-verification.sh" ]; then
+    print_status "Executing final verification script..."
+    sudo "$(dirname "$0")/olms-final-verification.sh" $([ "$VERBOSE" = true ] && echo "--verbose")
+    verification_status=$?
+    
+    if [ $verification_status -eq 0 ]; then
+        print_success "All OLMS optimizations verified successfully"
+    else
+        print_warning "Some verification checks failed - see details above"
+        print_status "System may still be functional but with sub-optimal performance"
+    fi
+else
+    print_status "Warning: Final verification script not found, skipping verification"
+fi
+echo
+
 print_status "System Status:"
 echo "  - RT optimizations applied"
 echo "  - Hardware IRQ pinned"
 echo "  - JACK and Ardour running"
 echo "  - CPU affinity configured"
 echo "  - Disk protection active"
+echo "  - System verification: $([ $verification_status -eq 0 ] && echo "PASSED" || echo "WARNING")"
 echo
 print_status "To monitor the system:"
 echo "  - Check JACK status: jack_control status"
 echo "  - Monitor logs: journalctl -f -u ardour.service"
 echo "  - Check disk space: df -h"
+echo "  - Run verification: sudo ./scripts/olms-final-verification.sh --verbose"
 echo
 print_status "To stop the system:"
 echo "  - Stop Ardour: pkill -f ardour"

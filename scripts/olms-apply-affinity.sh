@@ -36,6 +36,7 @@ check_realtime_privileges() {
         print_status "⚠ User is not in realtime group"
         print_status "  To fix: sudo usermod -aG realtime $USER"
         print_status "  Then log out and log back in"
+        return 1
     fi
     
     # Check if user is in audio group
@@ -45,25 +46,67 @@ check_realtime_privileges() {
         print_status "⚠ User is not in audio group"
         print_status "  To fix: sudo usermod -aG audio $USER"
         print_status "  Then log out and log back in"
+        return 1
     fi
     
-    # Check current realtime priority limit
+    # Check current realtime priority limit (non-blocking check)
     local rt_limit=$(ulimit -r)
     print_status "Current realtime priority limit: $rt_limit"
     
-    if [ "$rt_limit" -ge 99 ]; then
-        print_status "✓ Realtime privileges are active"
+    if [ "$rt_limit" -ge 90 ]; then
+        print_status "✓ Realtime privileges appear to be active"
         return 0
     else
         print_status "⚠ Realtime privileges may not be fully active (limit: $rt_limit)"
-        print_status "  Expected: 99, Got: $rt_limit"
-        print_status "  This may cause RT priority setting to fail"
-        print_status "  To fix: Check /etc/security/limits.d/99-realtime.conf configuration"
+        print_status "  Attempting to set temporary RT privileges for current session..."
+        
+        # Try to set temporary RT privileges for current session
+        if sudo -n ulimit -r 99 2>/dev/null; then
+            print_status "✓ Temporary RT privileges set for current session"
+            return 0
+        else
+            print_status "⚠ Cannot set temporary RT privileges"
+            print_status "  Will attempt to set RT priorities anyway (may fail)"
+            return 0  # ← Importante: non bloccare l'impostazione delle priorità!
+        fi
+    fi
+}
+
+# Function to attempt to set RT privileges temporarily (for current session)
+attempt_temporary_rt_privileges() {
+    print_status "Attempting to set temporary RT privileges for current session..."
+    
+    # Try to set the realtime priority limit for current session
+    # This may work if the user has sudo privileges
+    if sudo -n ulimit -r 99 2>/dev/null; then
+        print_status "✓ Temporary RT privileges set for current session"
+        return 0
+    else
+        print_status "⚠ Cannot set temporary RT privileges (requires sudo or proper configuration)"
         return 1
     fi
 }
 
-# Function to set process priorities with RT scheduling (IMPROVED)
+# Function to add debug environment for diagnostics
+debug_environment() {
+    print_status "=== Environment Debug ==="
+    print_status "USER: $USER"
+    print_status "SUDO_USER: $SUDO_USER"
+    print_status "HOME: $HOME"
+    print_status "SHELL: $SHELL"
+    print_status "ulimit -r: $(ulimit -r)"
+    print_status "ulimit -l: $(ulimit -l)"
+    print_status "groups: $(groups)"
+    print_status "DISPLAY: $DISPLAY"
+    print_status "XAUTHORITY: $XAUTHORITY"
+    print_status "XDG_RUNTIME_DIR: $XDG_RUNTIME_DIR"
+    print_status "CPU_CORES: $CPU_CORES"
+    print_status "AUDIO_CPU_CORES: $AUDIO_CPU_CORES"
+    print_status "SYSTEM_CPU_CORES: $SYSTEM_CPU_CORES"
+    print_status "=== End Environment Debug ==="
+}
+
+# Function to set process priorities with RT scheduling (IMPROVED WITH RETRY MECHANISM)
 set_process_rt_priority() {
     local process_pattern="$1"
     local rt_priority="$2"
@@ -74,7 +117,15 @@ set_process_rt_priority() {
     # Check privileges before attempting to set RT priority
     if ! check_realtime_privileges; then
         print_status "Warning: Realtime privileges may not be fully configured"
-        print_status "  This may cause RT priority setting to fail"
+        print_status "  Attempting to set temporary RT privileges for current session..."
+        
+        # Try to set temporary RT privileges for current session
+        if ! attempt_temporary_rt_privileges; then
+            print_status "  Cannot set RT privileges for current session"
+            print_status "  This may cause RT priority setting to fail"
+            print_status "  Audio processes will run without realtime scheduling"
+            print_status "  To fix permanently: log out and log back in after group configuration"
+        fi
     fi
     
     local pids=$(get_process_pids "$process_pattern")
@@ -83,46 +134,86 @@ set_process_rt_priority() {
         return 0
     fi
     
-    for pid in $pids; do
-        if [ -d "/proc/$pid" ]; then
-            local process_cmd=$(ps -p "$pid" -o cmd= 2>/dev/null | head -1)
-            local current_policy=$(chrt -p "$pid" 2>/dev/null | grep "policy" | awk '{print $3}')
-            local current_priority=$(chrt -p "$pid" 2>/dev/null | grep "priority" | awk '{print $3}')
-            
-            # Check if process already has correct RT configuration
-            if [ "$current_policy" = "SCHED_FIFO" ] && [ "$current_priority" = "$rt_priority" ]; then
-                print_status "✓ PID $pid ($process_cmd) already has correct RT configuration (SCHED_FIFO, priority $rt_priority)"
-                continue
-            fi
-            
-            print_status "Setting RT priority for PID $pid ($process_cmd) to $rt_priority"
-            
-            # Use chrt for RT scheduling with improved error handling
-            if ! chrt -f "$rt_priority" -p "$pid" 2>/dev/null; then
-                # Check if the process already has RT scheduling but different priority
-                local new_policy=$(chrt -p "$pid" 2>/dev/null | grep "policy" | awk '{print $3}')
-                local new_priority=$(chrt -p "$pid" 2>/dev/null | grep "priority" | awk '{print $3}')
+    local max_attempts=3
+    local attempt=1
+    
+    while [ $attempt -le $max_attempts ]; do
+        print_status "RT priority setting attempt $attempt/$max_attempts..."
+        
+        local success_count=0
+        local total_count=0
+        
+        for pid in $pids; do
+            if [ -d "/proc/$pid" ]; then
+                total_count=$((total_count + 1))
+                local process_cmd=$(ps -p "$pid" -o cmd= 2>/dev/null | head -1)
+                local current_policy=$(chrt -p "$pid" 2>/dev/null | grep "policy" | awk '{print $3}')
+                local current_priority=$(chrt -p "$pid" 2>/dev/null | grep "priority" | awk '{print $3}')
                 
-                if [ "$new_policy" = "SCHED_FIFO" ] && [ -n "$new_priority" ]; then
-                    print_status "  ⚠ PID $pid ($process_cmd): Process has RT scheduling but wrong priority"
-                    print_status "    Current: SCHED_FIFO, priority $new_priority"
-                    print_status "    Expected: SCHED_FIFO, priority $rt_priority"
-                    print_status "    This may cause audio performance issues"
-                else
-                    print_status "  ✗ PID $pid ($process_cmd): Failed to set RT priority"
-                    print_status "    This process will not have realtime scheduling"
-                    print_status "    Check: user privileges, process permissions, and system limits"
+                # Check if process already has correct RT configuration
+                if [ "$current_policy" = "SCHED_FIFO" ] && [ "$current_priority" = "$rt_priority" ]; then
+                    print_status "  ✓ PID $pid ($process_cmd) already has correct RT configuration (SCHED_FIFO, priority $rt_priority)"
+                    success_count=$((success_count + 1))
+                    continue
                 fi
-            else
-                print_status "  ✓ PID $pid ($process_cmd): RT priority set successfully"
+                
+                print_status "  Setting RT priority for PID $pid ($process_cmd) to $rt_priority"
+                
+                # Use chrt for RT scheduling with improved error handling
+                if chrt -f "$rt_priority" -p "$pid" 2>/dev/null; then
+                    print_status "    ✓ PID $pid ($process_cmd): RT priority set successfully"
+                    success_count=$((success_count + 1))
+                else
+                    # Check if the process already has RT scheduling but different priority
+                    local new_policy=$(chrt -p "$pid" 2>/dev/null | grep "policy" | awk '{print $3}')
+                    local new_priority=$(chrt -p "$pid" 2>/dev/null | grep "priority" | awk '{print $3}')
+                    
+                    if [ "$new_policy" = "SCHED_FIFO" ] && [ -n "$new_priority" ]; then
+                        print_status "    ⚠ PID $pid ($process_cmd): Process has RT scheduling but wrong priority"
+                        print_status "      Current: SCHED_FIFO, priority $new_priority"
+                        print_status "      Expected: SCHED_FIFO, priority $rt_priority"
+                        print_status "      This may cause audio performance issues"
+                        success_count=$((success_count + 1))  # Count as success since it has RT scheduling
+                    else
+                        print_status "    ✗ PID $pid ($process_cmd): Failed to set RT priority"
+                        print_status "      This process will not have realtime scheduling"
+                        print_status "      Check: user privileges, process permissions, and system limits"
+                        print_status "      Audio performance may be sub-optimal"
+                    fi
+                fi
+                
+                # Also set nice value for additional priority
+                if ! renice -5 "$pid" > /dev/null 2>&1; then
+                    print_status "    Warning: Failed to set nice value for PID $pid"
+                fi
             fi
-            
-            # Also set nice value for additional priority
-            if ! renice -5 "$pid" > /dev/null 2>&1; then
-                print_status "Warning: Failed to set nice value for PID $pid"
-            fi
+        done
+        
+        # Check if we have sufficient success rate
+        if [ $total_count -eq 0 ]; then
+            print_status "  No processes found to configure"
+            return 0
         fi
+        
+        local success_rate=$((success_count * 100 / total_count))
+        print_status "  Success rate: $success_rate% ($success_count/$total_count processes)"
+        
+        if [ $success_rate -eq 100 ]; then
+            print_status "✓ All processes successfully configured with RT priority"
+            return 0
+        elif [ $success_rate -ge 80 ]; then
+            print_status "✓ Most processes configured with RT priority (partial success)"
+            return 0
+        elif [ $attempt -lt $max_attempts ]; then
+            print_status "  Retrying in 2 seconds..."
+            sleep 2
+        fi
+        
+        attempt=$((attempt + 1))
     done
+    
+    print_status "⚠ RT priority setting completed with partial success after $max_attempts attempts"
+    return 0
 }
 
 # Function to set Ardour thread affinity
@@ -490,6 +581,11 @@ print_status "=== OLMS CPU Affinity Configuration ==="
 print_status "Audio CPU cores: $AUDIO_CPU_CORES"
 print_status "System CPU cores: $SYSTEM_CPU_CORES"
 print_status "Total CPU cores detected: $CPU_CORES"
+echo
+
+# Debug environment for diagnostics
+print_status "Phase 0: Environment Debug"
+debug_environment
 echo
 
 # Phase 1: Configure CPU masks

@@ -494,6 +494,159 @@ To set up a testing environment, you need:
 | **DAW Engine** | Ardour 8 Headless | Audio processing and OSC control |
 | **Web Interface** | Open Stage Control | OSC/WebSocket bridge for testing |
 | **Scripts** | OLMS Core scripts | System configuration and startup |
+| **X11 Support** | xorg-xauth + display manager | X11 authentication for GUI mode |
+
+### 2. Realtime Privileges Configuration
+
+**IMPORTANT**: OLMS requires proper realtime privileges for optimal audio performance. The system has been configured with enhanced realtime privileges management.
+
+#### 2.1 Automatic Configuration
+
+The `setup-env.sh` script automatically configures realtime privileges:
+
+```bash
+# Run the setup script to configure realtime privileges
+./setup-env.sh
+```
+
+This script will:
+- Create the `audio` and `realtime` groups if they don't exist
+- Add the current user to both groups
+- Install the optimized realtime configuration file
+- Verify the configuration is working correctly
+
+#### 2.2 Manual Configuration
+
+If you need to configure realtime privileges manually:
+
+```bash
+# Create required groups
+sudo groupadd audio
+sudo groupadd realtime
+
+# Add user to groups
+sudo usermod -aG audio,realtime $USER
+
+# Install realtime configuration
+sudo ln -sf /path/to/OLMS-Core/config/realtime/99-realtime.conf /etc/security/limits.d/99-realtime.conf
+
+# Apply systemd realtime override
+sudo ./scripts/olms-rt-override.sh
+
+# Verify configuration
+ulimit -r  # Should show 99
+groups $USER  # Should show both audio and realtime
+```
+
+#### 2.3 X11 Authentication Setup
+
+**IMPORTANT**: For GUI mode operation, X11 authentication must be properly configured:
+
+```bash
+# Install X11 authentication packages (included in PKGBUILD)
+sudo pacman -S xorg-xauth lightdm
+
+# Verify XAUTHORITY file exists and has content
+ls -la ~/.Xauthority
+
+# If XAUTHORITY is empty, copy from display manager
+sudo xauth -f /run/lightdm/root/:0 extract - :0 | xauth merge -
+
+# Test X11 connection
+export DISPLAY=:0
+xset q  # Should connect successfully
+```
+
+#### 2.4 Verification
+
+After configuration, verify the realtime privileges are working:
+
+```bash
+# Check realtime priority limit
+ulimit -r  # Should be 99
+
+# Check memory lock limit
+ulimit -l  # Should be unlimited
+
+# Check group membership
+groups $USER  # Should include audio and realtime
+
+# Check systemd user limits
+sudo systemctl --user show | grep -E "(LimitRTPRIO|LimitMEMLOCK)"
+
+# Test with JACK
+jackd -d alsa -d hw:0 -r 48000 -p 64 -n 3
+```
+
+#### 2.5 Troubleshooting
+
+If you encounter realtime privilege issues:
+
+1. **Check Group Membership**: Ensure user is in both `audio` and `realtime` groups
+2. **Log Out/In**: Group changes require re-login to take effect
+3. **Verify Configuration**: Check that `/etc/security/limits.d/99-realtime.conf` is properly installed
+4. **Check Limits**: Verify `ulimit -r` returns 99
+5. **Check X11 Authentication**: If using GUI mode, verify XAUTHORITY file and X11 connection
+
+#### 2.6 Common Issues
+
+| Issue | Solution |
+| :--- | :--- |
+| **ulimit -r shows 97 instead of 99** | Check realtime configuration file and user group membership, apply systemd override |
+| **JACK fails with realtime priority errors** | Verify user is in audio and realtime groups, check ulimit settings, verify systemd limits |
+| **Ardour processes can't get RT priority** | Ensure realtime privileges are configured correctly, check system limits |
+| **X11 authentication errors in GUI mode** | Check XAUTHORITY file, copy from display manager if empty, verify DISPLAY variable |
+| **"Cannot open display" errors** | Ensure X11 authentication is working, test with `xset q` command |
+
+#### 2.6 Advanced Configuration: systemd Override
+
+For Arch Linux systems where `ulimit -r` shows 97 instead of 99, you may need to configure systemd user limits:
+
+```bash
+# Apply systemd realtime override
+sudo ./scripts/olms-rt-override.sh
+
+# Verify the override
+sudo systemctl --user show | grep -i limit
+```
+
+This creates `/etc/systemd/user.conf.d/10-olms-realtime.conf` with:
+```ini
+[Manager]
+DefaultLimitRTPRIO=99
+DefaultLimitMEMLOCK=infinity
+```
+
+#### 2.7 Security Considerations
+
+**IMPORTANT**: The realtime configuration is designed with security in mind:
+
+- **No wildcard fallback**: The configuration uses specific groups (`@audio`, `@realtime`) instead of `*` to prevent privilege escalation
+- **Group-based access**: Only users in the `audio` or `realtime` groups receive realtime privileges
+- **Verification required**: Always verify group membership and limits after configuration
+
+#### 2.8 Post-Installation Verification
+
+After installing the OLMS package, verify the complete realtime configuration:
+
+```bash
+# Check all realtime components
+echo "=== Realtime Privileges Verification ==="
+echo "1. Group membership:"
+groups $USER | grep -E "(audio|realtime)" && echo "   ✓ User in required groups" || echo "   ✗ User not in required groups"
+
+echo "2. PAM limits:"
+ulimit -r && echo "   ✓ Realtime priority limit: $(ulimit -r)" || echo "   ✗ Realtime priority limit failed"
+
+echo "3. Memory lock:"
+ulimit -l && echo "   ✓ Memory lock limit: $(ulimit -l)" || echo "   ✗ Memory lock limit failed"
+
+echo "4. systemd user limits:"
+sudo systemctl --user show | grep -E "(LimitRTPRIO|LimitMEMLOCK)" | head -2
+
+echo "5. Test JACK with realtime:"
+jackd -d alsa -d hw:0 -r 48000 -p 64 -n 3 -P 99 2>&1 | grep -i "realtime\|rt\|priority" || echo "   ⚠ JACK test skipped (no audio hardware)"
+```
 
 ### 2. Realtime Privileges Configuration
 
