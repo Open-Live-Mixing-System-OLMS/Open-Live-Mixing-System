@@ -663,19 +663,19 @@ verify_device_free() {
     fi
 }
 
-# Function to clean JACK shared memory and socket files (ENHANCED VERSION)
+# Function to clean JACK shared memory and socket files (ULTRA-AGGRESSIVE VERSION)
 clean_shm_files() {
-    print_status "Enhanced JACK cleanup - ensuring complete audio environment reset..."
+    print_status "ULTRA-AGGRESSIVE JACK cleanup - ensuring complete audio environment reset..."
     
     # Phase 1: Kill existing JACK and audio processes with multi-phase approach
-    local audio_processes="jackd jackdbus pipewire wireplumber pulseaudio"
+    local audio_processes="jackd jackdbus pipewire wireplumber pulseaudio alsa"
     for process in $audio_processes; do
         local pids=$(pgrep -f "$process" 2>/dev/null)
         if [ -n "$pids" ]; then
             print_status "Found $process processes: $pids"
             
             # Multi-phase cleanup approach with kill -9 as final fallback
-            local max_attempts=3
+            local max_attempts=5  # Increased from 3 to 5 attempts
             local attempt=1
             
             while [ $attempt -le $max_attempts ] && [ -n "$pids" ]; do
@@ -685,7 +685,7 @@ clean_shm_files() {
                 if [ $attempt -eq 1 ]; then
                     print_status "    Attempting graceful termination (SIGTERM)..."
                     echo "$pids" | xargs -r sudo kill -TERM 2>/dev/null || true
-                    sleep 2
+                    sleep 3  # Increased from 2 to 3 seconds
                 fi
                 
                 # Phase 2: Force kill with SIGKILL
@@ -693,7 +693,7 @@ clean_shm_files() {
                 echo "$pids" | xargs -r sudo kill -9 2>/dev/null || true
                 
                 # Wait for processes to terminate
-                sleep 2
+                sleep 3  # Increased from 2 to 3 seconds
                 
                 # Check again
                 pids=$(pgrep -f "$process" 2>/dev/null)
@@ -704,13 +704,17 @@ clean_shm_files() {
             local remaining_pids=$(pgrep -f "$process" 2>/dev/null)
             if [ -n "$remaining_pids" ]; then
                 print_status "Warning: Some $process processes could not be terminated: $remaining_pids"
+                # Additional force cleanup for stubborn processes
+                print_status "  Applying additional force cleanup..."
+                echo "$remaining_pids" | xargs -r sudo kill -9 2>/dev/null || true
+                sleep 2
             else
                 print_status "✓ All $process processes terminated successfully"
             fi
         fi
     done
     
-    # Phase 2: Force release audio hardware devices
+    # Phase 2: Force release audio hardware devices (ENHANCED)
     print_status "Force releasing audio hardware devices..."
     local audio_devices="/dev/snd/*"
     for device in $audio_devices; do
@@ -722,15 +726,33 @@ clean_shm_files() {
             if [ -n "$device_processes" ]; then
                 print_status "  Device $device held by processes: $device_processes"
                 
-                # Force release using fuser
-                print_status "  Force releasing with fuser..."
-                fuser -k "$device" 2>/dev/null || true
-                sleep 2
+                # Force release using fuser with multiple attempts
+                local fuser_attempts=3
+                local fuser_attempt=1
                 
-                # Verify release
-                local remaining_processes=$(lsof "$device" 2>/dev/null | grep -v "COMMAND" | awk '{print $2}' | sort -u)
-                if [ -n "$remaining_processes" ]; then
-                    print_status "  Warning: Device $device still in use: $remaining_processes"
+                while [ $fuser_attempt -le $fuser_attempts ]; do
+                    print_status "    Fuser release attempt $fuser_attempt/$fuser_attempts..."
+                    fuser -k "$device" 2>/dev/null || true
+                    sleep 2
+                    
+                    # Check if device is released
+                    local remaining_processes=$(lsof "$device" 2>/dev/null | grep -v "COMMAND" | awk '{print $2}' | sort -u)
+                    if [ -z "$remaining_processes" ]; then
+                        print_status "    ✓ Device $device released successfully on attempt $fuser_attempt"
+                        break
+                    fi
+                    
+                    fuser_attempt=$((fuser_attempt + 1))
+                done
+                
+                # Final verification
+                local final_processes=$(lsof "$device" 2>/dev/null | grep -v "COMMAND" | awk '{print $2}' | sort -u)
+                if [ -n "$final_processes" ]; then
+                    print_status "  Warning: Device $device still in use after fuser: $final_processes"
+                    # Try additional force methods
+                    print_status "  Applying additional force methods..."
+                    sudo fuser -k -9 "$device" 2>/dev/null || true
+                    sleep 2
                 else
                     print_status "  ✓ Device $device released successfully"
                 fi
@@ -762,9 +784,9 @@ clean_shm_files() {
     
     # Phase 5: Clean up shared memory segments with enhanced verification
     print_status "Cleaning shared memory segments..."
-    local shm_segments=$(ipcs -m | grep jack | awk '{print $2}' 2>/dev/null)
+    local shm_segments=$(ipcs -m | grep -E "jack|pipewire|pulse" | awk '{print $2}' 2>/dev/null)
     if [ -n "$shm_segments" ]; then
-        print_status "  Found JACK shared memory segments: $shm_segments"
+        print_status "  Found audio shared memory segments: $shm_segments"
         for shm_id in $shm_segments; do
             if ipcrm -m "$shm_id" 2>/dev/null; then
                 print_status "  ✓ Removed shared memory segment: $shm_id"
@@ -773,12 +795,12 @@ clean_shm_files() {
             fi
         done
     else
-        print_status "  No JACK shared memory segments found"
+        print_status "  No audio shared memory segments found"
     fi
     
-    local sem_segments=$(ipcs -s | grep jack | awk '{print $2}' 2>/dev/null)
+    local sem_segments=$(ipcs -s | grep -E "jack|pipewire|pulse" | awk '{print $2}' 2>/dev/null)
     if [ -n "$sem_segments" ]; then
-        print_status "  Found JACK semaphore segments: $sem_segments"
+        print_status "  Found audio semaphore segments: $sem_segments"
         for sem_id in $sem_segments; do
             if ipcrm -s "$sem_id" 2>/dev/null; then
                 print_status "  ✓ Removed semaphore segment: $sem_id"
@@ -787,21 +809,42 @@ clean_shm_files() {
             fi
         done
     else
-        print_status "  No JACK semaphore segments found"
+        print_status "  No audio semaphore segments found"
     fi
     
     # Phase 6: Reset environment variables
     export JACK_NO_AUDIO_RESERVATION=1
     export PIPEWIRE_RUNTIME_DIR=/dev/null
     
-    # Phase 7: Final verification
+    # Phase 7: AGGRESSIVE HARDWARE RESET
+    print_status "Performing aggressive hardware reset..."
+    
+    # Reset all audio devices
+    for device in /dev/snd/*; do
+        if [ -c "$device" ]; then
+            print_status "  Resetting hardware device: $device"
+            sudo fuser -k "$device" 2>/dev/null || true
+        fi
+    done
+    
+    # Force reload audio kernel modules
+    print_status "Force reloading audio kernel modules..."
+    sudo modprobe -r snd_hda_intel 2>/dev/null || true
+    sudo modprobe -r snd_usb_audio 2>/dev/null || true
+    sleep 1
+    sudo modprobe snd_hda_intel 2>/dev/null || true
+    sudo modprobe snd_usb_audio 2>/dev/null || true
+    sleep 2
+    
+    # Phase 8: Final verification with enhanced checks
     print_status "Final verification of cleanup..."
-    local remaining_audio_processes=$(pgrep -f "jackd|pipewire|pulseaudio" 2>/dev/null | wc -l)
+    local remaining_audio_processes=$(pgrep -f "jackd|pipewire|pulseaudio|alsa" 2>/dev/null | wc -l)
     if [ "$remaining_audio_processes" -eq 0 ]; then
-        print_status "✓ Enhanced JACK cleanup completed successfully"
+        print_status "✓ ULTRA-AGGRESSIVE JACK cleanup completed successfully"
         return 0
     else
         print_status "Warning: $remaining_audio_processes audio processes still running"
+        print_status "  This may indicate stubborn processes that require manual intervention"
         return 1
     fi
 }
@@ -1872,6 +1915,22 @@ print_status "To stop the system:"
 echo "  - Stop Ardour: kill $ARDOUR_PID"
 echo "  - Stop JACK: kill $JACK_PID"
 echo
+# Run final verification before completion
+print_status "Running final system verification..."
+if [ -f "$(dirname "$0")/olms-final-verification.sh" ]; then
+    sudo "$(dirname "$0")/olms-final-verification.sh" $([ "$VERBOSE" = true ] && echo "--verbose")
+    verification_status=$?
+    
+    if [ $verification_status -eq 0 ]; then
+        print_success "All OLMS optimizations verified successfully"
+    else
+        print_warning "Some verification checks failed - see details above"
+        print_status "System may still be functional but with sub-optimal performance"
+    fi
+else
+    print_status "Warning: Final verification script not found, skipping verification"
+fi
+
 print_status "Ardour launcher completed successfully!"
 
 # Keep the script running to maintain the processes

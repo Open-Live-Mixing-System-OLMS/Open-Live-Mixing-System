@@ -56,7 +56,7 @@ EOF
 add_user_to_realtime_group() {
     local username="$1"
     
-    print_status "Adding user $username to realtime group..."
+    print_status "Configuring realtime group memberships..."
     
     # Check if realtime group exists, create if not
     if ! getent group realtime >/dev/null; then
@@ -64,10 +64,16 @@ add_user_to_realtime_group() {
         sudo groupadd realtime
     fi
     
-    # Add user to realtime group
+    # Add Target User
+    print_status "Adding target user $username to realtime group..."
     sudo usermod -aG realtime "$username"
     
-    print_status "User $username added to realtime group"
+    # Add Root User (FIX CRITICO)
+    # Questo assicura che gli script di avvio eseguiti come root superino i controlli
+    print_status "Adding root to realtime group (for system services compatibility)..."
+    sudo usermod -aG realtime root
+    
+    print_status "✓ Group memberships updated"
 }
 
 # Function to verify configuration

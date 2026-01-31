@@ -14,6 +14,11 @@ CPU_CORES=${CPU_CORES:-$(nproc)}
 AUDIO_CPU_CORES=${AUDIO_CPU_CORES:-"2-$(($CPU_CORES-1))"}  # Default to cores 2+ for audio (Core 1 reserved for IRQs)
 SYSTEM_CPU_CORES=${SYSTEM_CPU_CORES:-"0"}  # Use core 0 for system processes
 
+# --- RILEVAMENTO UTENTE REALE ---
+# Se lo script è lanciato con sudo, SUDO_USER contiene l'utente originale.
+# Se lanciato direttamente da root (es. systemd), usa root.
+REAL_USER="${SUDO_USER:-$USER}"
+
 # Function to print status messages
 print_status() {
     echo "[$(date '+%H:%M:%S')] $1"
@@ -27,48 +32,44 @@ get_process_pids() {
 
 # Function to check if user has realtime privileges
 check_realtime_privileges() {
-    print_status "Checking realtime privileges..."
+    local target_user="${1:-$REAL_USER}"
+    print_status "Checking realtime privileges for user: $target_user..."
     
     # Check if user is in realtime group
-    if groups $USER | grep -q "realtime"; then
-        print_status "✓ User is in realtime group"
+    if groups "$target_user" | grep -q "realtime"; then
+        print_status "✓ User $target_user is in realtime group"
     else
-        print_status "⚠ User is not in realtime group"
-        print_status "  To fix: sudo usermod -aG realtime $USER"
-        print_status "  Then log out and log back in"
+        print_status "⚠ User $target_user is NOT in realtime group"
+        # Fix suggerito dinamico
+        print_status "  To fix: sudo usermod -aG realtime $target_user"
         return 1
     fi
     
     # Check if user is in audio group
-    if groups $USER | grep -q "audio"; then
-        print_status "✓ User is in audio group"
+    if groups "$target_user" | grep -q "audio"; then
+        print_status "✓ User $target_user is in audio group"
     else
-        print_status "⚠ User is not in audio group"
-        print_status "  To fix: sudo usermod -aG audio $USER"
-        print_status "  Then log out and log back in"
+        print_status "⚠ User $target_user is NOT in audio group"
+        print_status "  To fix: sudo usermod -aG audio $target_user"
         return 1
     fi
     
-    # Check current realtime priority limit (non-blocking check)
+    # Check current realtime priority limit
+    # Nota: ulimit controlla i limiti della shell CORRENTE (quindi root/sudo).
+    # Tuttavia, se root ha privilegi illimitati, va bene. 
+    # Il controllo cruciale era l'appartenenza al gruppo dell'utente audio.
     local rt_limit=$(ulimit -r)
-    print_status "Current realtime priority limit: $rt_limit"
     
-    if [ "$rt_limit" -ge 90 ]; then
-        print_status "✓ Realtime privileges appear to be active"
+    if [ "$rt_limit" = "unlimited" ] || [ "$rt_limit" -ge 90 ]; then
+        print_status "✓ Realtime privileges are active (limit: $rt_limit)"
         return 0
     else
-        print_status "⚠ Realtime privileges may not be fully active (limit: $rt_limit)"
-        print_status "  Attempting to set temporary RT privileges for current session..."
-        
-        # Try to set temporary RT privileges for current session
+        print_status "⚠ Realtime privileges limit low: $rt_limit"
         if sudo -n ulimit -r 99 2>/dev/null; then
-            print_status "✓ Temporary RT privileges set for current session"
-            return 0
-        else
-            print_status "⚠ Cannot set temporary RT privileges"
-            print_status "  Will attempt to set RT priorities anyway (may fail)"
-            return 0  # ← Importante: non bloccare l'impostazione delle priorità!
+             print_status "✓ Temporary RT privileges set"
+             return 0
         fi
+        return 0 # Non blocchiamo, proviamo comunque
     fi
 }
 
@@ -90,8 +91,9 @@ attempt_temporary_rt_privileges() {
 # Function to add debug environment for diagnostics
 debug_environment() {
     print_status "=== Environment Debug ==="
-    print_status "USER: $USER"
-    print_status "SUDO_USER: $SUDO_USER"
+    print_status "Effective User: $USER"
+    print_status "Original User (SUDO_USER): $SUDO_USER"
+    print_status "Target Logic User: $REAL_USER"
     print_status "HOME: $HOME"
     print_status "SHELL: $SHELL"
     print_status "ulimit -r: $(ulimit -r)"
@@ -104,6 +106,84 @@ debug_environment() {
     print_status "AUDIO_CPU_CORES: $AUDIO_CPU_CORES"
     print_status "SYSTEM_CPU_CORES: $SYSTEM_CPU_CORES"
     print_status "=== End Environment Debug ==="
+}
+
+# Function to restart JACK with proper RT priority (NEW - CRITICAL FIX)
+restart_jack_with_rt_priority() {
+    local jack_cmd="$1"
+    
+    print_status "Restarting JACK with proper RT priority configuration..."
+    
+    # Stop existing JACK processes
+    local jack_pids=$(get_process_pids "jackd")
+    if [ -n "$jack_pids" ]; then
+        print_status "Stopping existing JACK processes: $jack_pids"
+        for pid in $jack_pids; do
+            if [ -d "/proc/$pid" ]; then
+                print_status "  Stopping JACK PID $pid..."
+                kill -TERM "$pid" 2>/dev/null || true
+            fi
+        done
+        sleep 2
+        
+        # Force kill any remaining JACK processes
+        local remaining_pids=$(get_process_pids "jackd")
+        if [ -n "$remaining_pids" ]; then
+            print_status "Force killing remaining JACK processes: $remaining_pids"
+            for pid in $remaining_pids; do
+                kill -9 "$pid" 2>/dev/null || true
+            done
+            sleep 2
+        fi
+    fi
+    
+    # Clean up JACK socket files
+    print_status "Cleaning JACK socket files..."
+    local socket_files="/tmp/jack_* /dev/shm/jack_* /var/run/jack_* /run/jack_* /tmp/.jack* /var/lock/.jack*"
+    for socket_pattern in $socket_files; do
+        if ls $socket_pattern 1>/dev/null 2>&1; then
+            rm -f $socket_pattern 2>/dev/null || true
+        fi
+    done
+    
+    # Start JACK with proper RT configuration
+    print_status "Starting JACK with RT priority: $jack_cmd"
+    
+    # Ensure we have proper RT privileges before starting
+    if ! check_realtime_privileges; then
+        print_status "Warning: Realtime privileges not properly configured"
+        print_status "Attempting to set temporary RT privileges..."
+        attempt_temporary_rt_privileges
+    fi
+    
+    # Start JACK with RT scheduling
+    eval "$jack_cmd" &
+    local new_jack_pid=$!
+    
+    # Wait for JACK to start
+    sleep 3
+    
+    # Verify JACK started successfully
+    if kill -0 $new_jack_pid 2>/dev/null; then
+        print_status "✓ JACK restarted successfully with PID: $new_jack_pid"
+        
+        # Verify RT priority was applied correctly
+        local current_policy=$(chrt -p "$new_jack_pid" 2>/dev/null | grep "policy" | awk '{print $3}')
+        local current_priority=$(chrt -p "$new_jack_pid" 2>/dev/null | grep "priority" | awk '{print $3}')
+        
+        if [ "$current_policy" = "SCHED_FIFO" ] && [ "$current_priority" = "80" ]; then
+            print_status "✓ JACK has correct RT priority (SCHED_FIFO, priority 80)"
+            return 0
+        else
+            print_status "⚠ JACK RT priority may not be optimal"
+            print_status "  Current: $current_policy, priority $current_priority"
+            print_status "  Expected: SCHED_FIFO, priority 80"
+            return 1
+        fi
+    else
+        print_status "✗ Failed to restart JACK"
+        return 1
+    fi
 }
 
 # Function to set process priorities with RT scheduling (IMPROVED WITH RETRY MECHANISM)

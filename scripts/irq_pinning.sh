@@ -144,11 +144,11 @@ detect_audio_hardware() {
     fi
 }
 
-# Function to configure IRQ affinity
+# Function to configure IRQ affinity with retry mechanism (IMPROVED VERSION)
 configure_irq_affinity() {
     local irq_list="$1"
     
-    print_status "Configuring IRQ affinity for audio optimization..."
+    print_status "Configuring IRQ affinity for audio optimization with retry mechanism..."
     
     # Create CPU mask for the dedicated audio core
     # Convert CPU core number to hex mask (e.g., core 1 = 0x2, core 2 = 0x4)
@@ -156,24 +156,49 @@ configure_irq_affinity() {
     
     print_status "Pinning audio IRQs to CPU core $AUDIO_CPU_CORE (mask: $cpu_mask)"
     
-    # Apply IRQ affinity for each detected IRQ
+    # Apply IRQ affinity for each detected IRQ with retry mechanism
     for irq in $irq_list; do
         local irq_file="/proc/irq/$irq/smp_affinity"
         
         if [ -f "$irq_file" ]; then
             # Check if IRQ is configurable before attempting to set it
             if check_irq_configurability "$irq"; then
-                print_status "Setting IRQ $irq affinity to $cpu_mask"
-                if ! echo "$cpu_mask" | sudo tee "$irq_file" > /dev/null 2>&1; then
-                    print_status "Warning: Failed to set IRQ $irq affinity (may not be configurable)"
-                else
-                    # Verify the setting was applied
-                    local current_affinity=$(cat "$irq_file")
-                    if [ "$current_affinity" = "$cpu_mask" ]; then
-                        print_status "✓ IRQ $irq successfully pinned to CPU core $AUDIO_CPU_CORE"
+                print_status "Setting IRQ $irq affinity to $cpu_mask..."
+                
+                # Use retry mechanism for IRQ pinning
+                local max_attempts=3
+                local attempt=1
+                local success=false
+                
+                while [ $attempt -le $max_attempts ] && [ "$success" = false ]; do
+                    print_status "  IRQ pinning attempt $attempt/$max_attempts for IRQ $irq..."
+                    
+                    if echo "$cpu_mask" | sudo tee "$irq_file" > /dev/null 2>&1; then
+                        # Verify the setting was applied
+                        local current_affinity=$(cat "$irq_file")
+                        if [ "$current_affinity" = "$cpu_mask" ]; then
+                            print_status "  ✓ IRQ $irq successfully pinned to CPU core $AUDIO_CPU_CORE"
+                            success=true
+                        else
+                            print_status "  Warning: IRQ $irq affinity mismatch: expected $cpu_mask, got $current_affinity"
+                            if [ $attempt -lt $max_attempts ]; then
+                                print_status "  Retrying in 1 second..."
+                                sleep 1
+                            fi
+                        fi
                     else
-                        print_status "Warning: IRQ $irq affinity mismatch: expected $cpu_mask, got $current_affinity"
+                        print_status "  Warning: Failed to set IRQ $irq affinity (may not be configurable)"
+                        if [ $attempt -lt $max_attempts ]; then
+                            print_status "  Retrying in 1 second..."
+                            sleep 1
+                        fi
                     fi
+                    
+                    attempt=$((attempt + 1))
+                done
+                
+                if [ "$success" = false ]; then
+                    print_status "  ✗ IRQ $irq could not be pinned after $max_attempts attempts"
                 fi
             else
                 print_status "IRQ $irq not configurable, trying alternative pinning..."

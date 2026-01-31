@@ -660,6 +660,27 @@ run_with_timeout() {
     fi
 }
 
+# Function to verify realtime privileges are active (NEW)
+verify_realtime_privileges_active() {
+    print_status "Verifying realtime privileges are active..."
+    
+    # Check current limits
+    local rtprio=$(ulimit -r)
+    local memlock=$(ulimit -l)
+    
+    print_status "Current realtime limits: rtprio=$rtprio, memlock=${memlock}KB"
+    
+    # Verify limits are sufficient
+    if [ "$rtprio" -ge 90 ] && ([ "$memlock" = "unlimited" ] || [ "$memlock" -gt 1024 ]); then
+        print_status "Realtime privileges are active ✓"
+        return 0
+    else
+        print_status "Warning: Realtime privileges may not be active"
+        print_status "Expected: rtprio >= 90, memlock unlimited or > 1024KB"
+        return 1
+    fi
+}
+
 # Function to verify system resources before startup
 verify_system_resources() {
     print_status "Verifying system resources..."
@@ -810,6 +831,25 @@ else
 fi
 echo
 
+print_status "Phase 3.5: Enhanced Realtime Privileges Verification and JACK RT Configuration"
+print_status "Ensuring realtime privileges are active before audio engine startup..."
+
+# Verify realtime privileges are fully active
+if ! check_realtime_privileges_active; then
+    print_status "Warning: Realtime privileges may not be fully active"
+    print_status "Attempting to set temporary RT privileges for current session..."
+    
+    # Try to set temporary RT privileges
+    if sudo -n ulimit -r 99 2>/dev/null; then
+        print_status "✓ Temporary RT privileges set for current session"
+    else
+        print_status "⚠ Cannot set temporary RT privileges"
+        print_status "  Audio performance may be sub-optimal"
+        print_status "  To fix permanently: log out and log back in after group configuration"
+    fi
+fi
+
+# Phase 4: Audio Engine Startup (Asynchronous) - WITH RT PRIORITY FIX
 print_status "Phase 4: Audio Engine Startup (Asynchronous)"
 if [ "$MODE" = "prod" ]; then
     print_status "Starting audio engine in production mode (headless)..."
@@ -950,27 +990,11 @@ else
 fi
 echo
 
-print_status "Startup sequence completed!"
+print_status "Phase 6: Final System Verification"
+print_status "Note: Final verification will be performed by audio_engine.sh after all optimizations are complete"
 echo
 
-# Phase 6: Final System Verification
-print_status "Phase 6: Final System Verification"
-print_status "Running comprehensive verification of all OLMS optimizations..."
-
-if [ -f "$(dirname "$0")/olms-final-verification.sh" ]; then
-    print_status "Executing final verification script..."
-    sudo "$(dirname "$0")/olms-final-verification.sh" $([ "$VERBOSE" = true ] && echo "--verbose")
-    verification_status=$?
-    
-    if [ $verification_status -eq 0 ]; then
-        print_success "All OLMS optimizations verified successfully"
-    else
-        print_warning "Some verification checks failed - see details above"
-        print_status "System may still be functional but with sub-optimal performance"
-    fi
-else
-    print_status "Warning: Final verification script not found, skipping verification"
-fi
+print_status "Startup sequence completed!"
 echo
 
 print_status "System Status:"
