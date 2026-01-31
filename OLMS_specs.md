@@ -20,18 +20,28 @@ olms-project/
 ├── PKGBUILD                 # Arch package definition (Dependencies)
 ├── setup-env.sh             # Bootstrap script (One-time: installation/permissions)
 ├── scripts/                 # Operational scripts (On every startup/runtime)
-│   ├── rt_tuning.sh         # CPU/Kernel optimizations
-│   ├── audio_virtual.sh     # ALSA Loopback modules loading
-│   ├── audio_engine.sh      # Audio engine launch command (renamed from ardour_launcher.sh)
 │   ├── olms-startup.sh      # Main startup script for complete system initialization
-│   ├── olms-test-launcher.sh # Test launcher script
 │   ├── prepare_machine.sh   # Machine preparation orchestrator
+│   ├── audio_engine.sh      # Audio engine launch command (renamed from ardour_launcher.sh)
+│   ├── rt_tuning.sh         # CPU/Kernel optimizations
+│   ├── irq_pinning.sh       # Hardware IRQ pinning
+│   ├── olms-apply-affinity.sh # CPU affinity configuration
+│   ├── cpu_shielding_v2.sh  # CPU shielding implementation using cgroup v2
+│   ├── disk_guard.sh        # Disk space monitoring
 │   ├── setup_realtime_privileges.sh # Realtime privileges setup
 │   ├── usb_audio_session_adapter.sh # USB audio session adaptation
-│   ├── irq_pinning.sh       # Hardware IRQ pinning (NEW)
-│   ├── olms-apply-affinity.sh # CPU affinity configuration (NEW)
-│   └── disk_guard.sh        # Disk space monitoring (NEW)
-├── config/                  # System configuration files (NEW - Centralized Management)
+│   ├── olms-final-verification.sh   # Comprehensive system verification
+│   ├── audio_virtual.sh     # Virtual audio backend setup
+│   ├── olms-hard-reset.sh   # Complete system reset
+│   ├── olms-audio-test.sh   # Audio system testing
+│   ├── launchers/           # Environment-specific launchers
+│   │   ├── olms-test-launcher.sh    # Test environment launcher
+│   │   └── olms-prod-launcher.sh    # Production environment launcher
+│   └── config/              # Configuration management utilities
+│       ├── install-symlinks.sh      # Install system symlinks
+│       ├── remove-symlinks.sh       # Remove system symlinks
+│       └── test_complete_system.sh  # Complete system testing
+├── config/                  # System configuration files (Centralized Management)
 │   ├── realtime/            # Realtime privileges configuration
 │   │   ├── 99-realtime.conf # Optimized realtime privileges for OLMS
 │   │   └── README.md        # Realtime configuration documentation
@@ -39,15 +49,31 @@ olms-project/
 │   │   ├── olms-affinity.service         # CPU affinity service
 │   │   ├── olms-irq-pinning.service      # IRQ pinning service
 │   │   └── olms-rt-tuning.service        # RT tuning service
-│   └── scripts/             # Configuration management scripts
-│       ├── install-symlinks.sh           # Install system symlinks
-│       ├── remove-symlinks.sh            # Remove system symlinks
-│       └── test_complete_system.sh       # Complete system test
+│   └── user.conf.d/         # User-specific systemd overrides
+│       └── 10-olms-realtime.conf       # Realtime user limits
 ├── engine/                  # Audio Logic (OLMS Core)
 │   ├── session-template/    # Ardour .ardour template
 │   │   └── OLMS-POC/        # Proof of Concept template
+│   │       ├── analysis/    # Session analysis data
+│   │       ├── dead/        # Unused session data
+│   │       ├── export/      # Export configurations
+│   │       ├── externals/   # External plugins
+│   │       ├── interchange/ # Session interchange data
+│   │       │   └── OLMS-POC/
+│   │       │       ├── audiofiles/    # Audio files
+│   │       │       └── midifiles/     # MIDI files
+│   │       ├── peaks/       # Audio peak data
+│   │       └── plugins/     # Plugin configurations
 │   └── lua/                 # Lua scripts for bank management
+├── systemd/                 # Systemd service files
+│   ├── ardour.service       # Ardour headless service
+│   ├── olms-affinity.service # CPU affinity service
+│   ├── olms-disk-guard.service # Disk monitoring service
+│   ├── olms-irq-pinning.service # Hardware IRQ pinning service
+│   └── olms-rt-tuning.service   # Real-time tuning service
 └── ui/                      # OSC Layout (Open Stage Control)
+
+For detailed script implementation, architecture, and usage examples, see: [SCRIPTS_IMPLEMENTATION_SUMMARY.md](./SCRIPTS_IMPLEMENTATION_SUMMARY.md)
 
 ## 🔧 Configuration Management Architecture (NEW)
 
@@ -663,79 +689,269 @@ echo "5. Test JACK with realtime:"
 jackd -d alsa -d hw:0 -r 48000 -p 64 -n 3 -P 99 2>&1 | grep -i "realtime\|rt\|priority" || echo "   ⚠ JACK test skipped (no audio hardware)"
 ```
 
-### 2. Realtime Privileges Configuration
+### 2.6 Manual Testing Environment Setup
 
-**IMPORTANT**: OLMS requires proper realtime privileges for optimal audio performance. The system has been configured with enhanced realtime privileges management.
+For contributors, OLMS provides a manual startup script that emulates the systemd service startup sequence without requiring the full distribution.
 
-#### 2.1 Automatic Configuration
+#### 2.1 Using the Manual Startup Script
 
-The `setup-env.sh` script automatically configures realtime privileges:
-
-```bash
-# Run the setup script to configure realtime privileges
-./setup-env.sh
-```
-
-This script will:
-- Create the `audio` and `realtime` groups if they don't exist
-- Add the current user to both groups
-- Install the optimized realtime configuration file
-- Verify the configuration is working correctly
-
-#### 2.2 Manual Configuration
-
-If you need to configure realtime privileges manually:
+The `scripts/olms-startup.sh` script provides a complete testing environment:
 
 ```bash
-# Create required groups
-sudo groupadd audio
-sudo groupadd realtime
+# Navigate to the OLMS-Core directory
+cd /path/to/OLMS-Core
 
-# Add user to groups
-sudo usermod -aG audio,realtime $USER
-
-# Install realtime configuration
-sudo ln -sf /path/to/OLMS-Core/config/realtime/99-realtime.conf /etc/security/limits.d/99-realtime.conf
-
-# Verify configuration
-ulimit -r  # Should show 99
-groups $USER  # Should show both audio and realtime
+# Run the manual startup script
+./scripts/olms-startup.sh
 ```
 
-#### 2.3 Verification
+**What the script does:**
+1. **Phase 1**: Executes RT optimization (`rt_tuning.sh`)
+2. **Phase 2**: Configures hardware IRQ pinning (`irq_pinning.sh`)
+3. **Phase 3**: Starts JACK and Ardour Headless (`ardour_launcher.sh`)
+4. **Phase 4**: Sets CPU affinity (`olms-apply-affinity`)
+5. **Phase 5**: Starts disk protection (`disk_guard.sh`)
 
-After configuration, verify the realtime privileges are working:
+#### 2.2 Script Features
+
+- **Error Handling**: Each phase checks for success before proceeding
+- **Status Messages**: Real-time feedback on each operation
+- **Fallback Support**: Graceful handling when individual scripts are missing
+- **Monitoring Tools**: Built-in commands for system monitoring
+- **Clean Shutdown**: Instructions for proper system shutdown
+
+#### 2.3 Testing Workflow
+
+1. **Environment Preparation**:
+   ```bash
+   # Ensure all required packages are installed
+   sudo pacman -S alsa-utils ardour jack-example-tools pulseaudio-jack
+   
+   # Create necessary directories
+   sudo mkdir -p /var/olms
+   ```
+
+2. **Script Execution**:
+   ```bash
+   # Copy scripts to system locations (if needed)
+   sudo cp scripts/rt_tuning.sh /usr/bin/
+   sudo cp scripts/irq_pinning.sh /usr/bin/
+   sudo cp scripts/ardour_launcher.sh /usr/bin/
+   sudo cp scripts/disk_guard.sh /usr/bin/
+   
+   # Make scripts executable
+   sudo chmod +x /usr/bin/rt_tuning.sh
+   sudo chmod +x /usr/bin/irq_pinning.sh
+   sudo chmod +x /usr/bin/ardour_launcher.sh
+   sudo chmod +x /usr/bin/disk_guard.sh
+   
+   # Run the startup script
+   ./scripts/olms-startup.sh
+   ```
+
+3. **System Verification**:
+   ```bash
+   # Check JACK status
+   jack_control status
+   
+   # Monitor system logs
+   journalctl -f -u ardour.service
+   
+   # Verify disk space
+   df -h
+   ```
+
+#### 2.4 Manual Machine Preparation with prepare_machine Script
+
+For contributors working on Arch RT systems without the complete automated distribution, the `prepare_machine.sh` script provides a coordinated approach to manual system preparation. This script acts as a workflow orchestrator that ensures proper system configuration before audio engine startup.
+
+**Concept Overview:**
+The `prepare_machine.sh` script implements a sequential workflow that guarantees correct system configuration before audio engine initialization. It is designed specifically for contributors working on machines without the automated distribution, providing a controlled environment for development and testing.
+
+**Workflow Architecture:**
+The script follows a structured approach with distinct phases:
+- **Phase 1**: Real-time system optimization (RT tuning)
+- **Phase 2**: Hardware configuration (IRQ pinning)
+- **Phase 3**: CPU resource allocation (affinity settings)
+- **Phase 4**: Audio engine coordination (ardour_launcher.sh invocation)
+
+**Integration with ardour_launcher.sh:**
+The `prepare_machine.sh` script functions as a wrapper that prepares the system environment before delegating audio engine startup to `ardour_launcher.sh`. This ensures that all system dependencies are properly configured before the audio engine is launched, maintaining the separation between system preparation and audio processing.
+
+**Testing vs Production Workflow:**
+- **Development Environment**: The `prepare_machine.sh` script enables step-by-step manual testing with full control over each preparation phase
+- **Production Environment**: The same preparation steps are automated through systemd services for reliable, hands-off operation
+- This approach provides a clear migration path from manual development workflows to automated production deployment
+
+**Contributor Benefits:**
+- **Complete Control**: Contributors maintain full oversight of the system preparation process
+- **Debugging Support**: Each phase can be monitored and debugged individually
+- **Flexible Testing**: Individual preparation phases can be tested in isolation
+- **Gradual Automation**: Provides a foundation for transitioning to fully automated deployment
+
+This coordinated approach ensures that contributors can reliably prepare their development environment while maintaining compatibility with the production automation infrastructure.
+
+### 3. Development and Debugging
+
+#### 3.1 Individual Component Testing
+
+Test each component separately for debugging:
 
 ```bash
-# Check realtime priority limit
-ulimit -r  # Should be 99
+# Test RT tuning only
+sudo /usr/bin/rt_tuning.sh
 
-# Check memory lock limit
-ulimit -l  # Should be unlimited
+# Test IRQ pinning only
+sudo /usr/bin/irq_pinning.sh
 
-# Check group membership
-groups $USER  # Should include audio and realtime
-
-# Test with JACK
-jackd -d alsa -d hw:0 -r 48000 -p 64 -n 3
+# Test audio core only
+sudo /usr/bin/ardour_launcher.sh
 ```
 
-#### 2.4 Troubleshooting
+#### 3.2 Performance Monitoring
 
-If you encounter realtime privilege issues:
+Monitor system performance during testing:
 
-1. **Check Group Membership**: Ensure user is in both `audio` and `realtime` groups
-2. **Log Out/In**: Group changes require re-login to take effect
-3. **Verify Configuration**: Check that `/etc/security/limits.d/99-realtime.conf` is properly installed
-4. **Check Limits**: Verify `ulimit -r` returns 99
+```bash
+# Check CPU usage
+top -p $(pgrep -d',' ardour jackd)
 
-#### 2.5 Common Issues
+# Monitor audio latency
+jack_iodelay
 
-| Issue | Solution |
-| :--- | :--- |
-| **ulimit -r shows 97 instead of 99** | Check realtime configuration file and user group membership |
-| **JACK fails with realtime priority errors** | Verify user is in audio and realtime groups, check ulimit settings |
-| **Ardour processes can't get RT priority** | Ensure realtime privileges are configured correctly, check system limits |
+# Check for xruns
+jack_latency_test
+```
+
+#### 3.3 Troubleshooting Common Issues
+
+| Issue | Diagnosis | Solution |
+| :--- | :--- | :--- |
+| **JACK fails to start** | Check audio device permissions | `sudo usermod -aG audio $USER` |
+| **High latency** | Verify RT kernel and IRQ pinning | Check `rt_tuning.sh` output |
+| **xruns occur** | Increase buffer size or reduce load | Modify JACK parameters |
+| **Scripts not found** | Verify script installation paths | Check `/usr/bin/` directory |
+
+### 4. Integration with Development Workflow
+
+#### 4.1 Script Synchronization
+
+**IMPORTANT**: Any changes made to the manual startup script must be reflected in the corresponding systemd service files for production use:
+
+- `scripts/olms-startup.sh` ↔ `systemd/olms-*.service` files
+- Ensure parameter consistency between testing and production environments
+- Update documentation when making architectural changes
+
+#### 4.2 Template Development
+
+Contributors can modify the Ardour template for testing:
+
+```bash
+# Edit the template in GUI mode first
+ardour8 --template=engine/session-template/OLMS_48ch_6banks.template
+
+# Test changes with headless mode
+ardour8 --headless --template=engine/session-template/OLMS_48ch_6banks.template
+```
+
+#### 4.3 OSC Testing
+
+Test OSC communication with Open Stage Control:
+
+```bash
+# Start Open Stage Control
+open-stage-control --osc-port 3819
+
+# Test OSC commands
+oscsend osc.udp://localhost:3819 /strip/gain si "1" 0.8
+```
+
+### 5. Contributing Guidelines
+
+#### 5.1 Code Changes
+
+When contributing changes:
+
+1. **Test with Manual Script**: Always test changes using `scripts/olms-startup.sh`
+2. **Update Documentation**: Update this section when adding new components
+3. **Maintain Compatibility**: Ensure changes work with both testing and production environments
+4. **Add Error Handling**: Include proper error checking and user feedback
+
+#### 5.2 Script Maintenance
+
+Keep the manual startup script synchronized:
+
+- **File Paths**: Ensure script paths match installed locations
+- **Dependencies**: Document any new script dependencies
+- **Error Messages**: Provide clear error messages for troubleshooting
+- **Version Compatibility**: Test with different versions of dependencies
+
+#### 5.3 Testing Requirements
+
+Before submitting contributions:
+
+1. **Full Startup Test**: Verify complete system startup
+2. **Individual Component Test**: Test each script independently
+3. **Performance Test**: Ensure RT performance requirements are met
+4. **Documentation Test**: Verify all documentation is accurate and complete
+
+This manual testing approach allows contributors to work with OLMS without requiring the complete X-Console distribution, while maintaining compatibility with the production systemd-based architecture.
+
+### 6. Testing vs Production Differences
+
+#### Audio Configuration
+- **Testing Mode** (default): Ardour launches with GUI for visual monitoring and debugging
+- **Production Mode** (`--prod`): Ardour runs headless for automated operation
+- **Virtual Mode** (`--virtual`): Uses JACK dummy backend when no audio hardware is available
+
+#### Hardware Requirements
+- **Testing**: Can work with or without audio hardware (falls back to virtual audio)
+- **Production**: Requires proper audio hardware configuration
+- **Virtual**: No audio hardware required, uses software-only audio processing
+
+#### Monitoring and Debugging
+- **Testing**: Full visual feedback, detailed logging, interactive debugging
+- **Production**: Minimal logging, automated monitoring, no user interface
+- **Virtual**: Software-only monitoring, useful for development without hardware
+
+#### Performance Characteristics
+- **Testing**: May have slightly higher latency due to GUI overhead
+- **Production**: Optimized for lowest possible latency and CPU usage
+- **Virtual**: Performance depends on system resources, no hardware constraints
+
+#### Use Cases
+- **Testing**: Development, debugging, feature validation, performance analysis
+- **Production**: Live performances, automated recording, headless operation
+- **Virtual**: Development without hardware, CI/CD pipelines, documentation
+
+#### Command Line Options
+
+The startup script supports the following options for different environments:
+
+```bash
+# Testing mode with GUI (default)
+./scripts/olms-startup.sh
+
+# Production mode (headless)
+./scripts/olms-startup.sh --prod
+
+# Virtual mode (no hardware required)
+./scripts/olms-startup.sh --virtual
+
+# Testing mode with virtual audio
+./scripts/olms-startup.sh --test --virtual
+```
+
+#### System Behavior Differences
+
+| Component | Testing Mode | Production Mode | Virtual Mode |
+| :--- | :--- | :--- | :--- |
+| **Ardour Interface** | Visible GUI window | No GUI, headless | No GUI, headless |
+| **JACK Backend** | ALSA/PulseAudio (if available) | ALSA/PulseAudio | Dummy (virtual) |
+| **Error Handling** | Interactive prompts | Silent operation | Silent operation |
+| **Logging Level** | Verbose with status messages | Minimal logging | Minimal logging |
+| **Startup Time** | Slower (GUI initialization) | Faster | Fastest |
+| **Resource Usage** | Higher (GUI overhead) | Lower | Lowest |
 
 ### 2. Manual Testing Environment Setup
 
