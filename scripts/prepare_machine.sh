@@ -122,12 +122,26 @@ echo
 print_status "Phase 1: Real-time System Optimization"
 print_status "Executing rt_tuning.sh..."
 if [ -f "/usr/bin/rt_tuning.sh" ]; then
-    sudo /usr/bin/rt_tuning.sh
+    # Controlla se siamo già root prima di usare sudo
+    if [ "$EUID" -eq 0 ]; then
+        # Già in esecuzione come root, esegui direttamente
+        /usr/bin/rt_tuning.sh
+    else
+        # Non siamo root, usa sudo
+        sudo /usr/bin/rt_tuning.sh
+    fi
     check_status "RT Tuning"
 else
     print_status "Warning: rt_tuning.sh not found in /usr/bin/, checking local scripts directory..."
     if [ -f "$(dirname "$0")/rt_tuning.sh" ]; then
-        sudo "$(dirname "$0")/rt_tuning.sh"
+        # Controlla se siamo già root prima di usare sudo
+        if [ "$EUID" -eq 0 ]; then
+            # Già in esecuzione come root, esegui direttamente
+            "$(dirname "$0")/rt_tuning.sh"
+        else
+            # Non siamo root, usa sudo
+            sudo "$(dirname "$0")/rt_tuning.sh"
+        fi
         check_status "RT Tuning"
     else
         print_status "Error: rt_tuning.sh not found in either /usr/bin/ or local scripts directory"

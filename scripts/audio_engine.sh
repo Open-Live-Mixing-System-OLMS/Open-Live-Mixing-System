@@ -26,6 +26,7 @@
 # - JACK2 daemon with optimized parameters
 # - Ardour as JACK client (not master)
 # - Pipewire bypass configuration
+# - Automatic X11 permissions fix
 
 set -e
 
@@ -37,7 +38,7 @@ JACK_PERIOD_SIZE="${JACK_PERIOD_SIZE:-64}"  # Fixed buffer size for optimal audi
 
 # Function to print status messages
 print_status() {
-    echo "[$(date '+%H:%M:%S')] $1"
+    echo "[$(date '+%H:%M:%S')] $1" >&2
 }
 
 # Buffer size configuration
@@ -129,13 +130,14 @@ check_audio_privileges() {
 
 # Function to detect USB audio devices automatically
 detect_usb_audio_device() {
+    print_status "Detecting USB audio devices..."
+    
     # 1. Primary check: Look for "USB" explicitly in /proc/asound/cards
     local usb_cards=$(grep -i "usb" /proc/asound/cards | grep -E "^[ 0-9]+" | awk '{print $1}' | head -1 | tr -d ' ')
     
     if [ -n "$usb_cards" ]; then
         local device_str="hw:$usb_cards,0"
-        # Redirect status to stderr so it doesn't pollute the variable
-        print_status "Found USB Audio Card at $device_str ✓" >&2
+        print_status "Found USB Audio Card at $device_str ✓"
         echo "$device_str"
         return 0
     fi
@@ -145,13 +147,12 @@ detect_usb_audio_device() {
     
     if [ -n "$usb_aplay" ]; then
         local device_str="hw:$usb_aplay,0"
-        # Redirect status to stderr so it doesn't pollute the variable
-        print_status "Found USB Audio Card at $device_str ✓" >&2
+        print_status "Found USB Audio Card at $device_str ✓"
         echo "$device_str"
         return 0
     fi
 
-    print_status "No authentic USB hardware detected." >&2
+    print_status "No USB audio devices detected"
     return 1
 }
 
@@ -213,7 +214,7 @@ if [ ! -f "$OLMS_SESSION_PATH" ]; then
     print_status "Using default Ardour session"
 fi
 
-# Function to setup X11 environment (X11 fix - ENHANCED WITH BETTER WAYLAND SUPPORT + Xvfb fallback)
+# Function to setup X11 environment (FIXED VERSION - EXECUTES AS USER, NOT ROOT)
 setup_x11_environment() {
     print_status "Setting up X11 environment for Ardour..."
     
@@ -427,6 +428,52 @@ setup_x11_environment() {
     else
         print_status "Continuing in production mode (headless) - X11 not required"
         return 0
+    fi
+}
+
+# Function to handle X11 environment preservation for --preserve-x11 argument
+handle_x11_preservation() {
+    if [ "$1" = "--preserve-x11" ]; then
+        print_status "X11 environment preservation mode enabled"
+        # Ensure X11 variables are properly set for the current user
+        if [ "$MODE" = "test" ]; then
+            setup_x11_environment
+        fi
+        return 0
+    fi
+    return 1
+}
+
+# Function to fix X11 permissions automatically (FIXED VERSION)
+fix_x11_permissions() {
+    print_status "Fix automatico permessi X11..."
+    
+    # Rileva l'utente reale che ha lanciato sudo
+    local TARGET_USER="${SUDO_USER:-$USER}"
+    
+    # Concedere permessi X11 (deve essere fatto come utente normale)
+    if [ -n "$SUDO_USER" ]; then
+        sudo -u "$TARGET_USER" DISPLAY="$DISPLAY" xhost +si:localuser:root >/dev/null 2>&1
+        print_status "✓ Permessi X11 concessi da $TARGET_USER a root"
+    fi
+    
+    # Assicura che root veda il file .Xauthority dell'utente
+    if [ -n "$SUDO_USER" ]; then
+        export XAUTHORITY="/home/$TARGET_USER/.Xauthority"
+    fi
+    
+    # Verifica che root possa accedere al display
+    if [ -n "$DISPLAY" ] && [ -n "$XAUTHORITY" ]; then
+        if sudo -u root env DISPLAY="$DISPLAY" XAUTHORITY="$XAUTHORITY" xset q >/dev/null 2>&1; then
+            print_status "✓ Root può accedere a X11"
+            return 0
+        else
+            print_status "Warning: Root non può accedere a X11"
+            return 1
+        fi
+    else
+        print_status "Warning: DISPLAY o XAUTHORITY non impostati"
+        return 1
     fi
 }
 
@@ -1726,7 +1773,7 @@ test_jack_functionality() {
     return 0
 }
 
-# Function to start Ardour as JACK client (Phase 4)
+# Function to start Ardour as JACK client (Phase 4) - ENHANCED WITH ROOT AUDIO GROUP FIX AND DETAILED LOGGING
 start_ardour_as_client() {
     local ardour_cmd=""
     
@@ -1735,13 +1782,98 @@ start_ardour_as_client() {
     # Setup JACK environment
     setup_jack_environment
     
-    # Determine the target user for Ardour (should be the original user, not root)
-    local target_user="$SUDO_USER"
-    if [ -z "$target_user" ]; then
-        target_user="$USER"
+    # Rilevamento pulito del target user
+    local target_user="${SUDO_USER:-$USER}"
+    
+    # Se siamo root, dobbiamo forzare l'esecuzione di Ardour come utente normale
+    # altrimenti Ardour creerà file in ~/.config/ardour8 come root (pericoloso!)
+    if [ "$EUID" -eq 0 ]; then
+        print_status "WARNING: Launcher is root. Dropping privileges to $target_user for Ardour GUI."
+        LAUNCH_PREFIX="sudo -u $target_user -E env DISPLAY=$DISPLAY XAUTHORITY=$XAUTHORITY"
+    else
+        LAUNCH_PREFIX=""
     fi
     
-    print_status "Starting Ardour as user: $target_user"
+    # Setup X11 environment for proper display access
+    print_status "Configuring X11 environment for display access..."
+    
+    # Ensure DISPLAY is set correctly
+    if [ -z "$DISPLAY" ]; then
+        # Check for X11 socket files to determine correct display
+        local display_found=false
+        for display_num in 0 1 2 3 4 5; do
+            local socket_path="/tmp/.X11-unix/X$display_num"
+            if [ -S "$socket_path" ]; then
+                export DISPLAY=":$display_num"
+                print_status "Set DISPLAY to: $DISPLAY (found socket: $socket_path)"
+                display_found=true
+                break
+            fi
+        done
+        
+        if [ "$display_found" = false ]; then
+            export DISPLAY=":0"
+            print_status "Set DISPLAY to default: $DISPLAY"
+        fi
+    else
+        print_status "DISPLAY already set: $DISPLAY"
+    fi
+    
+    # Setup XAUTHORITY
+    if [ -z "$XAUTHORITY" ]; then
+        # Try to find XAUTHORITY in user's home directory
+        local user_home="$HOME"
+        if [ -n "$target_user" ] && [ "$target_user" != "$USER" ]; then
+            user_home="/home/$target_user"
+        fi
+        
+        local possible_xauth="$user_home/.Xauthority"
+        if [ -f "$possible_xauth" ]; then
+            export XAUTHORITY="$possible_xauth"
+            print_status "Set XAUTHORITY to: $XAUTHORITY"
+        else
+            export XAUTHORITY="$HOME/.Xauthority"
+            print_status "Set XAUTHORITY to default: $XAUTHORITY"
+        fi
+    else
+        print_status "XAUTHORITY already set: $XAUTHORITY"
+    fi
+    
+    # Setup XDG_RUNTIME_DIR
+    if [ -z "$XDG_RUNTIME_DIR" ]; then
+        if [ -n "$target_user" ]; then
+            # Get user ID for XDG_RUNTIME_DIR
+            local user_id=$(id -u "$target_user" 2>/dev/null || echo "1000")
+            export XDG_RUNTIME_DIR="/run/user/$user_id"
+            print_status "Set XDG_RUNTIME_DIR to: $XDG_RUNTIME_DIR"
+        else
+            export XDG_RUNTIME_DIR="/run/user/1000"
+            print_status "Set XDG_RUNTIME_DIR to default: $XDG_RUNTIME_DIR"
+        fi
+    else
+        print_status "XDG_RUNTIME_DIR already set: $XDG_RUNTIME_DIR"
+    fi
+    
+    # Test X11 connection
+    if xset q >/dev/null 2>&1; then
+        print_status "X11 connection verified successfully ✓"
+    else
+        print_status "Warning: X11 connection test failed"
+        print_status "DISPLAY: $DISPLAY"
+        print_status "XAUTHORITY: $XAUTHORITY"
+        print_status "XDG_RUNTIME_DIR: $XDG_RUNTIME_DIR"
+        print_status "This may cause Ardour GUI to fail"
+    fi
+    
+    # Setup detailed logging
+    local ardour_log="$HOME/.olms/ardour_startup.log"
+    mkdir -p "$HOME/.olms"
+    
+    # FIX X11 PERMISSIONS AUTOMATICAMENTE (NUOVO)
+    print_status "Fix automatico permessi X11 per root..."
+    if ! fix_x11_permissions; then
+        print_status "Warning: Fix X11 permissions failed, but continuing..."
+    fi
     
     if [ "$MODE" = "prod" ]; then
         print_status "Starting Ardour in production mode (headless with Xvfb)..."
@@ -1783,20 +1915,29 @@ start_ardour_as_client() {
         return 1
     fi
     
-    # Start Ardour as the target user
+    # Start Ardour with proper timing and synchronization
     print_status "Starting Ardour with command: $ardour_cmd"
     print_status "Environment: JACK_NO_START_SERVER=1, PIPEWIRE_RUNTIME_DIR=/dev/null"
     print_status "Audio cores: $audio_cores"
     print_status "Target user: $target_user"
+    print_status "Logging to: $ardour_log"
     
-    # Run Ardour as the target user with proper environment
-    if [ "$target_user" != "$USER" ]; then
-        # Use sudo to run as the target user with preserved environment
-        sudo -u "$target_user" -E bash -c "$ardour_cmd" &
+    # CRITICAL: Add proper timing delay before starting Ardour
+    print_status "Adding synchronization delay before Ardour startup..."
+    print_status "Waiting 5 seconds to ensure JACK is fully stabilized..."
+    sleep 5
+    
+    # Final verification that JACK is ready
+    print_status "Final JACK readiness verification..."
+    if ! verify_jack_stability; then
+        print_status "Warning: JACK may not be fully stable, but proceeding with Ardour startup"
     else
-        $ardour_cmd &
+        print_status "JACK verified as stable and ready"
     fi
     
+    # Esecuzione finale
+    print_status "Launching Ardour with command: $ardour_cmd"
+    eval "$LAUNCH_PREFIX $ardour_cmd > \"$ardour_log\" 2>&1 &"
     ARDOUR_PID=$!
     
     # Wait for Ardour to start
@@ -1823,12 +1964,19 @@ start_ardour_as_client() {
         fi
     else
         print_status "Failed to start Ardour"
-        # Show error details
-        print_status "Ardour error details:"
-        /usr/bin/ardour8 --version >/dev/null 2>&1 || echo "  - Ardour binary test failed"
+        # Show error details from log
+        print_status "Ardour error details from log:"
+        if [ -f "$ardour_log" ]; then
+            tail -n 20 "$ardour_log"
+        else
+            echo "  - No log file found"
+        fi
+        
+        # Show environment details
         if [ "$MODE" != "prod" ]; then
             echo "  - DISPLAY: $DISPLAY"
             echo "  - XAUTHORITY: $XAUTHORITY"
+            echo "  - XDG_RUNTIME_DIR: $XDG_RUNTIME_DIR"
             xset q >/dev/null 2>&1 || echo "  - X11 connection test failed"
         fi
         return 1
@@ -1961,4 +2109,3 @@ cleanup_on_exit() {
 }
 
 trap cleanup_on_exit EXIT
-wait

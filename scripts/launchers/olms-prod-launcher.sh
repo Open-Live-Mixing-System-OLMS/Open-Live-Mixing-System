@@ -290,13 +290,13 @@ print_status "Waiting for all audio processes to be ready..."
 
 # Function to check if audio processes are running
 check_audio_status() {
-    local jack_pids=$(pgrep -f jackd 2>/dev/null)
-    local ardour_pids=$(pgrep -f ardour 2>/dev/null)
+    local jack_pids=$(pgrep -f jackd 2>/dev/null || echo "")
+    local ardour_pids=$(pgrep -f ardour 2>/dev/null || echo "")
     
     if [ -n "$jack_pids" ]; then
         echo "JACK processes found: $jack_pids"
         for pid in $jack_pids; do
-            local process_info=$(ps -p $pid -o pid,cmd 2>/dev/null | tail -n 1)
+            local process_info=$(ps -p "$pid" -o pid,cmd 2>/dev/null | tail -n 1)
             if [ -n "$process_info" ]; then
                 echo "  JACK PID $pid: $process_info"
             fi
@@ -306,7 +306,7 @@ check_audio_status() {
     if [ -n "$ardour_pids" ]; then
         echo "Ardour processes found: $ardour_pids"
         for pid in $ardour_pids; do
-            local process_info=$(ps -p $pid -o pid,cmd 2>/dev/null | tail -n 1)
+            local process_info=$(ps -p "$pid" -o pid,cmd 2>/dev/null | tail -n 1)
             if [ -n "$process_info" ]; then
                 echo "  Ardour PID $pid: $process_info"
             fi
@@ -322,13 +322,13 @@ MAX_WAIT_TIME=60
 WAIT_INTERVAL=3
 elapsed_time=0
 
-while [ $elapsed_time -lt $MAX_WAIT_TIME ]; do
+while [ "$elapsed_time" -lt "$MAX_WAIT_TIME" ]; do
     if check_audio_status; then
         print_success "All audio processes are now running and ready!"
         break
     else
         print_status "Audio processes not yet ready (waited ${elapsed_time}s/${MAX_WAIT_TIME}s)"
-        sleep $WAIT_INTERVAL
+        sleep "$WAIT_INTERVAL"
         elapsed_time=$((elapsed_time + WAIT_INTERVAL))
     fi
 done

@@ -58,6 +58,20 @@ check_status() {
     fi
 }
 
+# Function to check if variable is set and not empty
+check_variable() {
+    local var_name="$1"
+    local var_value="$2"
+    
+    if [ -z "$var_value" ]; then
+        print_error "Variable $var_name is not set or empty"
+        return 1
+    else
+        print_status "Variable $var_name is set: $var_value"
+        return 0
+    fi
+}
+
 # Function to show help
 show_help() {
     echo "$SCRIPT_NAME v$SCRIPT_VERSION"
@@ -146,13 +160,121 @@ echo
 
 # Phase 2: Launch OLMS Startup Script
 print_status "Phase 2: Launching OLMS Startup Sequence"
-print_status "Executing: ./scripts/olms-startup.sh --test"
 
-# Launch the main startup script in testing mode
-if [ "$VERBOSE" = true ]; then
-    ./scripts/olms-startup.sh --test --verbose
+# Function to check if user has necessary privileges without sudo
+check_user_privileges() {
+    print_status "Checking user privileges for audio operations..."
+    
+    # Check if user is in required groups
+    local required_groups="realtime audio"
+    local missing_groups=""
+    
+    for group in $required_groups; do
+        if ! groups $USER | grep -q "$group"; then
+            missing_groups="$missing_groups $group"
+        fi
+    done
+    
+    if [ -n "$missing_groups" ]; then
+        print_status "User not in groups: $missing_groups"
+        return 1
+    fi
+    
+    # Check realtime limits
+    local rtprio=$(ulimit -r)
+    local memlock=$(ulimit -l)
+    
+    if [ "$rtprio" -lt 90 ] || ([ "$memlock" != "unlimited" ] && [ "$memlock" -lt 1024 ]); then
+        print_status "Realtime limits insufficient: rtprio=$rtprio, memlock=${memlock}KB"
+        return 1
+    fi
+    
+    print_status "User privileges verified ✓"
+    return 0
+}
+
+# Function to detect and preserve X11 environment
+detect_x11_environment() {
+    print_status "Detecting X11 environment for GUI mode..."
+    
+    # Preserve current DISPLAY if available
+    if [ -n "$DISPLAY" ]; then
+        export DISPLAY="$DISPLAY"
+        print_status "DISPLAY preserved: $DISPLAY"
+    fi
+    
+    # Detect DISPLAY automatically if not present
+    if [ -z "$DISPLAY" ]; then
+        for display_num in 0 1 2 3; do
+            if [ -f "/tmp/.X11-unix/X$display_num" ]; then
+                export DISPLAY=":$display_num"
+                print_status "DISPLAY detected: $DISPLAY"
+                break
+            fi
+        done
+    fi
+    
+    # Configure XAUTHORITY
+    if [ -z "$XAUTHORITY" ]; then
+        export XAUTHORITY="$HOME/.Xauthority"
+        print_status "XAUTHORITY set: $XAUTHORITY"
+    fi
+    
+    # Configure XDG_RUNTIME_DIR
+    if [ -z "$XDG_RUNTIME_DIR" ]; then
+        export XDG_RUNTIME_DIR="/run/user/$(id -u)"
+        print_status "XDG_RUNTIME_DIR set: $XDG_RUNTIME_DIR"
+    fi
+    
+    # Verify X11 access
+    if [ -n "$DISPLAY" ]; then
+        if xset q >/dev/null 2>&1; then
+            print_status "X11 access verified ✓"
+        else
+            print_status "Warning: X11 access not verified"
+        fi
+    fi
+}
+
+# Function to setup X11 permissions for root access
+setup_x11_permissions() {
+    print_status "Setting up X11 permissions for root access..."
+    
+    # Grant root access to X server
+    if command -v xhost >/dev/null 2>&1; then
+        if xhost +si:localuser:root 2>/dev/null; then
+            print_status "Root X11 access granted ✓"
+        else
+            print_status "Warning: Could not grant root X11 access"
+        fi
+    fi
+    
+    # Copy XAUTHORITY for root if needed
+    if [ -n "$SUDO_USER" ] && [ -f "/home/$SUDO_USER/.Xauthority" ]; then
+        sudo cp "/home/$SUDO_USER/.Xauthority" /root/.Xauthority 2>/dev/null || true
+        print_status "XAUTHORITY copied for root"
+    fi
+}
+
+# Determine if sudo is needed
+if [ "$(id -u)" -ne 0 ]; then
+    if check_user_privileges; then
+        print_status "User has sufficient privileges, launching without sudo..."
+        # For testing mode, preserve X11 environment
+        detect_x11_environment
+        setup_x11_permissions
+        ./scripts/olms-startup.sh --test --preserve-x11
+    else
+        print_status "Insufficient privileges, requesting sudo..."
+        detect_x11_environment
+        setup_x11_permissions
+        sudo -E ./scripts/olms-startup.sh --test --preserve-x11
+    fi
 else
-    ./scripts/olms-startup.sh --test
+    # Already running as root, preserve X11 environment
+    detect_x11_environment
+    setup_x11_permissions
+    ./scripts/olms-startup.sh --test --preserve-x11
 fi
 
 check_status "OLMS startup sequence"
@@ -177,7 +299,8 @@ fi
 # Check Ardour processes
 print_status "Checking Ardour processes..."
 ARDOUR_COUNT=$(pgrep -c ardour 2>/dev/null || echo "0")
-if [ "$ARDOUR_COUNT" -gt 0 ]; then
+ARDOUR_COUNT=$(echo "$ARDOUR_COUNT" | tr -d '[:space:]')
+if [ "$ARDOUR_COUNT" -gt 0 ] 2>/dev/null; then
     print_success "Ardour processes found: $ARDOUR_COUNT"
     if [ "$VERBOSE" = true ]; then
         pgrep -l ardour
@@ -205,8 +328,8 @@ echo
 print_status "Phase 4: System Status Summary"
 echo "=== System Status ==="
 echo "  - OLMS startup sequence: Completed"
-echo "  - JACK server: $([ "$JACK_COUNT" -gt 0 ] && echo "Active" || echo "Inactive")"
-echo "  - Ardour processes: $([ "$ARDOUR_COUNT" -gt 0 ] && echo "Running ($ARDOUR_COUNT)" || echo "Not running")"
+echo "  - JACK server: $([ "${JACK_COUNT:-0}" -gt 0 ] && echo "Active" || echo "Inactive")"
+echo "  - Ardour processes: $([ "${ARDOUR_COUNT:-0}" -gt 0 ] && echo "Running ($ARDOUR_COUNT)" || echo "Not running")"
 echo "  - Testing mode: Enabled (GUI available)"
 echo "  - Verbose output: $([ "$VERBOSE" = true ] && echo "Enabled" || echo "Disabled")"
 echo
@@ -258,20 +381,26 @@ print_status "=== OLMS Test Launcher Complete ==="
 print_success "OLMS system is now running in testing mode"
 print_status "GUI is available for development and monitoring"
 echo
-print_status "Monitoring Ardour startup (this will keep the terminal open)..."
+
+# LOGGING: Explain Ardour startup process and why there might be a delay
+print_status "LOGGING: Ardour startup process explanation"
+print_status "  - Ardour is launched as a JACK client after JACK server is ready"
+print_status "  - There may be a brief delay (5-10 seconds) for Ardour to fully initialize"
+print_status "  - This delay is normal and allows Ardour to properly connect to JACK"
+print_status "  - Ardour GUI should appear shortly after this message"
 echo
 
-# Phase 6: Monitor Ardour Startup
-print_status "Phase 6: Monitoring Ardour Startup"
-print_status "Waiting for Ardour GUI to become available..."
+# Phase 6: Quick Ardour Status Check (Non-blocking)
+print_status "Phase 6: Quick Ardour Status Check"
+print_status "Checking if Ardour has started..."
 
 # Function to check if Ardour is running
 check_ardour_status() {
-    local ardour_pids=$(pgrep -f ardour 2>/dev/null)
+    local ardour_pids=$(pgrep -f ardour 2>/dev/null || echo "")
     if [ -n "$ardour_pids" ]; then
         echo "Ardour processes found: $ardour_pids"
         for pid in $ardour_pids; do
-            local process_info=$(ps -p $pid -o pid,cmd 2>/dev/null | tail -n 1)
+            local process_info=$(ps -p "$pid" -o pid,cmd 2>/dev/null | tail -n 1 || echo "")
             if [ -n "$process_info" ]; then
                 echo "  PID $pid: $process_info"
             fi
@@ -282,54 +411,33 @@ check_ardour_status() {
     fi
 }
 
-# Wait for Ardour to start with timeout
-MAX_WAIT_TIME=60
-WAIT_INTERVAL=3
-elapsed_time=0
-
-while [ $elapsed_time -lt $MAX_WAIT_TIME ]; do
-    if check_ardour_status; then
-        print_success "Ardour is now running and ready!"
-        break
-    else
-        print_status "Ardour not yet ready (waited ${elapsed_time}s/${MAX_WAIT_TIME}s)"
-        sleep $WAIT_INTERVAL
-        elapsed_time=$((elapsed_time + WAIT_INTERVAL))
-    fi
-done
-
-# Final check
-if ! check_ardour_status; then
-    print_status "Warning: Ardour may still be starting up"
-    print_status "Check the system manually if needed"
+# Quick check for Ardour (no waiting loop)
+if check_ardour_status; then
+    print_success "Ardour is running and ready!"
+else
+    print_status "Ardour may still be starting up (this is normal)"
+    print_status "Ardour GUI should appear within 10-15 seconds"
+    print_status "If Ardour doesn't appear, check the system manually"
 fi
 
 echo
-print_status "To monitor the system:"
-echo "  - Check JACK status: jack_control status"
-echo "  - Monitor logs: journalctl -f -u ardour.service"
-echo "  - Check system resources: top, htop"
+print_status "System Status Summary:"
+echo "  - OLMS system: Running"
+echo "  - JACK server: $([ "${JACK_COUNT:-0}" -gt 0 ] && echo "Active" || echo "Inactive")"
+echo "  - Ardour: $([ "${ARDOUR_COUNT:-0}" -gt 0 ] && echo "Running" || echo "Starting...")"
+echo "  - GUI: Available for development and testing"
 echo
-print_status "To stop the system:"
+print_status "System Management Commands:"
+echo "  - Check JACK status: jack_control status"
+echo "  - List JACK ports: jack_lsp"
+echo "  - Monitor logs: journalctl -f"
 echo "  - Stop Ardour: pkill -f ardour"
 echo "  - Stop JACK: pkill jackd"
-echo "  - Stop any background processes from this script"
 echo
-print_status "Test launcher completed successfully!"
-print_status "Terminal will remain open for monitoring. Press Ctrl+C to exit."
-
-# Keep the script running to maintain the processes and allow monitoring
-trap "print_status 'Test launcher script completed'" EXIT
-
-# Wait for user to press Ctrl+C or for Ardour to be stopped
-while true; do
-    # Check if Ardour is still running
-    if ! pgrep -f ardour > /dev/null 2>&1; then
-        print_status "Ardour process has stopped. Exiting monitor..."
-        break
-    fi
-    
-    # Show current status every 10 seconds
-    sleep 10
-    print_status "Monitoring... Ardour is still running"
-done
+print_status "IMPORTANT: Ardour launches immediately after JACK is ready"
+print_status "The brief delay allows Ardour to properly initialize and connect to JACK"
+print_status "This is normal behavior for audio applications"
+echo
+print_success "OLMS Test Launcher completed successfully!"
+print_status "Script is now exiting. Ardour should be running and visible."
+print_status "Use the commands above to monitor and manage the system."
