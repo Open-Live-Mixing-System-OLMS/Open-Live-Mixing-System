@@ -3,6 +3,17 @@
 # Fase 6: CPU Affinity & Resource Allocation
 # Versione: 2.0
 
+# Variabili d'ambiente per l'approccio "tutto come stesso utente"
+export TARGET_USER="francesco_ssh"
+export DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/1000/bus"
+export XDG_RUNTIME_DIR="/run/user/1000"
+export DISPLAY=":0"
+export XAUTHORITY="/home/francesco_ssh/.Xauthority"
+export JACK_DEFAULT_SERVER="olms"
+export JACK_NO_START_SERVER=1
+export JACK_PROMISCUOUS_SERVER=1
+export JACK_SESSION_DIR="/dev/shm/jack-olms-0"
+
 set -euo pipefail
 
 # Configurazione
@@ -129,14 +140,20 @@ apply_cpu_affinity() {
                 fi
                 
                 # Imposta priorità realtime SCHED_FIFO per JACK
-                if chrt -f 80 "$pid" >/dev/null 2>&1; then
+                local process_user=$(ps -p "$pid" -o user --no-headers 2>/dev/null || echo "unknown")
+                local current_user=$(whoami)
+                
+                if [[ "$current_user" == "root" ]] && [[ "$process_user" != "root" ]]; then
+                    warn "JACK PID $pid: eseguito come utente $process_user, impossibile impostare SCHED_FIFO da root"
+                    warn "Suggerimento: Esegui questo script come utente $process_user o usa sudo -u $process_user"
+                    warn "Continuando senza impostare SCHED_FIFO per questo processo"
+                elif sudo chrt -f 80 "$pid" >/dev/null 2>&1; then
                     log "JACK PID $pid: priorità impostata a SCHED_FIFO 80"
                 else
-                    error "ERRORE CRITICO: Impossibile impostare SCHED_FIFO per JACK PID $pid (eseguito come utente $(ps -p $pid -o user --no-headers))"
-                    warn "Suggerimento: Verifica che l'utente $(ps -p $pid -o user --no-headers) appartenga al gruppo 'audio'"
+                    warn "Impossibile impostare SCHED_FIFO per JACK PID $pid, continuo in modo standard..."
+                    warn "Suggerimento: Verifica che l'utente $process_user appartenga al gruppo 'audio'"
                     warn "Suggerimento: Aggiungi '@audio - rtprio 95' in /etc/security/limits.conf"
                     warn "Suggerimento: Riavvia la sessione utente dopo le modifiche"
-                    return 1
                 fi
                 
                 # Verifica affinity
@@ -162,14 +179,13 @@ apply_cpu_affinity() {
                 fi
                 
                 # Imposta priorità realtime SCHED_FIFO per Ardour
-                if chrt -f 75 "$pid" >/dev/null 2>&1; then
+                if sudo chrt -f 75 "$pid" >/dev/null 2>&1; then
                     log "Ardour PID $pid: priorità impostata a SCHED_FIFO 75"
                 else
-                    error "ERRORE CRITICO: Impossibile impostare SCHED_FIFO per Ardour PID $pid (eseguito come utente $(ps -p $pid -o user --no-headers))"
+                    warn "Impossibile impostare SCHED_FIFO per Ardour PID $pid, continuo in modo standard..."
                     warn "Suggerimento: Verifica che l'utente $(ps -p $pid -o user --no-headers) appartenga al gruppo 'audio'"
                     warn "Suggerimento: Aggiungi '@audio - rtprio 95' in /etc/security/limits.conf"
                     warn "Suggerimento: Riavvia la sessione utente dopo le modifiche"
-                    return 1
                 fi
                 
                 # Verifica affinity

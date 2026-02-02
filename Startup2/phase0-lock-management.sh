@@ -6,9 +6,11 @@
 set -euo pipefail
 
 # Configurazione
-LOCK_FILE="/tmp/olms-startup.lock"
-PID_FILE="/tmp/olms-startup.pid"
-LOG_FILE="/tmp/olms-orchestrator.log"
+OLMS_HOME="$HOME/.olms"
+mkdir -p "$OLMS_HOME"
+LOCK_FILE="$OLMS_HOME/olms-startup.lock"
+PID_FILE="$OLMS_HOME/olms-startup.pid"
+LOG_FILE="$OLMS_HOME/olms-orchestrator.log"
 STALE_TIMEOUT=10  # secondi
 
 # Colori
@@ -18,15 +20,34 @@ YELLOW='\033[1;33m'
 NC='\033[0m'
 
 log() {
-    echo -e "${GREEN}[$(date '+%Y-%m-%d %H:%M:%S')]${NC} $1" | tee -a "$LOG_FILE"
+    # Controlla se possiamo scrivere nel file di log
+    if [[ -w "$LOG_FILE" ]] || [[ ! -f "$LOG_FILE" ]]; then
+        echo -e "${GREEN}[$(date '+%Y-%m-%d %H:%M:%S')]${NC} $1" | tee -a "$LOG_FILE"
+    else
+        # Se non possiamo scrivere nel file di log, scriviamo solo su stdout
+        echo -e "${GREEN}[$(date '+%Y-%m-%d %H:%M:%S')]${NC} $1"
+        warn "Impossibile scrivere nel file di log $LOG_FILE (permesso negato)"
+    fi
 }
 
 warn() {
-    echo -e "${YELLOW}[$(date '+%Y-%m-%d %H:%M:%S')] WARNING:${NC} $1" | tee -a "$LOG_FILE"
+    # Controlla se possiamo scrivere nel file di log
+    if [[ -w "$LOG_FILE" ]] || [[ ! -f "$LOG_FILE" ]]; then
+        echo -e "${YELLOW}[$(date '+%Y-%m-%d %H:%M:%S')] WARNING:${NC} $1" | tee -a "$LOG_FILE"
+    else
+        # Se non possiamo scrivere nel file di log, scriviamo solo su stdout
+        echo -e "${YELLOW}[$(date '+%Y-%m-%d %H:%M:%S')] WARNING:${NC} $1"
+    fi
 }
 
 error() {
-    echo -e "${RED}[$(date '+%Y-%m-%d %H:%M:%S')] ERROR:${NC} $1" | tee -a "$LOG_FILE"
+    # Controlla se possiamo scrivere nel file di log
+    if [[ -w "$LOG_FILE" ]] || [[ ! -f "$LOG_FILE" ]]; then
+        echo -e "${RED}[$(date '+%Y-%m-%d %H:%M:%S')] ERROR:${NC} $1" | tee -a "$LOG_FILE"
+    else
+        # Se non possiamo scrivere nel file di log, scriviamo solo su stdout
+        echo -e "${RED}[$(date '+%Y-%m-%d %H:%M:%S')] ERROR:${NC} $1"
+    fi
 }
 
 # Verifica staleness del lock file

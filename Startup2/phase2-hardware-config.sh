@@ -6,9 +6,15 @@
 set -euo pipefail
 
 # Configurazione
-LOG_FILE="/tmp/olms-orchestrator.log"
+OLMS_HOME="$HOME/.olms"
+mkdir -p "$OLMS_HOME"
+LOG_FILE="$OLMS_HOME/olms-orchestrator.log"
 AUDIO_CORE=1  # Core dedicato per IRQ audio
 CPU_MASK_CORE_1="0x2"  # Maschera hex per core 1
+
+# Variabili d'ambiente per l'approccio "tutto come stesso utente"
+export TARGET_USER="francesco_ssh"
+export DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/1000/bus"
 
 # Colori
 RED='\033[0;31m'
@@ -60,7 +66,16 @@ configure_irq_affinity() {
     log "Configurazione IRQ affinity per ${#audio_irqs[@]} IRQ audio..."
     
     # Assicuriamoci che il file di log di fallback sia scrivibile
-    touch /tmp/olms-irq-config.txt 2>/dev/null || rm -f /tmp/olms-irq-config.txt
+    # Controllo proprietà file prima della rimozione
+    if [[ -f "$OLMS_HOME/olms-irq-config.txt" ]]; then
+        file_owner=$(stat -c '%U' "$OLMS_HOME/olms-irq-config.txt" 2>/dev/null || echo "unknown")
+        if [[ "$file_owner" == "$(whoami)" ]]; then
+            rm -f "$OLMS_HOME/olms-irq-config.txt" 2>/dev/null || warn "Impossibile rimuovere $OLMS_HOME/olms-irq-config.txt (permesso negato)"
+        else
+            log "Saltato $OLMS_HOME/olms-irq-config.txt (appartiene a $file_owner)"
+        fi
+    fi
+    touch "$OLMS_HOME/olms-irq-config.txt" 2>/dev/null || warn "Impossibile creare $OLMS_HOME/olms-irq-config.txt (permesso negato)"
     
     for irq in "${audio_irqs[@]}"; do
         local affinity_file="/proc/irq/${irq}/smp_affinity"

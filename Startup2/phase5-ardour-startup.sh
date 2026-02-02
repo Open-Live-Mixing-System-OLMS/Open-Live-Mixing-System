@@ -4,8 +4,8 @@
 
 set -euo pipefail
 
-# Configurazione
-LOG_FILE="/tmp/olms-orchestrator.log"
+# Se LOG_FILE non è passato dall'orchestratore, usa un fallback sicuro per l'utente
+LOG_FILE="${LOG_FILE:-/tmp/olms-phase5-${USER}.log}"
 ARDOUR_LOG_FILE="/tmp/ardour_startup.log"
 ARDOUR_SESSION_FILE=""
 ARDOUR_PID_FILE="/tmp/ardour.pid"
@@ -33,6 +33,17 @@ info() {
     echo -e "${BLUE}[$(date '+%Y-%m-%d %H:%M:%S')] INFO:${NC} $1" | tee -a "$LOG_FILE"
 }
 
+# Variabili d'ambiente per l'approccio "tutto come stesso utente"
+export TARGET_USER="francesco_ssh"
+export DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/1000/bus"
+export XDG_RUNTIME_DIR="/run/user/1000"
+export DISPLAY=":0"
+export XAUTHORITY="/home/francesco_ssh/.Xauthority"
+export JACK_DEFAULT_SERVER="olms"
+export JACK_NO_START_SERVER=1
+export JACK_PROMISCUOUS_SERVER=1
+export JACK_SESSION_DIR="/dev/shm/jack-olms-0"
+
 # Preparazione ambiente JACK - Enhanced for Fixed-Path Socket Strategy
 prepare_jack_environment() {
     log "Preparazione ambiente JACK per Ardour (Fixed-Path Socket Strategy)..."
@@ -47,7 +58,11 @@ prepare_jack_environment() {
     
     # CRITICAL FIX: This flag tells JACK clients to connect to a server 
     # even if the UID doesn't match the current user.
-    export JACK_PROMISCUOUS_SERVER=1 
+    export JACK_PROMISCUOUS_SERVER=1
+    
+    # CRITICAL FIX: Force Ardour to not manage audio hardware reservation
+    # This prevents D-Bus conflicts and device reservation errors
+    export ARDOUR_ALSA_DEVICE_RESERVATION=1
     
     # Enhanced socket path configuration for UID bridging
     export JACK_SESSION_DIR="/dev/shm/jack-olms-0"
@@ -247,6 +262,42 @@ identify_user_and_privileges() {
     
     # Verifica accesso XAuthority (Suggerimento utente)
     verify_xauthority_access
+    
+    # Verifica e imposta D-Bus session bus per l'utente
+    log "Verifica e setup D-Bus session bus per utente $TARGET_USER..."
+    
+    local user_uid=$(id -u "$TARGET_USER")
+    local dbus_path="/run/user/${user_uid}/bus"
+    
+    # Controlla se il D-Bus session bus esiste
+    if [[ -S "$dbus_path" ]]; then
+        export DBUS_SESSION_BUS_ADDRESS="unix:path=${dbus_path}"
+        log "D-Bus session bus trovato: $DBUS_SESSION_BUS_ADDRESS"
+    else
+        warn "D-Bus session bus non trovato: $dbus_path"
+        warn "Cercando alternative..."
+        
+        # Prova a trovare altri D-Bus session bus
+        local alt_dbus=$(find "/run/user" -name "bus" -type s 2>/dev/null | head -1)
+        if [[ -n "$alt_dbus" ]] && [[ -S "$alt_dbus" ]]; then
+            export DBUS_SESSION_BUS_ADDRESS="unix:path=${alt_dbus}"
+            log "Usando D-Bus session bus alternativo: $DBUS_SESSION_BUS_ADDRESS"
+        else
+            warn "Nessun D-Bus session bus trovato, impostando fallback"
+            # Ultima risorsa: imposta un D-Bus session bus di fallback
+            export DBUS_SESSION_BUS_ADDRESS="unix:abstract=/tmp/dbus-${user_uid}"
+            log "D-Bus session bus fallback impostato: $DBUS_SESSION_BUS_ADDRESS"
+        fi
+    fi
+    
+    # Verifica che l'utente possa accedere al D-Bus session bus
+    if sudo -u "$TARGET_USER" test -S "${DBUS_SESSION_BUS_ADDRESS#unix:path=}" 2>/dev/null; then
+        log "D-Bus session bus access verificato per utente $TARGET_USER"
+        return 0
+    else
+        warn "L'utente $TARGET_USER non può accedere al D-Bus session bus"
+        return 1
+    fi
 }
 
 # Rilevamento sessione Ardour
@@ -326,6 +377,7 @@ start_ardour() {
     chmod 777 /dev/shm/jack-olms-* 2>/dev/null || true
 
     # 3. Costruzione comando pulita - Senza runuser per evitare problemi di UID
+    # CORRETTO: Specifica il percorso completo di Ardour8 e aggiungi variabili X11 corrette
     local ARDOUR_CMD=(
         taskset -c 2-3 
         chrt -f 70 
@@ -336,11 +388,18 @@ start_ardour() {
         DBUS_SESSION_BUS_ADDRESS="${DBUS_SESSION_BUS_ADDRESS}" 
         JACK_DEFAULT_SERVER="olms" 
         JACK_NO_START_SERVER=1 
-        JACK_SESSION_DIR="/dev/shm/jack-olms-0" 
-        ardour8 -n "${ARDOUR_SESSION_FILE}"
+        JACK_SESSION_DIR="/dev/shm/jack-olms-0"
+        JACK_PROMISCUOUS_SERVER=1
+        /usr/bin/ardour8 -n "${ARDOUR_SESSION_FILE}"
     )
 
-    log "Esecuzione Ardour su core 2-3..."
+    log "Esecuzione Ardour su core 2-3 con percorso corretto: /usr/bin/ardour8"
+    log "Variabili d'ambiente impostate:"
+    log "  DISPLAY=${DISPLAY}"
+    log "  XAUTHORITY=${XAUTHORITY}"
+    log "  JACK_DEFAULT_SERVER=${JACK_DEFAULT_SERVER}"
+    log "  JACK_SESSION_DIR=${JACK_SESSION_DIR}"
+    log "  JACK_PROMISCUOUS_SERVER=1"
 
     # Esegui direttamente senza runuser
     "${ARDOUR_CMD[@]}" >> "${ARDOUR_LOG_FILE}" 2>&1 &

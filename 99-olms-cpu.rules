@@ -1,0 +1,3 @@
+SUBSYSTEM=="cpu", ATTR{cpufreq/scaling_governor}="/bin/chmod 666 %c"
+SUBSYSTEM=="cpu", ATTR{cpufreq/scaling_min_freq}="/bin/chmod 666 %c"
+SUBSYSTEM=="cpu", ATTR{cpufreq/scaling_max_freq}="/bin/chmod 666 %c"

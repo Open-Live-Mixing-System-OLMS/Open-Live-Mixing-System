@@ -8,9 +8,44 @@ set -euo pipefail
 
 # Configurazione base
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-LOG_FILE="/tmp/olms-orchestrator.log"
-LOCK_FILE="/tmp/olms-startup.lock"
-PID_FILE="/tmp/olms-startup.pid"
+OLMS_HOME="$HOME/.olms"
+mkdir -p "$OLMS_HOME"
+LOG_FILE="$OLMS_HOME/olms-orchestrator.log"
+LOCK_FILE="$OLMS_HOME/olms-startup.lock"
+PID_FILE="$OLMS_HOME/olms-startup.pid"
+
+# Aggiornamento Log File in Orchestrator - Versione "aggressiva"
+if [[ -f "/tmp/olms-orchestrator.log" ]]; then
+    # Se il file in /tmp esiste ed è di un altro utente, lo ignoriamo del tutto
+    # o usiamo un nome univoco per evitare il 'Permission denied'
+    LOG_FILE="/tmp/olms-orchestrator-${USER}-$(date +%s).log"
+fi
+
+# Assicurati che il file di log sia scrivibile dall'utente corrente
+if [[ ! -f "$LOG_FILE" ]]; then
+    # Crea il file di log se non esiste
+    touch "$LOG_FILE" 2>/dev/null || {
+        # Se non possiamo creare il file nella home, usiamo un percorso alternativo
+        LOG_FILE="/tmp/olms-orchestrator-${USER}-$(date +%s).log"
+        warn "Impossibile creare il file di log nella home directory, uso: $LOG_FILE"
+    }
+elif [[ ! -w "$LOG_FILE" ]]; then
+    # Se il file esiste ma non è scrivibile, creane uno nuovo con timestamp univoco
+    LOG_FILE="/tmp/olms-orchestrator-${USER}-$(date +%s).log"
+    warn "Il file di log esistente non è scrivibile, uso: $LOG_FILE"
+fi
+
+# Variabili d'ambiente per l'approccio "tutto come stesso utente"
+export TARGET_USER="francesco_ssh"
+export DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/1000/bus"
+export XDG_RUNTIME_DIR="/run/user/1000"
+export DISPLAY=":0"
+export XAUTHORITY="/home/francesco_ssh/.Xauthority"
+
+# Variabili JACK per coerenza tra tutti gli script
+export JACK_DEFAULT_SERVER="olms"
+export JACK_NO_AUDIO_RESERVATION=1
+export JACK_PROMISCUOUS_SERVER=1
 
 # Colori per output
 RED='\033[0;31m'
@@ -46,25 +81,13 @@ check_command() {
 
 # Pulizia in caso di interruzione
 cleanup() {
-    # Aggiungo timeout per evitare blocchi
-    (
-        echo -e "${BLUE}[$(date '+%Y-%m-%d %H:%M:%S')] INFO:${NC} Pulizia in corso..." | tee -a "$LOG_FILE"
-        if [[ -f "$LOCK_FILE" ]]; then
-            rm -f "$LOCK_FILE" 2>/dev/null || true
-        fi
-        if [[ -f "$PID_FILE" ]]; then
-            rm -f "$PID_FILE" 2>/dev/null || true
-        fi
-    ) &
-    local cleanup_pid=$!
-    
-    # Timeout di 5 secondi per la pulizia
-    sleep 5
-    if kill -0 $cleanup_pid 2>/dev/null; then
-        kill $cleanup_pid 2>/dev/null || true
-        wait $cleanup_pid 2>/dev/null || true
+    log "Pulizia in corso..."
+    if [[ -f "$LOCK_FILE" ]]; then
+        rm -f "$LOCK_FILE" 2>/dev/null || true
     fi
-    
+    if [[ -f "$PID_FILE" ]]; then
+        rm -f "$PID_FILE" 2>/dev/null || true
+    fi
     exit 1
 }
 
@@ -151,40 +174,30 @@ phase1_rt_optimization() {
 phase2_jack_init() {
     log "=== FASE 2: JACK SERVER INITIALIZATION ==="
     
-    if [[ -f "$SCRIPT_DIR/phase3-jack-init-fixed.sh" ]]; then
-        # Esegui con timeout di 120 secondi per evitare blocchi
-        timeout 120 bash "$SCRIPT_DIR/phase3-jack-init-fixed.sh" || {
+    if [[ -f "$SCRIPT_DIR/phase2-hardware-config.sh" ]]; then
+        # Esegui con timeout di 60 secondi per evitare blocchi
+        timeout 60 bash "$SCRIPT_DIR/phase2-hardware-config.sh" || {
             error "Fase 2 fallita o timeout superato"
             exit 1
         }
     else
-        error "Script phase3-jack-init-fixed.sh non trovato"
+        error "Script phase2-hardware-config.sh non trovato"
         exit 1
     fi
 }
 
-# Fase 3: Configurazione hardware e IRQ pinning
-phase3_hardware_config() {
-    log "=== FASE 3: CONFIGURAZIONE HARDWARE & IRQ PINNING ==="
+# Fase 3: JACK server initialization (FIXED VERSION)
+phase3_jack_init_fixed() {
+    log "=== FASE 3: JACK SERVER INITIALIZATION (FIXED) ==="
     
-    # Debug: mostra l'EUID corrente
-    info "Debug EUID: $EUID (0=root, altro=utente normale)"
-    
-    # Verifica che lo script sia eseguito come root per la fase hardware
-    if [[ $EUID -ne 0 ]]; then
-        error "Fase 3 richiede privilegi root. Eseguire con: sudo $0"
-        error "Debug: EUID corrente è $EUID, ma è richiesto 0 (root)"
-        exit 1
-    fi
-    
-    if [[ -f "$SCRIPT_DIR/phase2-hardware-config.sh" ]]; then
-        # Esegui con timeout di 60 secondi per evitare blocchi
-        timeout 60 bash "$SCRIPT_DIR/phase2-hardware-config.sh" || {
+    if [[ -f "$SCRIPT_DIR/phase3-jack-init-fixed.sh" ]]; then
+        # Esegui con timeout di 120 secondi per evitare blocchi
+        timeout 120 bash "$SCRIPT_DIR/phase3-jack-init-fixed.sh" || {
             error "Fase 3 fallita o timeout superato"
             exit 1
         }
     else
-        error "Script phase2-hardware-config.sh non trovato"
+        error "Script phase3-jack-init-fixed.sh non trovato"
         exit 1
     fi
 }
@@ -270,7 +283,7 @@ main() {
     phase0_pre_startup
     phase1_rt_optimization
     phase2_jack_init
-    phase3_hardware_config
+    phase3_jack_init_fixed
     phase4_x11_setup
     phase5_ardour_startup
     phase6_cpu_affinity

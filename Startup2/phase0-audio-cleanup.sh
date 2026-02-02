@@ -6,7 +6,7 @@
 set -euo pipefail
 
 # Configurazione
-LOG_FILE="/tmp/olms-orchestrator.log"
+LOG_FILE="/home/francesco_ssh/olms-orchestrator.log"
 TEMP_DIR="/tmp"
 
 # Colori
@@ -106,7 +106,18 @@ remove_socket_files() {
     for pattern in "${jack_patterns[@]}"; do
         if ls $pattern 1> /dev/null 2>&1; then
             log "Rimozione socket JACK: $pattern"
-            rm -rf $pattern
+            # Solo rimuovi file/directory che appartengono all'utente corrente
+            # Salta file di root per evitare errori di permesso
+            for file in $pattern; do
+                if [[ -e "$file" ]]; then
+                    file_owner=$(stat -c '%U' "$file" 2>/dev/null || echo "unknown")
+                    if [[ "$file_owner" == "$(whoami)" ]]; then
+                        rm -rf "$file" 2>/dev/null || warn "Impossibile rimuovere $file (permesso negato)"
+                    else
+                        log "Saltato $file (appartiene a $file_owner)"
+                    fi
+                fi
+            done
         fi
     done
     
@@ -114,7 +125,17 @@ remove_socket_files() {
     for pattern in "${pipewire_patterns[@]}"; do
         if ls $pattern 1> /dev/null 2>&1; then
             log "Rimozione socket Pipewire: $pattern"
-            rm -rf $pattern
+            # Solo rimuovi file/directory che appartengono all'utente corrente
+            for file in $pattern; do
+                if [[ -e "$file" ]]; then
+                    file_owner=$(stat -c '%U' "$file" 2>/dev/null || echo "unknown")
+                    if [[ "$file_owner" == "$(whoami)" ]]; then
+                        rm -rf "$file" 2>/dev/null || warn "Impossibile rimuovere $file (permesso negato)"
+                    else
+                        log "Saltato $file (appartiene a $file_owner)"
+                    fi
+                fi
+            done
         fi
     done
     
@@ -196,7 +217,17 @@ cleanup_temp_directories() {
     for dir_pattern in "${temp_dirs[@]}"; do
         if ls $dir_pattern 1> /dev/null 2>&1; then
             log "Pulizia directory: $dir_pattern"
-            rm -rf $dir_pattern
+            # Solo rimuovi file/directory che appartengono all'utente corrente
+            for file in $dir_pattern; do
+                if [[ -e "$file" ]]; then
+                    file_owner=$(stat -c '%U' "$file" 2>/dev/null || echo "unknown")
+                    if [[ "$file_owner" == "$(whoami)" ]]; then
+                        rm -rf "$file" 2>/dev/null || warn "Impossibile rimuovere $file (permesso negato)"
+                    else
+                        log "Saltato $file (appartiene a $file_owner)"
+                    fi
+                fi
+            done
         fi
     done
     

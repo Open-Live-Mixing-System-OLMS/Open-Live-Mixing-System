@@ -6,6 +6,7 @@ set -euo pipefail
 # Environment overrides for non-interactive stability
 export JACK_NO_AUDIO_RESERVATION=1
 export JACK_DEFAULT_SERVER=olms
+export JACK_PROMISCUOUS_SERVER=1
 
 TARGET_HW="hw:1" 
 BUFFER_SIZE=256   
@@ -146,6 +147,13 @@ setup_socket_permissions() {
             "/tmp/jack-default_${target_uid}_0"
         )
         
+        # The "Triade" Socket Bridge: Create symlink between 'olms' and 'default'
+        # This is the critical fix for clients that stubbornly search for 'jack-0'
+        if [ -d "/dev/shm/jack-olms-0" ]; then
+            ln -s /dev/shm/jack-olms-0 /dev/shm/jack-0 2>/dev/null || true
+            log "🔗 Created bridge between socket 'olms' and 'default'"
+        fi
+        
         for link_path in "${socket_links[@]}"; do
             local link_dir=$(dirname "$link_path")
             sudo mkdir -p "$link_dir"
@@ -214,8 +222,7 @@ start_jack_with_isolation() {
         -d "$TARGET_HW" 
         -r "$SAMPLE_RATE" 
         -p "$BUFFER_SIZE" 
-        -n "$PERIODS" 
-        -s
+        -n "$PERIODS"
     )
     
     log "Executing: ${jack_command[*]}"
@@ -233,6 +240,16 @@ start_jack_with_isolation() {
     sleep 2
     log "Verifying socket permissions after JACK startup..."
     ls -la "$socket_dir" 2>/dev/null || log "Socket directory not accessible"
+    
+    # Verifica Strutturale (Debug Rapido) - Structural Verification (Quick Debug)
+    log "Verifica file di comunicazione..."
+    if [ -d "$socket_dir" ]; then
+        ls -F "$socket_dir/" 2>/dev/null || log "Socket directory contents not accessible"
+        # Dovresti vedere file come: jack_db_olms_0, jack_shm_registry, etc.
+        log "Socket files found in $socket_dir"
+    else
+        warn "Socket directory $socket_dir not found - JACK may not have created it yet"
+    fi
     
     return 0
 }

@@ -1,0 +1,25 @@
+# Udev rules for JACK Socket Permissions
+# Permette all'utente francesco_ssh di gestire i socket JACK senza sudo
+# Copia questo file in /etc/udev/rules.d/99-jack-sockets.rules
+
+# Regole per i socket JACK in /dev/shm
+KERNEL=="jack*", SUBSYSTEM=="", ACTION=="add", GROUP="audio", MODE="0666"
+KERNEL=="jack*", SUBSYSTEM=="", ACTION=="remove", GROUP="audio", MODE="0666"
+
+# Regole per i socket JACK in /tmp (se gestiti da udev)
+KERNEL=="jack*", SUBSYSTEM=="", ACTION=="add", GROUP="audio", MODE="0666"
+KERNEL=="jack*", SUBSYSTEM=="", ACTION=="remove", GROUP="audio", MODE="0666"
+
+# Regole per il registro shared memory JACK
+KERNEL=="jack-shm-registry", SUBSYSTEM=="", ACTION=="add", GROUP="audio", MODE="0666"
+
+# Regole per i socket specifici JACK
+KERNEL=="jack-olms-*", SUBSYSTEM=="", ACTION=="add", GROUP="audio", MODE="0666"
+KERNEL=="jack-default_*", SUBSYSTEM=="", ACTION=="add", GROUP="audio", MODE="0666"
+KERNEL=="jack_sem.*", SUBSYSTEM=="", ACTION=="add", GROUP="audio", MODE="0666"
+
+# Istruzioni per l'uso:
+# 1. Copia questo file in /etc/udev/rules.d/99-jack-sockets.rules
+# 2. Ricarica le regole udev: sudo udevadm control --reload-rules
+# 3. Riavvia i dispositivi: sudo udevadm trigger
+# 4. Riavvia il sistema o la sessione utente

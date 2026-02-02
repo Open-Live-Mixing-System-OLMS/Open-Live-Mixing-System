@@ -3,6 +3,17 @@
 # Fase 7: System Verification & Monitoring
 # Versione: 2.0
 
+# Variabili d'ambiente per l'approccio "tutto come stesso utente"
+export TARGET_USER="francesco_ssh"
+export DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/1000/bus"
+export XDG_RUNTIME_DIR="/run/user/1000"
+export DISPLAY=":0"
+export XAUTHORITY="/home/francesco_ssh/.Xauthority"
+export JACK_DEFAULT_SERVER="olms"
+export JACK_NO_START_SERVER=1
+export JACK_PROMISCUOUS_SERVER=1
+export JACK_SESSION_DIR="/dev/shm/jack-olms-0"
+
 set -euo pipefail
 
 # Configurazione

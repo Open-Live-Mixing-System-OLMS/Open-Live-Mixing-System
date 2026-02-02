@@ -5,8 +5,9 @@
 
 set -euo pipefail
 
-# Configurazione
-LOG_FILE="/tmp/olms-orchestrator.log"
+# Se LOG_FILE non è passato dall'orchestratore, usa un fallback sicuro per l'utente
+LOG_FILE="${LOG_FILE:-/tmp/olms-phase4-${USER}.log}"
+
 XAUTH_FILE=""
 XDG_RUNTIME_DIR=""
 DISPLAY=""
@@ -18,6 +19,7 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 
+# Funzioni di logging (spostate all'inizio per evitare "command not found")
 log() {
     echo -e "${GREEN}[$(date '+%Y-%m-%d %H:%M:%S')]${NC} $1" | tee -a "$LOG_FILE"
 }
@@ -33,6 +35,24 @@ error() {
 info() {
     echo -e "${BLUE}[$(date '+%Y-%m-%d %H:%M:%S')] INFO:${NC} $1" | tee -a "$LOG_FILE"
 }
+
+# Variabili d'ambiente per l'approccio "tutto come stesso utente"
+export TARGET_USER="francesco_ssh"
+export DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/1000/bus"
+export XDG_RUNTIME_DIR="/run/user/1000"
+export DISPLAY=":0"
+export XAUTHORITY="/home/francesco_ssh/.Xauthority"
+export JACK_DEFAULT_SERVER="olms"
+export JACK_NO_START_SERVER=1
+export JACK_PROMISCUOUS_SERVER=1
+export JACK_SESSION_DIR="/dev/shm/jack-olms-0"
+
+# Aggiunta esplicita per risolvere problemi X11
+log "Configurazione esplicita DISPLAY e XAUTHORITY per risolvere problemi X11..."
+export DISPLAY=":0"
+export XAUTHORITY="/home/francesco_ssh/.Xauthority"
+log "DISPLAY impostato a: $DISPLAY"
+log "XAUTHORITY impostato a: $XAUTHORITY"
 
 # Rilevamento display avanzato
 detect_display() {
@@ -222,7 +242,7 @@ setup_xdg_runtime_dir() {
     setup_dbus_session "$current_user" "$user_id"
 }
 
-# Setup D-Bus session per utente specifico
+    # Setup D-Bus session per utente specifico
 setup_dbus_session() {
     local target_user="$1"
     local user_id="$2"
@@ -243,10 +263,10 @@ setup_dbus_session() {
             log "Avvio D-Bus session per utente $target_user..."
             
             # Crea directory D-Bus se necessario
-            sudo -u "$target_user" mkdir -p "/run/user/$user_id"
+            mkdir -p "/run/user/$user_id"
             
             # Avvia D-Bus session
-            sudo -u "$target_user" dbus-launch --sh-syntax --exit-with-session > "/tmp/dbus_session_$user_id.env" 2>/dev/null || {
+            dbus-launch --sh-syntax --exit-with-session > "/tmp/dbus_session_$user_id.env" 2>/dev/null || {
                 warn "Impossibile avviare D-Bus session per $target_user"
                 return 1
             }
@@ -272,7 +292,7 @@ setup_dbus_session() {
         # Test D-Bus connectivity (se disponibile) - eseguito come utente target
         if command -v dbus-send >/dev/null 2>&1; then
             if [[ "$EUID" -eq 0 ]]; then
-                if sudo -u "$target_user" DBUS_SESSION_BUS_ADDRESS="$DBUS_SESSION_BUS_ADDRESS" dbus-send --session --print-reply --dest=org.freedesktop.DBus / org.freedesktop.DBus.ListNames >/dev/null 2>&1; then
+                if DBUS_SESSION_BUS_ADDRESS="$DBUS_SESSION_BUS_ADDRESS" dbus-send --session --print-reply --dest=org.freedesktop.DBus / org.freedesktop.DBus.ListNames >/dev/null 2>&1; then
                     log "D-Bus connectivity verificata per l'utente $target_user"
                 else
                     warn "D-Bus connectivity fallita per l'utente $target_user"
@@ -419,28 +439,25 @@ verify_x11_setup() {
 main() {
     log "=== FASE 4: X11 ENVIRONMENT & DISPLAY MANAGEMENT ==="
     
-    # Rilevamento display
-    if ! detect_display; then
-        warn "Display non rilevato, setup Xvfb..."
-        if ! setup_xvfb; then
-            warn "Xvfb non disponibile, continuo senza GUI"
-        fi
+    # Usiamo un flag per evitare che set -e interrompa tutto
+    set +e
+    detect_display
+    DISPLAY_DETECTED=$?
+    set -e
+    
+    if [ $DISPLAY_DETECTED -ne 0 ]; then
+        warn "Display fisico non rilevato, tentiamo Xvfb..."
+        setup_xvfb || warn "Anche Xvfb è fallito, procedo in modalità headless pura"
     fi
     
-    # Configurazione XAUTHORITY
-    setup_xauthority
-    
-    # Configurazione XDG_RUNTIME_DIR
+    # Prosegui con il resto, ma rendi i setup non-fatali se possibile
+    setup_xauthority || warn "Impossibile configurare Xauthority"
     setup_xdg_runtime_dir
-    
-    # Configurazione permissions
     setup_x11_permissions
     
-    # Verifica setup
     verify_x11_setup
     
-    log "Configurazione X11 completata"
-    log "Ambiente X11 pronto: DISPLAY=$DISPLAY, XAUTHORITY=$XAUTHORITY, XDG_RUNTIME_DIR=$XDG_RUNTIME_DIR"
+    log "Configurazione X11 completata (DISPLAY=${DISPLAY:-N/A})"
 }
 
 # Esegui se chiamato direttamente

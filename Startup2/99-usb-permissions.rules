@@ -1,0 +1,36 @@
+# Udev rules for USB Audio Device Permissions
+# Permette all'utente francesco_ssh di controllare i dispositivi USB senza sudo
+# Copia questo file in /etc/udev/rules.d/99-usb-permissions.rules
+
+# Regole per dispositivi USB Audio generici
+SUBSYSTEM=="usb", ATTR{idVendor}=="*", ATTR{idProduct}=="*", GROUP="audio", MODE="0666"
+
+# Regole specifiche per dispositivi audio
+SUBSYSTEM=="sound", GROUP="audio", MODE="0666"
+SUBSYSTEM=="snd", GROUP="audio", MODE="0666"
+
+# Regole per dispositivi USB specifici (se noti i vendor/product ID)
+# Esempio per dispositivi USB Audio:
+# SUBSYSTEM=="usb", ATTR{idVendor}=="0d8c", ATTR{idProduct}=="0014", GROUP="audio", MODE="0666"
+
+# Regole per il controllo dei dispositivi USB (reset)
+SUBSYSTEM=="usb", ACTION=="add", GROUP="audio", MODE="0666"
+SUBSYSTEM=="usb", ACTION=="remove", GROUP="audio", MODE="0666"
+
+# Regole per i file di controllo USB
+KERNEL=="authorized", SUBSYSTEM=="usb", GROUP="audio", MODE="0666"
+KERNEL=="remove", SUBSYSTEM=="usb", GROUP="audio", MODE="0666"
+
+# Regole per i dispositivi ALSA
+KERNEL=="controlC*", SUBSYSTEM=="sound", GROUP="audio", MODE="0666"
+KERNEL=="pcmC*D*", SUBSYSTEM=="sound", GROUP="audio", MODE="0666"
+KERNEL=="midiC*D*", SUBSYSTEM=="sound", GROUP="audio", MODE="0666"
+
+# Regole per i dispositivi di input (se necessari)
+KERNEL=="event*", SUBSYSTEM=="input", GROUP="audio", MODE="0666"
+
+# Istruzioni per l'uso:
+# 1. Copia questo file in /etc/udev/rules.d/99-usb-permissions.rules
+# 2. Ricarica le regole udev: sudo udevadm control --reload-rules
+# 3. Riavvia i dispositivi: sudo udevadm trigger
+# 4. Riavvia il sistema o la sessione utente

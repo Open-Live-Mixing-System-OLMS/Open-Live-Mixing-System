@@ -6,10 +6,16 @@
 set -euo pipefail
 
 # Configurazione
-LOG_FILE="/tmp/olms-orchestrator.log"
+OLMS_HOME="$HOME/.olms"
+mkdir -p "$OLMS_HOME"
+LOG_FILE="$OLMS_HOME/olms-orchestrator.log"
 RT_CONFIG_FILE="/etc/sysctl.d/99-olms-rt.conf"
 LIMITS_FILE="/etc/security/limits.d/99-realtime.conf"
 MODE="${OLMS_RT_MODE:-prod}"  # prod, test, light
+
+# Variabili d'ambiente per l'approccio "tutto come stesso utente"
+export TARGET_USER="francesco_ssh"
+export DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/1000/bus"
 
 # Colori
 RED='\033[0;31m'
@@ -38,7 +44,7 @@ info() {
 safe_write_file() {
     local content="$1"
     local target="$2"
-    echo "$content" | sudo tee "$target" > /dev/null
+    echo "$content" > "$target"
 }
 
 # Configurazione kernel parameters
@@ -90,17 +96,8 @@ kernel.sched_wakeup_granularity_ns = 1000000"
         if sysctl -p "$RT_CONFIG_FILE" &>/dev/null; then
             log "Kernel parameters RT applicati con successo"
         else
-            # Prova con sudo se non siamo root
-            if [[ $EUID -ne 0 ]]; then
-                if sudo sysctl -p "$RT_CONFIG_FILE" &>/dev/null; then
-                    log "Kernel parameters RT applicati con successo (con sudo)"
-                else
-                    warn "Impossibile applicare kernel parameters RT (richiede sudo)"
-                    warn "Verifica che i parametri siano già applicati o esegui: sudo sysctl -p $RT_CONFIG_FILE"
-                fi
-            else
-                warn "Impossibile applicare kernel parameters RT"
-            fi
+            warn "Impossibile applicare kernel parameters RT"
+            warn "Verifica che i parametri siano già applicati o esegui: sysctl -p $RT_CONFIG_FILE"
         fi
     else
         warn "File di configurazione RT non trovato, impossibile applicare parametri"
@@ -126,7 +123,11 @@ configure_cpu_governor() {
     
     # 1. Tenta di disabilitare il risparmio energetico hardware Intel se presente
     if [ -f /sys/devices/system/cpu/intel_pstate/no_turbo ]; then
-        echo "0" | sudo tee /sys/devices/system/cpu/intel_pstate/no_turbo > /dev/null
+        if echo "0" > /sys/devices/system/cpu/intel_pstate/no_turbo 2>/dev/null; then
+            log "Turbo Boost disabilitato con successo"
+        else
+            warn "Impossibile disabilitare Turbo Boost (permessi insufficienti)"
+        fi
     fi
 
     # 2. Applica 'performance' a ogni core disponibile
@@ -141,7 +142,7 @@ configure_cpu_governor() {
             total_count=$((total_count + 1))
             
             # Prova a scrivere performance
-            if echo "performance" | sudo tee "$governor_file" > /dev/null; then
+            if echo "performance" > "$governor_file"; then
                 log "CPU $i: governor impostato a 'performance'"
                 success_count=$((success_count + 1))
             else
@@ -158,7 +159,7 @@ configure_cpu_governor() {
         local max_freq="/sys/devices/system/cpu/cpu${i}/cpufreq/scaling_max_freq"
         
         if [ -f "$max_freq" ] && [ -f "$min_freq" ]; then
-            cat "$max_freq" | sudo tee "$min_freq" > /dev/null 2>&1 || true
+            cat "$max_freq" > "$min_freq" 2>&1 || true
         fi
     done
     
@@ -190,13 +191,14 @@ configure_cpu_governor() {
 configure_power_management() {
     log "Configurazione power management..."
     
-    # Ferma irqbalance
-    log "Fermando irqbalance service..."
-    sudo systemctl stop irqbalance 2>/dev/null || warn "Impossibile fermare irqbalance"
-    
-    # Disabilita irqbalance al boot (se possibile)
-    log "Disabilitando irqbalance al boot..."
-    sudo systemctl disable irqbalance 2>/dev/null || warn "Impossibile disabilitare irqbalance"
+    # Verifica stato irqbalance (senza tentare di modificarlo)
+    log "Verifica stato irqbalance..."
+    if systemctl is-active --quiet irqbalance 2>/dev/null; then
+        warn "irqbalance è attivo (potrebbe causare jitter audio)"
+        warn "Per disattivarlo: sudo systemctl stop irqbalance && sudo systemctl disable irqbalance"
+    else
+        log "irqbalance è disattivato (corretto per audio RT)"
+    fi
     
     # Configurazione C-states (richiede modifica GRUB, qui solo verifica)
     log "Verifica C-states configuration..."
