@@ -108,18 +108,16 @@ start_jack_with_strategy() {
     
     log "Avvio JACK con strategia: $strategy (device: $device)"
     
-        # Costruisci comando JACK
+    # Costruisci comando JACK
     local jack_cmd="jackd"
     
     # Parametri base JACK (Globali - vanno PRIMA del backend)
-    # Rimosso -r 48000 da qui, va messo nel backend
     local base_params="-R -S -P 80"
     
     # Parametri specifici per strategia (Backend - vanno DOPO il backend)
     local strategy_params=""
     case "$strategy" in
         "optimal")
-            # Nota: -d hw:2,0 (minuscolo) e NON -device
             local dev_cmd=""
             [[ -n "$device" ]] && dev_cmd="-d $device"
             strategy_params="-d alsa -r 48000 -p 64 -n 3 $dev_cmd"
@@ -150,7 +148,7 @@ start_jack_with_strategy() {
     log "Esecuzione: taskset -c $audio_cores chrt -f 80 $full_cmd"
     
     # Redirect output to log file with timeout
-    timeout 10s bash -c "
+    timeout 15s bash -c "
         taskset -c $audio_cores chrt -f 80 $full_cmd 2>&1
     " | tee -a "$JACK_LOG_FILE" &
     
@@ -160,7 +158,7 @@ start_jack_with_strategy() {
     log "JACK avviato con PID: $jack_pid"
     
     # Attendi un po' per permettere l'avvio
-    sleep 1
+    sleep 2
     
     # Verifica che il processo sia ancora attivo
     if kill -0 "$jack_pid" 2>/dev/null; then

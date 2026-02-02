@@ -160,6 +160,18 @@ detect_ardour_session() {
 start_ardour() {
     log "Avvio Ardour DAW..."
     
+    # Verifica che JACK sia in modalità reale prima di avviare Ardour
+    local jack_mode="unknown"
+    if [[ -f "/tmp/jack_startup.log" ]]; then
+        if grep -q "dummy" "/tmp/jack_startup.log"; then
+            jack_mode="dummy"
+            warn "JACK è in modalità dummy (virtuale), Ardour potrebbe non funzionare correttamente"
+        else
+            jack_mode="real"
+            log "JACK è in modalità reale"
+        fi
+    fi
+    
     # Determina modalità di avvio
     local launch_mode="test"  # Default
     if [[ -n "${OLMS_MODE:-}" ]]; then
