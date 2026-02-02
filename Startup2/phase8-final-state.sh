@@ -280,8 +280,8 @@ generate_final_report() {
     log "  CPU load (1m): $load_1min"
     
     # Error and warning summary
-    local error_count=$(grep -c "ERROR:" "$FINAL_STATE_LOG" 2>/dev/null | head -1 || echo "0")
-    local warning_count=$(grep -c "WARNING:" "$FINAL_STATE_LOG" 2>/dev/null | head -1 || echo "0")
+    local error_count=$(grep -c "ERROR:" "$FINAL_STATE_LOG" 2>/dev/null | tr -d '\n' || echo "0")
+    local warning_count=$(grep -c "WARNING:" "$FINAL_STATE_LOG" 2>/dev/null | tr -d '\n' || echo "0")
     
     log "Log summary:"
     log "  Errori: $error_count"

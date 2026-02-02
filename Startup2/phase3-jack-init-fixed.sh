@@ -1,11 +1,12 @@
 #!/bin/bash
-# Phase 3: JACK Server - Fixed-Path Socket Strategy (Complete Stability Solution)
-# Versione: 3.0 - The "Killer Silenzioso" Fix
+# Phase 3: JACK Server - Fixed Strategy (No D-Bus Conflicts)
+# Versione: 4.0 - The "Clean Connection" Fix
 set -euo pipefail
 
 # Environment overrides for non-interactive stability
 export JACK_NO_AUDIO_RESERVATION=1
 export JACK_DEFAULT_SERVER=olms
+export JACK_PROMISCUOUS_SERVER=1
 
 TARGET_HW="hw:1" 
 BUFFER_SIZE=256   
@@ -75,28 +76,7 @@ setup_socket_permissions() {
     # Wait for JACK to create its socket directory
     sleep 2
     
-    # Force the permissions on the socket directory created by JACK
-    # This is the CRITICAL fix for the "No such file or directory" error
-    local socket_dirs=("/dev/shm/jack-olms-*" "/dev/shm/jack-*" "/tmp/jack-*")
-    
-    for socket_pattern in "${socket_dirs[@]}"; do
-        for socket_dir in $socket_pattern; do
-            if [ -d "$socket_dir" ]; then
-                log "Fixing permissions on socket directory: $socket_dir"
-                sudo chmod -R 777 "$socket_dir" 2>/dev/null || true
-                sudo chmod 777 /dev/shm/jack-shm-registry 2>/dev/null || true
-            fi
-        done
-    done
-    
-    # Create symbolic links for UID bridging - COMPREHENSIVE FIX
-    # This solves the "root vs user" socket path mismatch
-    local user_uid=$(id -u "${TARGET_USER:-francesco_ssh}" 2>/dev/null || echo "1000")
-    local root_socket="/dev/shm/jack-olms-0"
-    local user_socket="/dev/shm/jack-olms-${user_uid}"
-    local default_socket="/dev/shm/jack-0/default"
-    
-    # Find the actual socket directory created by JACK with enhanced search
+    # Find the actual socket directory created by JACK
     local actual_socket=""
     
     # Search in /dev/shm first
@@ -131,8 +111,6 @@ setup_socket_permissions() {
         
         # Create comprehensive symbolic links for all possible paths
         # This ensures Ardour can find JACK regardless of UID or search path
-        
-        # Root to user UID mapping
         local target_user="${TARGET_USER:-francesco_ssh}"
         local target_uid=$(id -u "$target_user" 2>/dev/null || echo "1000")
         
@@ -170,17 +148,9 @@ setup_socket_permissions() {
     fi
 }
 
-# Enhanced JACK startup with proper permissions and D-Bus setup
+# Enhanced JACK startup with proper permissions - NO D-BUS
 start_jack_with_isolation() {
-    log "Starting JACK with proper permissions and D-Bus setup..."
-    
-    # Setup D-Bus for user before starting JACK
-    log "Setting up D-Bus environment for user francesco_ssh..."
-    local user_uid=$(id -u francesco_ssh 2>/dev/null || echo "1000")
-    local user_gid=$(id -g francesco_ssh 2>/dev/null || echo "1000")
-    
-    # Ensure D-Bus session is available
-    export DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$user_uid/bus"
+    log "Starting JACK with proper permissions (No D-Bus)..."
     
     # Create socket directory with correct permissions BEFORE starting JACK
     local socket_dir="/dev/shm/jack-olms-0"
@@ -199,14 +169,12 @@ start_jack_with_isolation() {
     
     log "Socket directory permissions set: $socket_dir (owner: francesco_ssh:audio, perms: 775)"
     
-    # Launch JACK as user with proper environment
+    # Launch JACK as user with proper environment - NO D-BUS
     local jack_command=(
         sudo -u francesco_ssh env 
-        DBUS_SESSION_BUS_ADDRESS="$DBUS_SESSION_BUS_ADDRESS"
         JACK_NO_AUDIO_RESERVATION=1 
         JACK_DEFAULT_SERVER=olms
         JACK_PROMISCUOUS_SERVER=1
-        JACK_SESSION_DIR="$socket_dir"
         jackd 
         -R -P 80 
         -n olms 
@@ -234,6 +202,11 @@ start_jack_with_isolation() {
     log "Verifying socket permissions after JACK startup..."
     ls -la "$socket_dir" 2>/dev/null || log "Socket directory not accessible"
     
+    # Fix permissions permanently to prevent client connection issues
+    log "Fixing socket permissions permanently..."
+    sudo chmod -R 777 /dev/shm/jack-* /tmp/jack-* 2>/dev/null || true
+    sudo chmod 777 /dev/shm/jack-shm-registry 2>/dev/null || true
+    
     return 0
 }
 
@@ -254,53 +227,29 @@ verify_jack_stability() {
             return 1
         fi
         
-        # Use JACK connectivity test script for comprehensive verification
-        if [ -f "/home/francesco_ssh/Progetti/OLMS-Core/Startup2/jack_connectivity_test.sh" ]; then
-            log "Running comprehensive JACK connectivity test (attempt $attempt/$max_attempts)..."
+        # Test connectivity with jack_lsp directly (no D-Bus)
+        if sudo -u francesco_ssh -E JACK_DEFAULT_SERVER=olms jack_lsp >/dev/null 2>&1; then
+            log "✅ JACK connectivity verified with jack_lsp (attempt $attempt/$max_attempts)"
             
-            # First check if JACK is actually running and responsive
-            local jack_status=$(jack_control status 2>/dev/null || echo "unknown")
-            if echo "$jack_status" | grep -q "running"; then
-                # Run the connectivity test script as root to avoid sudo password prompt
-                local test_result=$(env -i JACK_DEFAULT_SERVER=olms JACK_SESSION_DIR="$socket_dir" /home/francesco_ssh/Progetti/OLMS-Core/Startup2/jack_connectivity_test.sh 2>&1 | tail -10)
-                
-                # Check if the test passed
-                if echo "$test_result" | grep -q "✅ Tutti i test sono passati"; then
-                    log "✅ JACK connectivity test PASSED (attempt $attempt/$max_attempts)"
-                    log "✅ JACK server stable and ready"
-                    return 0
-                else
-                    warn "JACK connectivity test FAILED (attempt $attempt/$max_attempts)"
-                    warn "Debug: Connectivity test output:"
-                    echo "$test_result" | while read -r line; do
-                        warn "  $line"
-                    done
-                fi
+            # Additional verification: check for actual ports
+            local port_count=$(sudo -u francesco_ssh -E JACK_DEFAULT_SERVER=olms jack_lsp 2>/dev/null | wc -l || echo "0")
+            if [ "$port_count" -gt 0 ]; then
+                log "✅ JACK ports detected: $port_count ports available"
+                log "Port list:"
+                sudo -u francesco_ssh -E JACK_DEFAULT_SERVER=olms jack_lsp 2>/dev/null | while read -r port; do
+                    log "  $port"
+                done
+                return 0
             else
-                warn "JACK server not running or not responsive (status: $jack_status)"
-                warn "Skipping connectivity test for this attempt"
+                warn "JACK server running but no ports detected (attempt $attempt/$max_attempts)"
             fi
         else
-            # Fallback to original jack_lsp test if connectivity test script not available
-            if sudo -u francesco_ssh -E JACK_DEFAULT_SERVER=olms JACK_SESSION_DIR="$socket_dir" jack_lsp >/dev/null 2>&1; then
-                log "✅ JACK connectivity verified with jack_lsp (attempt $attempt/$max_attempts)"
-                
-                # Additional verification: check for actual ports
-                local port_count=$(sudo -u francesco_ssh -E JACK_DEFAULT_SERVER=olms JACK_SESSION_DIR="$socket_dir" jack_lsp 2>/dev/null | wc -l || echo "0")
-                if [ "$port_count" -gt 0 ]; then
-                    log "✅ JACK ports detected: $port_count ports available"
-                    return 0
-                else
-                    warn "JACK server running but no ports detected (attempt $attempt/$max_attempts)"
-                fi
+            warn "JACK connectivity test failed with jack_lsp (attempt $attempt/$max_attempts)"
+            warn "Debug: Available JACK servers:"
+            if sudo -u francesco_ssh -E JACK_DEFAULT_SERVER=olms jack_lsp >/dev/null 2>&1; then
+                sudo -u francesco_ssh -E JACK_DEFAULT_SERVER=olms jack_lsp 2>&1 | head -5
             else
-                warn "JACK connectivity test failed with jack_lsp (attempt $attempt/$max_attempts)"
-                warn "Debug: Available JACK servers:"
-                if sudo -u francesco_ssh -E JACK_DEFAULT_SERVER=olms JACK_SESSION_DIR="$socket_dir" jack_lsp >/dev/null 2>&1; then
-                    sudo -u francesco_ssh -E JACK_DEFAULT_SERVER=olms JACK_SESSION_DIR="$socket_dir" jack_lsp 2>&1 | head -5
-                else
-                    warn "jack_lsp not available or failed"
-                fi
+                warn "jack_lsp not available or failed"
             fi
         fi
         
@@ -333,8 +282,8 @@ setup_signal_handling() {
 }
 
 main() {
-    log "=== JACK INITIALIZATION: FIXED-PATH SOCKET STRATEGY ==="
-    log "The 'Killer Silenzioso' Solution - SIGINT and Socket Fix"
+    log "=== JACK INITIALIZATION: CLEAN CONNECTION STRATEGY ==="
+    log "The 'Clean Connection' Solution - No D-Bus Conflicts"
     
     # Setup signal handling
     setup_signal_handling

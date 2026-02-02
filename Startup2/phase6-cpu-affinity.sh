@@ -124,7 +124,19 @@ apply_cpu_affinity() {
                 if taskset -pc $audio_cores "$pid" >/dev/null 2>&1; then
                     log "JACK PID $pid: affinity impostata a $audio_cores"
                 else
-                    warn "Impossibile impostare affinity per JACK PID $pid"
+                    error "ERRORE CRITICO: Impossibile impostare affinity per JACK PID $pid"
+                    return 1
+                fi
+                
+                # Imposta priorità realtime SCHED_FIFO per JACK
+                if chrt -f 80 "$pid" >/dev/null 2>&1; then
+                    log "JACK PID $pid: priorità impostata a SCHED_FIFO 80"
+                else
+                    error "ERRORE CRITICO: Impossibile impostare SCHED_FIFO per JACK PID $pid (eseguito come utente $(ps -p $pid -o user --no-headers))"
+                    warn "Suggerimento: Verifica che l'utente $(ps -p $pid -o user --no-headers) appartenga al gruppo 'audio'"
+                    warn "Suggerimento: Aggiungi '@audio - rtprio 95' in /etc/security/limits.conf"
+                    warn "Suggerimento: Riavvia la sessione utente dopo le modifiche"
+                    return 1
                 fi
                 
                 # Verifica affinity
@@ -145,7 +157,19 @@ apply_cpu_affinity() {
                 if taskset -pc $audio_cores "$pid" >/dev/null 2>&1; then
                     log "Ardour PID $pid: affinity impostata a $audio_cores"
                 else
-                    warn "Impossibile impostare affinity per Ardour PID $pid"
+                    error "ERRORE CRITICO: Impossibile impostare affinity per Ardour PID $pid"
+                    return 1
+                fi
+                
+                # Imposta priorità realtime SCHED_FIFO per Ardour
+                if chrt -f 75 "$pid" >/dev/null 2>&1; then
+                    log "Ardour PID $pid: priorità impostata a SCHED_FIFO 75"
+                else
+                    error "ERRORE CRITICO: Impossibile impostare SCHED_FIFO per Ardour PID $pid (eseguito come utente $(ps -p $pid -o user --no-headers))"
+                    warn "Suggerimento: Verifica che l'utente $(ps -p $pid -o user --no-headers) appartenga al gruppo 'audio'"
+                    warn "Suggerimento: Aggiungi '@audio - rtprio 95' in /etc/security/limits.conf"
+                    warn "Suggerimento: Riavvia la sessione utente dopo le modifiche"
+                    return 1
                 fi
                 
                 # Verifica affinity
@@ -159,10 +183,7 @@ apply_cpu_affinity() {
     
     # Applica affinity per IRQ audio (se configurati)
     log "Verifica affinity IRQ audio..."
-    if [[ -f "/proc/irq/1/smp_affinity" ]]; then
-        local irq_affinity=$(cat "/proc/irq/1/smp_affinity" 2>/dev/null || echo "unknown")
-        log "IRQ 1 affinity: $irq_affinity (dovrebbe essere 0x2 per core 1)"
-    fi
+    configure_audio_irq_affinity
 }
 
 # Verifica realtime priorities
@@ -256,6 +277,47 @@ verify_process_isolation() {
     fi
 }
 
+# Configurazione IRQ audio affinity
+configure_audio_irq_affinity() {
+    log "Configurazione IRQ audio affinity..."
+    
+    # Trova IRQ della scheda audio
+    local audio_irqs=$(grep -i "snd_.*" /proc/interrupts | awk '{print $1}' | sed 's/://' || true)
+    
+    if [[ -n "$audio_irqs" ]]; then
+        log "IRQ audio rilevati: $audio_irqs"
+        
+        for irq in $audio_irqs; do
+            local irq_path="/proc/irq/${irq}/smp_affinity"
+            if [[ -f "$irq_path" ]]; then
+                # Forza IRQ sul Core 1 (maschera 0x2)
+                if echo 2 > "$irq_path" 2>/dev/null; then
+                    local new_affinity=$(cat "$irq_path" 2>/dev/null || echo "unknown")
+                    log "IRQ $irq: affinity impostata a $new_affinity (Core 1)"
+                else
+                    error "ERRORE CRITICO: Impossibile impostare affinity per IRQ $irq"
+                    warn "Suggerimento: Verifica i permessi di scrittura su /proc/irq/*/smp_affinity"
+                    return 1
+                fi
+            fi
+        done
+    else
+        warn "Nessun IRQ audio rilevato"
+    fi
+    
+    # Verifica IRQ 126 specifico (dallo script precedente)
+    local irq_126_path="/proc/irq/126/smp_affinity"
+    if [[ -f "$irq_126_path" ]]; then
+        if echo 2 > "$irq_126_path" 2>/dev/null; then
+            local irq_126_affinity=$(cat "$irq_126_path" 2>/dev/null || echo "unknown")
+            log "IRQ 126: affinity impostata a $irq_126_affinity (Core 1)"
+        else
+            error "ERRORE CRITICO: Impossibile impostare affinity per IRQ 126"
+            return 1
+        fi
+    fi
+}
+
 # Monitoraggio risorse
 monitor_resources() {
     log "Monitoraggio risorse di sistema..."
@@ -303,9 +365,48 @@ monitor_resources() {
     fi
 }
 
+# Verifica permessi realtime all'avvio
+check_realtime_permissions() {
+    log "Verifica permessi realtime all'avvio..."
+    
+    # Testa se possiamo impostare SCHED_FIFO
+    if ! chrt -f 80 sleep 0.1 2>/dev/null; then
+        error "ERRORE CRITICO: Permessi realtime non disponibili"
+        warn "Suggerimento: Aggiungi '@audio - rtprio 95' in /etc/security/limits.conf"
+        warn "Suggerimento: Aggiungi '@audio - memlock unlimited' in /etc/security/limits.conf"
+        warn "Suggerimento: Riavvia la sessione utente dopo le modifiche"
+        return 1
+    else
+        log "Permessi realtime disponibili (SCHED_FIFO)"
+    fi
+    
+    # Verifica limiti utente
+    local rtprio_limit=$(ulimit -r 2>/dev/null || echo "0")
+    local memlock_limit=$(ulimit -l 2>/dev/null || echo "0")
+    
+    log "Limiti utente correnti:"
+    log "  rtprio: $rtprio_limit"
+    log "  memlock: $memlock_limit"
+    
+    if [[ "$rtprio_limit" -lt 95 ]]; then
+        warn "Limite rtprio basso ($rtprio_limit < 95)"
+    else
+        log "Limite rtprio adeguato ($rtprio_limit)"
+    fi
+    
+    if [[ "$memlock_limit" == "unlimited" ]] || [[ "$memlock_limit" -gt 1000000 ]]; then
+        log "Limite memlock adeguato ($memlock_limit)"
+    else
+        warn "Limite memlock basso ($memlock_limit)"
+    fi
+}
+
 # Funzione principale
 main() {
     log "=== FASE 6: CPU AFFINITY & RESOURCE ALLOCATION ==="
+    
+    # Verifica permessi realtime
+    check_realtime_permissions
     
     # Discovery processi
     discover_audio_processes

@@ -63,6 +63,16 @@ sudo systemctl enable ardour.service
 sudo systemctl enable olms-affinity.service
 sudo systemctl enable olms-disk-guard.service
 
+# 8. Install JACK socket permissions fix scripts
+echo "Installing JACK socket permissions fix scripts..."
+sudo cp Startup2/phase3-jack-init.sh /usr/bin/olms-jack-init
+sudo cp Startup2/phase5-ardour-startup.sh /usr/bin/olms-ardour-startup
+sudo cp Startup2/test_jack_stability.sh /usr/bin/olms-test-jack-stability
+sudo chmod +x /usr/bin/olms-jack-init
+sudo chmod +x /usr/bin/olms-ardour-startup
+sudo chmod +x /usr/bin/olms-test-jack-stability
+echo "✓ JACK socket permissions fix scripts installed"
+
 # Function to print status messages
 print_status() {
     echo "[$(date '+%H:%M:%S')] $1"

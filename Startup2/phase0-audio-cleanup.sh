@@ -39,6 +39,7 @@ kill_audio_processes() {
         "alsa" "alsactl"
         "artix-alsa" "artix-pulse"
         "pipewire-pulse" "pipewire-alsa"
+        "ardour" "ardour8"
     )
     
     for process in "${audio_processes[@]}"; do
@@ -65,6 +66,13 @@ kill_audio_processes() {
     local remaining_audio=$(pgrep -f "jackd|pipewire|pulseaudio" 2>/dev/null || true)
     if [[ -n "$remaining_audio" ]]; then
         warn "Alcuni processi audio non sono stati terminati: $remaining_audio"
+        # Tentativo di terminazione forzata con sudo per processi root
+        for pid in $remaining_audio; do
+            if kill -0 "$pid" 2>/dev/null; then
+                log "Tentativo di terminazione forzata con sudo per PID $pid"
+                sudo kill -9 "$pid" 2>/dev/null || warn "Impossibile terminare PID $pid anche con sudo"
+            fi
+        done
     else
         log "Tutti i processi audio sono stati terminati"
     fi

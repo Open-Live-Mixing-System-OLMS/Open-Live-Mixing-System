@@ -97,6 +97,11 @@ package() {
     install -m755 scripts/cpu_shielding.sh "${pkgdir}/usr/bin/cpu_shielding"
     install -m755 scripts/setup_realtime_privileges.sh "${pkgdir}/usr/bin/setup_realtime_privileges"
     install -m755 scripts/usb_audio_session_adapter.sh "${pkgdir}/usr/bin/usb_audio_session_adapter"
+    
+    # Copy JACK socket permissions fix scripts
+    install -m755 Startup2/phase3-jack-init.sh "${pkgdir}/usr/bin/olms-jack-init"
+    install -m755 Startup2/phase5-ardour-startup.sh "${pkgdir}/usr/bin/olms-ardour-startup"
+    install -m755 Startup2/test_jack_stability.sh "${pkgdir}/usr/bin/olms-test-jack-stability"
 
     # Copy configuration files
     install -d "${pkgdir}/etc/security/limits.d/"

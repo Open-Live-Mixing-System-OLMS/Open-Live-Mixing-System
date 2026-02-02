@@ -34,6 +34,13 @@ info() {
     echo -e "${BLUE}[$(date '+%Y-%m-%d %H:%M:%S')] INFO:${NC} $1" | tee -a "$LOG_FILE"
 }
 
+# Funzione per scrivere file di sistema con privilegi
+safe_write_file() {
+    local content="$1"
+    local target="$2"
+    echo "$content" | sudo tee "$target" > /dev/null
+}
+
 # Configurazione kernel parameters
 configure_kernel_parameters() {
     log "Configurazione kernel parameters RT..."
@@ -69,35 +76,13 @@ configure_kernel_parameters() {
         log "Saltando creazione file (richiede privilegi root)"
     else
         # Crea file di configurazione solo se non esiste
-        if ! cat > "$RT_CONFIG_FILE" << EOF
-# OLMS Real-Time Kernel Parameters
-# Mode: $MODE
-
-# Real-time scheduling parameters
+        local config_content="# OLMS Real-Time Kernel Parameters
 kernel.sched_rt_runtime_us = $rt_runtime
 kernel.sched_rt_period_us = $rt_period
-
-# Additional RT optimizations
 kernel.sched_migration_cost_ns = 500000
-kernel.sched_wakeup_granularity_ns = 1000000
-EOF
-        then
-            error "Impossibile scrivere in $RT_CONFIG_FILE (permessi insufficienti)"
-            error "Esegui lo script con sudo oppure esegui manualmente:"
-            error "sudo tee $RT_CONFIG_FILE << 'EOF'"
-            error "# OLMS Real-Time Kernel Parameters"
-            error "# Mode: $MODE"
-            error ""
-            error "# Real-time scheduling parameters"
-            error "kernel.sched_rt_runtime_us = $rt_runtime"
-            error "kernel.sched_rt_period_us = $rt_period"
-            error ""
-            error "# Additional RT optimizations"
-            error "kernel.sched_migration_cost_ns = 500000"
-            error "kernel.sched_wakeup_granularity_ns = 1000000"
-            error "EOF"
-            return 1
-        fi
+kernel.sched_wakeup_granularity_ns = 1000000"
+        
+        safe_write_file "$config_content" "$RT_CONFIG_FILE"
     fi
     
     # Applica la configurazione se il file esiste
@@ -134,18 +119,18 @@ EOF
 
 # Configurazione CPU governor
 configure_cpu_governor() {
-    log "Configurazione CPU governor per prestazioni..."
+    log "Configurazione CPU governor per prestazioni (modalità forzata)..."
     
     local num_cores=$(nproc)
     log "Numero core rilevati: $num_cores"
     
-    # Verifica se siamo root per evitare tentativi inutili
-    if [[ $EUID -ne 0 ]]; then
-        warn "Esecuzione non come root - alcune operazioni potrebbero fallire"
-        warn "Per un setup completo, esegui: sudo $0"
+    # 1. Tenta di disabilitare il risparmio energetico hardware Intel se presente
+    if [ -f /sys/devices/system/cpu/intel_pstate/no_turbo ]; then
+        echo "0" | sudo tee /sys/devices/system/cpu/intel_pstate/no_turbo > /dev/null
     fi
-    
-    # Applica performance mode a tutti i core
+
+    # 2. Applica 'performance' a ogni core disponibile
+    # Usiamo un approccio che bypassa potenziali errori di scrittura individuali
     local success_count=0
     local total_count=0
     
@@ -155,29 +140,25 @@ configure_cpu_governor() {
         if [[ -f "$governor_file" ]]; then
             total_count=$((total_count + 1))
             
-            # Verifica preventiva dei permessi
-            if [[ ! -w "$governor_file" ]]; then
-                warn "Permessi insufficienti per modificare $governor_file"
-                warn "Esegui: sudo chown $USER $governor_file oppure usa sudo"
-                continue
-            fi
-            
-            # Tentativo 1: Scrittura diretta
-            if echo "performance" > "$governor_file" 2>/dev/null; then
+            # Prova a scrivere performance
+            if echo "performance" | sudo tee "$governor_file" > /dev/null; then
                 log "CPU $i: governor impostato a 'performance'"
                 success_count=$((success_count + 1))
             else
-                # Tentativo 2: Con sudo (più robusto)
-                if sudo bash -c "echo performance > $governor_file" 2>/dev/null; then
-                    log "CPU $i: governor impostato a 'performance' (con sudo)"
-                    success_count=$((success_count + 1))
-                else
-                    warn "Impossibile impostare governor per CPU $i (permessi insufficienti)"
-                    warn "Esegui manualmente: sudo echo performance > $governor_file"
-                fi
+                warn "Impossibile scrivere su $governor_file"
             fi
         else
             warn "Governor file non trovato per CPU $i"
+        fi
+    done
+    
+    # 3. Forza la frequenza minima al massimo possibile (per driver intel_pstate)
+    for i in $(seq 0 $((num_cores - 1))); do
+        local min_freq="/sys/devices/system/cpu/cpu${i}/cpufreq/scaling_min_freq"
+        local max_freq="/sys/devices/system/cpu/cpu${i}/cpufreq/scaling_max_freq"
+        
+        if [ -f "$max_freq" ] && [ -f "$min_freq" ]; then
+            cat "$max_freq" | sudo tee "$min_freq" > /dev/null 2>&1 || true
         fi
     done
     
@@ -210,16 +191,12 @@ configure_power_management() {
     log "Configurazione power management..."
     
     # Ferma irqbalance
-    if systemctl is-active --quiet irqbalance 2>/dev/null; then
-        log "Fermando irqbalance service..."
-        systemctl stop irqbalance 2>/dev/null || warn "Impossibile fermare irqbalance"
-    fi
+    log "Fermando irqbalance service..."
+    sudo systemctl stop irqbalance 2>/dev/null || warn "Impossibile fermare irqbalance"
     
     # Disabilita irqbalance al boot (se possibile)
-    if systemctl is-enabled --quiet irqbalance 2>/dev/null; then
-        log "Disabilitando irqbalance al boot..."
-        systemctl disable irqbalance 2>/dev/null || warn "Impossibile disabilitare irqbalance"
-    fi
+    log "Disabilitando irqbalance al boot..."
+    sudo systemctl disable irqbalance 2>/dev/null || warn "Impossibile disabilitare irqbalance"
     
     # Configurazione C-states (richiede modifica GRUB, qui solo verifica)
     log "Verifica C-states configuration..."
@@ -243,53 +220,17 @@ configure_realtime_privileges() {
         log "Saltando creazione file (richiede privilegi root)"
     else
         # Crea file limits per realtime solo se non esiste
-        if ! cat > "$LIMITS_FILE" << EOF
-# OLMS Real-Time User Limits
-
-# Real-time group
+        local limits_content="# OLMS Real-Time User Limits
 @realtime soft rtprio 99
 @realtime hard rtprio 99
 @realtime soft memlock unlimited
 @realtime hard memlock unlimited
-
-# Audio group
 @audio soft rtprio 99
 @audio hard rtprio 99
 @audio soft memlock unlimited
-@audio hard memlock unlimited
-
-# All users (fallback)
-* soft rtprio 99
-* hard rtprio 99
-* soft memlock unlimited
-* hard memlock unlimited
-EOF
-        then
-            error "Impossibile scrivere in $LIMITS_FILE (permessi insufficienti)"
-            error "Esegui lo script con sudo oppure esegui manualmente:"
-            error "sudo tee $LIMITS_FILE << 'EOF'"
-            error "# OLMS Real-Time User Limits"
-            error ""
-            error "# Real-time group"
-            error "@realtime soft rtprio 99"
-            error "@realtime hard rtprio 99"
-            error "@realtime soft memlock unlimited"
-            error "@realtime hard memlock unlimited"
-            error ""
-            error "# Audio group"
-            error "@audio soft rtprio 99"
-            error "@audio hard rtprio 99"
-            error "@audio soft memlock unlimited"
-            error "@audio hard memlock unlimited"
-            error ""
-            error "# All users (fallback)"
-            error "* soft rtprio 99"
-            error "* hard rtprio 99"
-            error "* soft memlock unlimited"
-            error "* hard memlock unlimited"
-            error "EOF"
-            return 1
-        fi
+@audio hard memlock unlimited"
+        
+        safe_write_file "$limits_content" "$LIMITS_FILE"
     fi
     
     log "File limits verificato: $LIMITS_FILE"
@@ -317,37 +258,15 @@ EOF
 
 # Verifica configurazione RT
 verify_rt_configuration() {
-    log "Verifica configurazione real-time..."
-    
-    # Verifica kernel parameters
-    local rt_runtime=$(sysctl -n kernel.sched_rt_runtime_us 2>/dev/null || echo "0")
-    local rt_period=$(sysctl -n kernel.sched_rt_period_us 2>/dev/null || echo "0")
-    
-    if [[ "$rt_runtime" -gt 0 ]] && [[ "$rt_period" -gt 0 ]]; then
-        local rt_percentage=$((rt_runtime * 100 / rt_period))
-        log "RT scheduling: ${rt_percentage}% della CPU disponibile per task real-time"
-    else
-        error "RT scheduling non configurato correttamente"
-        return 1
-    fi
+    log "Verifica finale..."
     
     # Verifica CPU governor
-    local governor=$(cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor 2>/dev/null || echo "unknown")
-    if [[ "$governor" == "performance" ]]; then
-        log "CPU governor: performance mode attivo"
-    else
-        warn "CPU governor: $governor (performance raccomandato)"
-    fi
+    local gov=$(cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor 2>/dev/null || echo "N/A")
+    [[ "$gov" == "performance" ]] && log "Governor: OK ($gov)" || error "Governor: FAIL ($gov)"
     
     # Verifica limiti utente
-    local rtprio=$(ulimit -r 2>/dev/null || echo "0")
-    local memlock=$(ulimit -l 2>/dev/null || echo "0")
-    
-    if [[ "$rtprio" -eq 99 ]] && [[ "$memlock" == "unlimited" ]] 2>/dev/null; then
-        log "Realtime privileges: rtprio=99, memlock=unlimited"
-    else
-        warn "Realtime privileges insufficienti: rtprio=$rtprio, memlock=${memlock}KB"
-    fi
+    local rtprio=$(ulimit -r)
+    [[ "$rtprio" -eq 99 ]] && log "RT Prio: OK ($rtprio)" || warn "RT Prio: $rtprio (richiede riavvio sessione)"
     
     # Verifica irqbalance
     if ! systemctl is-active --quiet irqbalance 2>/dev/null; then

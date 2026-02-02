@@ -1,4 +1,3 @@
-#!/bin/bash
 
 # Fase 5: Ardour DAW Startup
 # Versione: 2.0
@@ -34,21 +33,45 @@ info() {
     echo -e "${BLUE}[$(date '+%Y-%m-%d %H:%M:%S')] INFO:${NC} $1" | tee -a "$LOG_FILE"
 }
 
-# Preparazione ambiente JACK
+# Preparazione ambiente JACK - Enhanced for Fixed-Path Socket Strategy
 prepare_jack_environment() {
-    log "Preparazione ambiente JACK per Ardour..."
+    log "Preparazione ambiente JACK per Ardour (Fixed-Path Socket Strategy)..."
     
-    # Imposta variabili criticali
+    # FORZA ARDOUR A CERCARE IL SERVER 'olms' (Shared Name Fix)
+    export JACK_DEFAULT_SERVER="olms"
+    
+    # FIXED: Ensure JACK_NO_AUDIO_RESERVATION is properly set for Ardour
+    export JACK_NO_AUDIO_RESERVATION=1
     export JACK_NO_START_SERVER=1
     export PIPEWIRE_RUNTIME_DIR=/dev/null
-    export JACK_NO_AUDIO_RESERVATION=1
+    
+    # CRITICAL FIX: This flag tells JACK clients to connect to a server 
+    # even if the UID doesn't match the current user.
+    export JACK_PROMISCUOUS_SERVER=1 
+    
+    # Enhanced socket path configuration for UID bridging
+    export JACK_SESSION_DIR="/dev/shm/jack-olms-0"
     
     log "Variabili JACK impostate:"
+    log "  JACK_DEFAULT_SERVER=$JACK_DEFAULT_SERVER"
     log "  JACK_NO_START_SERVER=$JACK_NO_START_SERVER"
     log "  PIPEWIRE_RUNTIME_DIR=$PIPEWIRE_RUNTIME_DIR"
     log "  JACK_NO_AUDIO_RESERVATION=$JACK_NO_AUDIO_RESERVATION"
+    log "  JACK_PROMISCUOUS_SERVER=$JACK_PROMISCUOUS_SERVER"
+    log "  JACK_SESSION_DIR=$JACK_SESSION_DIR"
     
-    # Verifica JACK server running
+    # Enhanced JACK server verification with multiple methods
+    log "Verifica stato JACK server..."
+    
+    # Method 1: Check JACK process
+    local jack_pid=$(cat /tmp/jack.pid 2>/dev/null || echo "")
+    if [[ -n "$jack_pid" ]] && kill -0 "$jack_pid" 2>/dev/null; then
+        log "JACK PID attivo: $jack_pid"
+    else
+        warn "JACK PID non attivo o non trovato"
+    fi
+    
+    # Method 2: Check JACK control status
     if command -v jack_control >/dev/null 2>&1; then
         local jack_status=$(jack_control status 2>/dev/null || echo "unknown")
         if echo "$jack_status" | grep -q "running"; then
@@ -58,12 +81,137 @@ prepare_jack_environment() {
         fi
     fi
     
-    # Verifica PID JACK
-    local jack_pid=$(cat /tmp/jack.pid 2>/dev/null || echo "")
-    if [[ -n "$jack_pid" ]] && kill -0 "$jack_pid" 2>/dev/null; then
-        log "JACK PID attivo: $jack_pid"
+    # Method 3: Check socket directory
+    local socket_found=false
+    for socket_dir in /dev/shm/jack-olms-* /tmp/jack-olms-*; do
+        if [[ -d "$socket_dir" ]]; then
+            log "Socket JACK trovato: $socket_dir"
+            socket_found=true
+            break
+        fi
+    done
+    
+    if [[ "$socket_found" == "false" ]]; then
+        warn "Nessun socket JACK trovato"
+    fi
+    
+    # Enhanced socket path verification and linking
+    # This ensures Ardour can find the JACK server regardless of UID
+    if [[ "$EUID" -eq 0 ]] && [[ -n "${TARGET_USER:-}" ]]; then
+        local user_uid=$(id -u "${TARGET_USER:-francesco_ssh}" 2>/dev/null || echo "1000")
+        local target_user="${TARGET_USER:-francesco_ssh}"
+        
+        # Create comprehensive socket links for all possible paths
+        local socket_links=(
+            "/dev/shm/jack-olms-${user_uid}"
+            "/dev/shm/jack-0/default"
+            "/tmp/jack-olms-${user_uid}"
+            "/tmp/jack-0/default"
+            "/dev/shm/jack-default_${user_uid}_0"
+            "/tmp/jack-default_${user_uid}_0"
+        )
+        
+        for link_path in "${socket_links[@]}"; do
+            local link_dir=$(dirname "$link_path")
+            sudo mkdir -p "$link_dir"
+            
+            # Find the actual socket directory
+            local actual_socket=""
+            for socket_dir in /dev/shm/jack-olms-* /tmp/jack-olms-*; do
+                if [[ -d "$socket_dir" ]]; then
+                    actual_socket="$socket_dir"
+                    break
+                fi
+            done
+            
+            if [[ -n "$actual_socket" ]] && [[ ! -L "$link_path" ]]; then
+                sudo ln -sfn "$actual_socket" "$link_path" 2>/dev/null || true
+                log "Link simbolico socket creato: $actual_socket -> $link_path"
+            fi
+        done
+        
+        # Enhanced permission patch for UID bridging
+        # Use 777 for maximum compatibility (as per the Fixed-Path Socket Strategy)
+        sudo chmod -R 777 /dev/shm/jack-* 2>/dev/null || true
+        sudo chmod -R 777 /tmp/jack-* 2>/dev/null || true
+        sudo chmod 777 /dev/shm/jack-shm-registry 2>/dev/null || true
+        log "Permessi socket JACK aggiornati per utente $target_user (UID: $user_uid)"
+        log "Socket permissions set to 777 for maximum compatibility"
+    fi
+    
+    # Final connectivity test for Ardour with enhanced verification
+    log "Testing JACK connectivity for Ardour..."
+    
+    # Test with multiple socket paths
+    local connectivity_tested=false
+    local test_paths=(
+        "/dev/shm/jack-olms-0"
+        "/dev/shm/jack-olms-1000"
+        "/tmp/jack-olms-0"
+        "/tmp/jack-olms-1000"
+    )
+    
+    for test_path in "${test_paths[@]}"; do
+        if [[ -d "$test_path" ]]; then
+            export JACK_SESSION_DIR="$test_path"
+            if sudo -E JACK_DEFAULT_SERVER=olms JACK_SESSION_DIR="$test_path" jack_lsp >/dev/null 2>&1; then
+                log "✅ JACK connectivity verified for Ardour (path: $test_path)"
+                connectivity_tested=true
+                break
+            fi
+        fi
+    done
+    
+    if [[ "$connectivity_tested" == "false" ]]; then
+        warn "JACK connectivity test failed - Ardour may not connect properly"
+        warn "This could indicate socket permission or path issues"
+        warn "Available socket directories:"
+        find /dev/shm /tmp -name "*jack*" -type d 2>/dev/null | while read -r dir; do
+            warn "  $dir"
+        done
+    fi
+}
+
+# Verifica accesso XAuthority (Suggerimento utente)
+verify_xauthority_access() {
+    log "Verifica accesso XAuthority per utente $TARGET_USER..."
+    
+    local xauth_file="/home/${TARGET_USER}/.Xauthority"
+    
+    # Controlla se il file esiste
+    if [[ ! -f "$xauth_file" ]]; then
+        warn "File XAuthority non trovato: $xauth_file"
+        return 1
+    fi
+    
+    # Controlla i permessi di lettura
+    if [[ ! -r "$xauth_file" ]]; then
+        warn "File XAuthority non leggibile: $xauth_file"
+        warn "Cercando alternative..."
+        
+        # Prova a trovare altri file .Xauthority
+        local alt_xauth=$(find "/home/${TARGET_USER}" -name ".Xauthority*" -type f 2>/dev/null | head -1)
+        if [[ -n "$alt_xauth" ]] && [[ -r "$alt_xauth" ]]; then
+            export XAUTHORITY="$alt_xauth"
+            log "Usando file XAuthority alternativo: $alt_xauth"
+            return 0
+        fi
+        
+        # Ultima risorsa: crea un file vuoto (non ideale ma permette il funzionamento)
+        warn "Creando file XAuthority vuoto come ultima risorsa..."
+        touch "$xauth_file"
+        chmod 644 "$xauth_file"
+        chown "${TARGET_USER}:${TARGET_USER}" "$xauth_file"
+    fi
+    
+    # Verifica che l'utente possa effettivamente leggere il file
+    if sudo -u "$TARGET_USER" cat "$xauth_file" >/dev/null 2>&1; then
+        log "XAuthority access verificato: $xauth_file"
+        export XAUTHORITY="$xauth_file"
+        return 0
     else
-        warn "JACK PID non attivo o non trovato"
+        warn "L'utente $TARGET_USER non può leggere il file XAuthority"
+        return 1
     fi
 }
 
@@ -75,26 +223,19 @@ identify_user_and_privileges() {
     if [[ "$EUID" -eq 0 ]]; then
         log "Esecuzione come root rilevata"
         
-        # Identifica utente originale
-        local original_user="${SUDO_USER:-$USER}"
-        if [[ -z "$original_user" ]] || [[ "$original_user" == "root" ]]; then
-            original_user="francesco_ssh"  # Default user
-        fi
+        # Identifica utente originale con validazione robusta
+        local potential_user="${SUDO_USER:-$(id -un 1000 2>/dev/null || echo "")}"
         
-        log "Utente originale: $original_user"
-        
-        # Verifica esistenza utente
-        if id "$original_user" >/dev/null 2>&1; then
-            log "Utente $original_user esistente"
+        if [[ -n "$potential_user" ]] && getent passwd "$potential_user" >/dev/null; then
+            export TARGET_USER="$potential_user"
+            log "Target user identificato: $TARGET_USER"
         else
-            warn "Utente $original_user non esistente, uso root"
-            original_user="root"
+            warn "Impossibile validare utente originale, resto root (Sconsigliato per Ardour)"
+            export TARGET_USER="root"
         fi
-        
-        export TARGET_USER="$original_user"
     else
-        log "Esecuzione come utente normale: $USER"
         export TARGET_USER="$USER"
+        log "Esecuzione come utente normale: $USER"
     fi
     
     # Verifica appartenenza gruppi realtime
@@ -103,6 +244,9 @@ identify_user_and_privileges() {
     else
         warn "Utente $TARGET_USER NON appartiene ai gruppi realtime/audio"
     fi
+    
+    # Verifica accesso XAuthority (Suggerimento utente)
+    verify_xauthority_access
 }
 
 # Rilevamento sessione Ardour
@@ -160,209 +304,83 @@ detect_ardour_session() {
 start_ardour() {
     log "Avvio Ardour DAW..."
     
-    # Verifica che JACK sia in modalità reale prima di avviare Ardour
-    local jack_mode="unknown"
-    if [[ -f "/tmp/jack_startup.log" ]]; then
-        if grep -q "dummy" "/tmp/jack_startup.log"; then
-            jack_mode="dummy"
-            warn "JACK è in modalità dummy (virtuale), Ardour potrebbe non funzionare correttamente"
-        else
-            jack_mode="real"
-            log "JACK è in modalità reale"
-        fi
-    fi
+    # 0. Pulizia istanze precedenti (Previene conflitti di lock) - Miglioramento suggerito
+    log "Pulizia istanze Ardour precedenti..."
+    pkill -u "${TARGET_USER}" -9 ardour8 || true
+    sleep 1
+    rm -f /tmp/ardour.pid
     
-    # Determina modalità di avvio
-    local launch_mode="test"  # Default
-    if [[ -n "${OLMS_MODE:-}" ]]; then
-        launch_mode="$OLMS_MODE"
-    fi
+    # 1. Setup variabili d'ambiente (Essenziali per il bridging root -> user)
+    local user_uid=$(id -u "${TARGET_USER}")
+    export JACK_DEFAULT_SERVER="olms"
+    export DISPLAY="${DISPLAY:-:0}"
+    export XAUTHORITY="/home/${TARGET_USER}/.Xauthority"
+    export XDG_RUNTIME_DIR="/run/user/${user_uid}"
+    export DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/${user_uid}/bus"
     
-    log "Modalità di lancio: $launch_mode"
+    # 1.1 Forza la sessione JACK nella directory del server root
+    export JACK_SESSION_DIR="/dev/shm/jack-olms-0"
+
+    # 2. Correzione permessi SHM (Senza questo JACK fallisce il bridge)
+    # Ardour deve poter leggere la memoria condivisa creata da root
+    chmod 777 /dev/shm/jack-olms-* 2>/dev/null || true
+
+    # 3. Costruzione comando pulita - Senza runuser per evitare problemi di UID
+    local ARDOUR_CMD=(
+        taskset -c 2-3 
+        chrt -f 70 
+        env 
+        DISPLAY="${DISPLAY}" 
+        XAUTHORITY="${XAUTHORITY}" 
+        XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR}" 
+        DBUS_SESSION_BUS_ADDRESS="${DBUS_SESSION_BUS_ADDRESS}" 
+        JACK_DEFAULT_SERVER="olms" 
+        JACK_NO_START_SERVER=1 
+        JACK_SESSION_DIR="/dev/shm/jack-olms-0" 
+        ardour8 -n "${ARDOUR_SESSION_FILE}"
+    )
+
+    log "Esecuzione Ardour su core 2-3..."
+
+    # Esegui direttamente senza runuser
+    "${ARDOUR_CMD[@]}" >> "${ARDOUR_LOG_FILE}" 2>&1 &
     
-    # Costruisci comando Ardour - Rilevamento automatico versione
-    local ardour_exe=""
-    
-    # Rilevamento automatico dell'eseguibile Ardour
-    if command -v ardour8 >/dev/null 2>&1; then
-        ardour_exe="ardour8"
-        log "Ardour 8 rilevato: $ardour_exe"
-    elif command -v ardour7 >/dev/null 2>&1; then
-        ardour_exe="ardour7"
-        log "Ardour 7 rilevato: $ardour_exe"
-    elif command -v ardour >/dev/null 2>&1; then
-        ardour_exe="ardour"
-        log "Ardour generico rilevato: $ardour_exe"
-    else
-        error "Nessun eseguibile Ardour trovato (ardour8, ardour7, ardour)"
-        return 1
-    fi
-    
-    local ardour_cmd=()
-    
-    # Parametri base - Ardour 8 non accetta --jack né --no-gui
-    if [[ "$ardour_exe" == "ardour8" ]]; then
-        # Ardour 8 si connette automaticamente a JACK, non serve --jack
-        # Usa -n per evitare splash screen (equivalente a --no-gui)
-        ardour_cmd+=("-n")  # No splash screen
-    else
-        # Versioni precedenti di Ardour potrebbero aver bisogno di --jack
-        ardour_cmd+=("--jack")
-        # Per versioni precedenti, --no-gui potrebbe essere disponibile
-        if [[ "$ardour_exe" == "ardour7" ]] || [[ "$ardour_exe" == "ardour" ]]; then
-            ardour_cmd+=("--no-gui")  # Avvio headless di default
-        else
-            ardour_cmd+=("-n")  # No splash screen come fallback
-        fi
-    fi
-    
-    # Parametri specifici per modalità
-    case "$launch_mode" in
-        "test")
-            if [[ -n "${DISPLAY:-}" ]] && [[ "$DISPLAY" != *":99"* ]] && [[ "$DISPLAY" != *":100"* ]]; then
-                # Rimuovi -n per permettere l'apertura della GUI
-                log "Modalità test: GUI abilitata (DISPLAY=$DISPLAY)"
-                # Non aggiungere -n per permettere l'apertura della finestra
-            else
-                log "Modalità test: DISPLAY non disponibile, uso headless"
-            fi
-            ;;
-        "prod")
-            # Ardour 8 non accetta --no-gui, usa solo -n per no splash screen
-            log "Modalità prod: GUI disabilitata"
-            ;;
-        "virtual")
-            # Ardour 8 non accetta --no-gui, usa solo -n per no splash screen
-            log "Modalità virtuale: backend dummy"
-            ;;
-    esac
-    
-    # Aggiungi sessione se disponibile
-    if [[ -n "${ARDOUR_SESSION_FILE:-}" ]] && [[ -f "$ARDOUR_SESSION_FILE" ]]; then
-        log "Sessione caricata: $ARDOUR_SESSION_FILE"
-    else
-        warn "Nessuna sessione specificata, avvio Ardour vuoto"
-    fi
-    
-    # Esegui Ardour con taskset e chrt
-    local audio_cores="2-3"
-    local ardour_priority="70"  # Priorità leggermente inferiore a JACK (80) per evitare conflitti
-    
-    # Gestione headless con xvfb-run per VSTFX X connection
-    local launcher=""
-    if [[ -z "${DISPLAY:-}" ]] || [[ "${DISPLAY:-}" == *":99"* ]] || [[ "${DISPLAY:-}" == *":100"* ]]; then
-        if command -v xvfb-run >/dev/null 2>&1; then
-            launcher="xvfb-run -a"
-            log "Headless mode: uso xvfb-run -a per VSTFX X connection (DISPLAY=${DISPLAY:-})"
-        else
-            warn "xvfb-run non disponibile, tentativo senza display (potrebbe fallire per VSTFX)"
-        fi
-    else
-        log "GUI mode: DISPLAY disponibile ($DISPLAY)"
-    fi
-    
-    log "Esecuzione: taskset -c $audio_cores chrt -f $ardour_priority $ardour_exe ${ardour_cmd[*]} $ARDOUR_SESSION_FILE"
-    
-    # Ambiente X11 per utente (se root)
-    local env_vars=""
-    if [[ "$EUID" -eq 0 ]] && [[ -n "${TARGET_USER:-}" ]]; then
-        env_vars="DISPLAY=${DISPLAY:-} XAUTHORITY=${XAUTHORITY:-} XDG_RUNTIME_DIR=${XDG_RUNTIME_DIR:-}"
-        log "Ambiente X11 per utente $TARGET_USER: $env_vars"
-    fi
-    
-    # Avvia Ardour
-    local ardour_pid=""
-    if [[ "$EUID" -eq 0 ]] && [[ -n "${TARGET_USER:-}" ]]; then
-        # Root: esegui come utente con ambiente X11
-        if [[ -n "$launcher" ]]; then
-            (
-                export $env_vars
-                $launcher taskset -c $audio_cores chrt -f $ardour_priority sudo -u "$TARGET_USER" -E env $env_vars "$ardour_exe" "${ardour_cmd[@]}" "$ARDOUR_SESSION_FILE" 2>&1
-            ) | tee -a "$ARDOUR_LOG_FILE" &
-        else
-            (
-                export $env_vars
-                taskset -c $audio_cores chrt -f $ardour_priority sudo -u "$TARGET_USER" -E env $env_vars "$ardour_exe" "${ardour_cmd[@]}" "$ARDOUR_SESSION_FILE" 2>&1
-            ) | tee -a "$ARDOUR_LOG_FILE" &
-        fi
-        ardour_pid=$!
-    else
-        # Utente normale: esegui direttamente
-        if [[ -n "$launcher" ]]; then
-            (
-                $launcher taskset -c $audio_cores chrt -f $ardour_priority "$ardour_exe" "${ardour_cmd[@]}" "$ARDOUR_SESSION_FILE" 2>&1
-            ) | tee -a "$ARDOUR_LOG_FILE" &
-        else
-            (
-                taskset -c $audio_cores chrt -f $ardour_priority "$ardour_exe" "${ardour_cmd[@]}" "$ARDOUR_SESSION_FILE" 2>&1
-            ) | tee -a "$ARDOUR_LOG_FILE" &
-        fi
-        ardour_pid=$!
-    fi
-    
-    # Verifica che il processo sia stato avviato correttamente
-    if [[ -z "$ardour_pid" ]] || ! kill -0 "$ardour_pid" 2>/dev/null; then
-        warn "Ardour non avviato correttamente (PID: $ardour_pid)"
-        return 1
-    fi
-    
+    local ardour_pid=$!
     echo "$ardour_pid" > "$ARDOUR_PID_FILE"
     
-    log "Ardour avviato con PID: $ardour_pid"
-    
-    # Attendi avvio con timeout aumentato per sessioni DAW complesse
-    local timeout=40  # 40 secondi timeout per Ardour (sessioni complesse)
-    local wait_time=0
+    # Logica di wait più intelligente - Miglioramento suggerito
+    log "Monitoraggio avvio Ardour..."
+    local wait_timeout=15
     local ardour_ready=false
     
-    log "Attesa avvio Ardour (timeout: ${timeout}s)..."
-    
-    while [[ $wait_time -lt $timeout ]]; do
+    for ((i=1; i<=wait_timeout; i++)); do
         if kill -0 "$ardour_pid" 2>/dev/null; then
-            # Verifica che Ardour sia effettivamente pronto usando jack_lsp
-            if command -v jack_lsp >/dev/null 2>&1; then
-                local ports=$(jack_lsp 2>/dev/null || true)
-                if echo "$ports" | grep -q "ardour"; then
-                    log "Ardour è PRONTO (Porte JACK rilevate) dopo ${wait_time}s"
-                    ardour_ready=true
-                    break
-                fi
-            fi
-            
-            # Fallback: verifica PID
-            if pgrep -f "ardour.*$ardour_pid" >/dev/null 2>&1; then
-                log "Ardour avviato correttamente dopo ${wait_time}s"
+            # Controlla se Ardour ha caricato gli script GUI (indicatore di avvio completo)
+            if [[ -f "$ARDOUR_LOG_FILE" ]] && tail -n 50 "$ARDOUR_LOG_FILE" 2>/dev/null | grep -q "GUI scripts loaded\|Ready\|startup complete"; then
+                log "✅ Ardour avviato con PID: $ardour_pid (pronto dopo ${i}s)"
                 ardour_ready=true
                 break
+            else
+                log "Ardour in avvio... (${i}s/${wait_timeout}s)"
+                sleep 1
             fi
         else
-            # Processo terminato inaspettatamente
-            warn "Processo Ardour terminato inaspettatamente (PID: $ardour_pid)"
-            break
+            error "Ardour è morto subito. Controlla ${ARDOUR_LOG_FILE}"
+            return 1
         fi
-        
-        sleep 1
-        wait_time=$((wait_time + 1))
-        
-        # Messaggi di progresso
-        log "Attesa Ardour: ${wait_time}s/${timeout}s..."
     done
     
-    # Verifica finale
     if [[ "$ardour_ready" != "true" ]]; then
-        warn "Timeout avvio Ardour scaduto dopo ${timeout}s"
+        warn "Timeout attesa avvio Ardour dopo ${wait_timeout}s"
+        warn "Ardour potrebbe essere in esecuzione ma non completamente pronto"
         
-        # Prova a terminare il processo se è ancora in esecuzione
+        # Verifica comunque se il processo è attivo
         if kill -0 "$ardour_pid" 2>/dev/null; then
-            warn "Terminazione processo Ardour ($ardour_pid)..."
-            kill -TERM "$ardour_pid" 2>/dev/null || true
-            sleep 2
-            kill -KILL "$ardour_pid" 2>/dev/null || true
+            log "Ardour è ancora in esecuzione (PID: $ardour_pid)"
+        else
+            error "Ardour non è più in esecuzione"
+            return 1
         fi
-        
-        # Fallback: se Ardour non riesce ad avviarsi, prosegui comunque
-        warn "Ardour non è riuscito ad avviarsi entro il timeout, ma proseguo con l'orchestrator..."
-        return 0  # Ritorna successo per permettere il proseguimento
     fi
 }
 
@@ -407,6 +425,36 @@ verify_jack_ardour_connection() {
     if [[ "$jack_ready" != "true" ]]; then
         warn "Timeout attesa porte Ardour dopo ${jack_timeout}s"
         warn "Verifica manuale richiesta: eseguire 'jack_lsp' per controllare le porte"
+        
+        # Debug aggiuntivo per troubleshooting
+        log "Debug: Verifica stato JACK e Ardour..."
+        
+        # Controlla se JACK è ancora attivo
+        if command -v jack_control >/dev/null 2>&1; then
+            local jack_status=$(jack_control status 2>/dev/null || echo "unknown")
+            log "Stato JACK: $jack_status"
+        fi
+        
+        # Controlla se Ardour è ancora in esecuzione
+        if kill -0 "$ardour_pid" 2>/dev/null; then
+            log "Ardour è ancora in esecuzione (PID: $ardour_pid)"
+        else
+            warn "Ardour non è più in esecuzione (PID: $ardour_pid)"
+        fi
+        
+        # Controlla log di Ardour per errori
+        if [[ -f "$ARDOUR_LOG_FILE" ]]; then
+            log "Controllo errori in $ARDOUR_LOG_FILE..."
+            local ardour_errors=$(tail -n 20 "$ARDOUR_LOG_FILE" 2>/dev/null | grep -i "error\|fail\|cannot\|unable" || true)
+            if [[ -n "$ardour_errors" ]]; then
+                warn "Errori trovati in ardour_startup.log:"
+                echo "$ardour_errors" | while read -r line; do
+                    warn "  $line"
+                done
+            else
+                log "Nessun errore evidente in ardour_startup.log"
+            fi
+        fi
     fi
     
     # Verifica connessioni JACK
@@ -445,6 +493,14 @@ verify_jack_ardour_connection() {
 # Funzione principale
 main() {
     log "=== FASE 5: ARDOUR DAW STARTUP ==="
+    
+    # Fix XAuthority per root
+    if [[ "$EUID" -eq 0 ]]; then
+        # Permette a X11 di accettare connessioni dall'utente target
+        xhost +SI:localuser:"${TARGET_USER:-francesco_ssh}" >/dev/null 2>&1 || true
+        # Punta all'authority dell'utente, non di root
+        export XAUTHORITY="/home/${TARGET_USER:-francesco_ssh}/.Xauthority"
+    fi
     
     # Assicura che le variabili X11 siano disponibili per Ardour
     export DISPLAY="${DISPLAY:-:0}"

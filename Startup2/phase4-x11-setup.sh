@@ -107,7 +107,55 @@ detect_display() {
         fi
     done
     
+    # Metodo 6: Rilevamento da processi attivi
+    if detect_display_from_processes; then
+        return 0
+    fi
+    
     warn "Nessun display X11 rilevato"
+    return 1
+}
+
+# Metodo 6: Rilevamento display da processi attivi
+detect_display_from_processes() {
+    log "Metodo 6: Rilevamento display da processi attivi..."
+    
+    # Cerca processi X11 attivi
+    local x_processes=$(ps aux | grep -E "(Xorg|X11|Xwayland)" | grep -v grep || true)
+    if [[ -n "$x_processes" ]]; then
+        log "Processi X11 trovati:"
+        echo "$x_processes" | while read -r line; do
+            log "  $line"
+        done
+        
+        # Estrai display dai processi
+        local display_from_proc=$(echo "$x_processes" | grep -oE ':[0-9]+' | head -1 || true)
+        if [[ -n "$display_from_proc" ]]; then
+            DISPLAY="$display_from_proc"
+            log "DISPLAY estratto da processi: $DISPLAY"
+            return 0
+        fi
+    fi
+    
+    # Cerca processi desktop/window manager
+    local wm_processes=$(ps aux | grep -E "(gnome|kde|xfce|mate|cinnamon|lxde|openbox|i3|fluxbox)" | grep -v grep || true)
+    if [[ -n "$wm_processes" ]]; then
+        log "Processi window manager trovati:"
+        echo "$wm_processes" | while read -r line; do
+            log "  $line"
+        done
+        
+        # Prova display comuni per ambienti desktop
+        local desktop_displays=(":0" ":1")
+        for display in "${desktop_displays[@]}"; do
+            if [[ -S "/tmp/.X11-unix/X${display#:}" ]]; then
+                DISPLAY="$display"
+                log "DISPLAY trovato per ambiente desktop: $DISPLAY"
+                return 0
+            fi
+        done
+    fi
+    
     return 1
 }
 
@@ -145,9 +193,9 @@ setup_xauthority() {
     return 0
 }
 
-# Configurazione XDG_RUNTIME_DIR
+# Configurazione XDG_RUNTIME_DIR e D-Bus
 setup_xdg_runtime_dir() {
-    log "Configurazione XDG_RUNTIME_DIR..."
+    log "Configurazione XDG_RUNTIME_DIR e D-Bus..."
     
     local current_user="${SUDO_USER:-$USER}"
     local user_id=$(id -u "$current_user" 2>/dev/null || echo "1000")
@@ -168,6 +216,77 @@ setup_xdg_runtime_dir() {
             export XDG_RUNTIME_DIR="$XDG_RUNTIME_DIR"
             log "XDG_RUNTIME_DIR creato: $XDG_RUNTIME_DIR"
         fi
+    fi
+    
+    # Setup D-Bus session per francesco_ssh
+    setup_dbus_session "$current_user" "$user_id"
+}
+
+# Setup D-Bus session per utente specifico
+setup_dbus_session() {
+    local target_user="$1"
+    local user_id="$2"
+    
+    log "Setup D-Bus session per utente: $target_user (UID: $user_id)"
+    
+    # Forza l'indirizzo se il socket esiste ma la variabile è vuota o malformata
+    if [[ -S "/run/user/$user_id/bus" ]]; then
+        export DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$user_id/bus"
+        # IMPORTANTE: Esporta anche questa per app basate su vecchi toolkit
+        export DBUS_SESSION_BUS_PID=$(pgrep -u "$target_user" dbus-daemon | head -n 1)
+        log "D-Bus session già disponibile: $DBUS_SESSION_BUS_ADDRESS"
+    else
+        warn "D-Bus session non disponibile, tentativo di avvio..."
+        
+        # Se siamo root, prova ad avviare D-Bus per l'utente
+        if [[ "$EUID" -eq 0 ]]; then
+            log "Avvio D-Bus session per utente $target_user..."
+            
+            # Crea directory D-Bus se necessario
+            sudo -u "$target_user" mkdir -p "/run/user/$user_id"
+            
+            # Avvia D-Bus session
+            sudo -u "$target_user" dbus-launch --sh-syntax --exit-with-session > "/tmp/dbus_session_$user_id.env" 2>/dev/null || {
+                warn "Impossibile avviare D-Bus session per $target_user"
+                return 1
+            }
+            
+            # Carica variabili d'ambiente D-Bus
+            if [[ -f "/tmp/dbus_session_$user_id.env" ]]; then
+                source "/tmp/dbus_session_$user_id.env"
+                export DBUS_SESSION_BUS_ADDRESS
+                log "D-Bus session avviato: $DBUS_SESSION_BUS_ADDRESS"
+                
+                # Cleanup file temporaneo
+                rm -f "/tmp/dbus_session_$user_id.env"
+            fi
+        else
+            warn "Non root, impossibile avviare D-Bus session"
+        fi
+    fi
+    
+    # Verifica D-Bus connectivity
+    if [[ -n "${DBUS_SESSION_BUS_ADDRESS:-}" ]]; then
+        log "D-Bus session address: $DBUS_SESSION_BUS_ADDRESS"
+        
+        # Test D-Bus connectivity (se disponibile) - eseguito come utente target
+        if command -v dbus-send >/dev/null 2>&1; then
+            if [[ "$EUID" -eq 0 ]]; then
+                if sudo -u "$target_user" DBUS_SESSION_BUS_ADDRESS="$DBUS_SESSION_BUS_ADDRESS" dbus-send --session --print-reply --dest=org.freedesktop.DBus / org.freedesktop.DBus.ListNames >/dev/null 2>&1; then
+                    log "D-Bus connectivity verificata per l'utente $target_user"
+                else
+                    warn "D-Bus connectivity fallita per l'utente $target_user"
+                fi
+            else
+                if dbus-send --session --print-reply --dest=org.freedesktop.DBus / org.freedesktop.DBus.ListNames >/dev/null 2>&1; then
+                    log "D-Bus connectivity verificata"
+                else
+                    warn "D-Bus connectivity fallita"
+                fi
+            fi
+        fi
+    else
+        warn "D-Bus session address non impostato"
     fi
 }
 
@@ -278,6 +397,20 @@ verify_x11_setup() {
             else
                 warn "Connessione X11 fallita"
             fi
+        fi
+    fi
+    
+    # Debug X11 errors (aggiunto per troubleshooting)
+    if [[ -f "/tmp/ardour_startup.log" ]]; then
+        log "Controllo errori X11 in /tmp/ardour_startup.log..."
+        local x11_errors=$(grep -i "display\|x11\|xcb\|qt" /tmp/ardour_startup.log 2>/dev/null || true)
+        if [[ -n "$x11_errors" ]]; then
+            warn "Errori X11 trovati in ardour_startup.log:"
+            echo "$x11_errors" | while read -r line; do
+                warn "  $line"
+            done
+        else
+            log "Nessun errore X11 rilevato in ardour_startup.log"
         fi
     fi
 }

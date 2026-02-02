@@ -160,7 +160,8 @@ verify_irq_pinning() {
 verify_cpu_affinity() {
     log "Verifica CPU affinity processi audio..."
     
-    local audio_processes=$(pgrep -f "jackd|ardour" 2>/dev/null || true)
+    # Cerca solo i binari reali, escludendo i wrapper
+    local audio_processes=$(pgrep -x "jackd" && pgrep -x "ardour" 2>/dev/null || true)
     
     if [[ -n "$audio_processes" ]]; then
         local correctly_isolated=0
@@ -238,7 +239,7 @@ verify_audio_status() {
     # Metodo 1: JACK process
     local jack_pids=$(pgrep -f "jackd" 2>/dev/null || true)
     if [[ -n "$jack_pids" ]]; then
-        log "✓ JACK processi attivi: $jack_pids"
+        log "✅ JACK processi attivi: $jack_pids"
         for pid in $jack_pids; do
             if kill -0 "$pid" 2>/dev/null; then
                 log "  PID $pid: attivo ✓"
@@ -250,7 +251,7 @@ verify_audio_status() {
         warn "✗ Nessun processo JACK attivo"
     fi
     
-    # Metodo 2: Socket files
+    # Metodo 2: Socket files - Enhanced with multiple paths
     local user_id=$(id -u)
     local socket_found=false
     
@@ -258,10 +259,14 @@ verify_audio_status() {
         "/dev/shm/jack_default_${user_id}_0"
         "/tmp/.jack_default_${user_id}_0"
         "/tmp/jack_default_${user_id}_0"
+        "/dev/shm/jack-olms-0"
+        "/dev/shm/jack-olms-${user_id}"
+        "/tmp/jack-olms-0"
+        "/tmp/jack-olms-${user_id}"
     )
     
     for pattern in "${socket_patterns[@]}"; do
-        if [[ -f "$pattern" ]]; then
+        if [[ -d "$pattern" ]]; then
             log "✓ Socket JACK trovato: $pattern"
             socket_found=true
         fi
@@ -271,16 +276,47 @@ verify_audio_status() {
         warn "✗ Nessun socket JACK trovato"
     fi
     
-    # Metodo 3: Port availability
+    # Metodo 3: Port availability - Enhanced with retry and JACK status check
     if command -v jack_lsp >/dev/null 2>&1; then
-        local ports=$(jack_lsp 2>/dev/null || true)
-        if [[ -n "$ports" ]]; then
-            log "✓ Porte JACK operative:"
-            echo "$ports" | while read -r port; do
-                log "  $port"
-            done
+        # Prima verifica se JACK è attivo
+        local jack_status=$(jack_control status 2>/dev/null || echo "unknown")
+        if echo "$jack_status" | grep -q "running"; then
+            log "✓ JACK server attivo, test porte in corso..."
+            
+            # Verifica aggiuntiva: prova a connettersi effettivamente a JACK
+            local jack_connect_test=$(jack_lsp 2>&1 | head -1 || echo "connection_failed")
+            if echo "$jack_connect_test" | grep -q "Cannot connect"; then
+                warn "✗ JACK server attivo ma connessione fallita, salto test porte"
+            else
+                local max_attempts=3
+                local attempt=1
+                local ports_found=false
+                
+                while [[ $attempt -le $max_attempts ]]; do
+                    local ports=$(jack_lsp 2>/dev/null || true)
+                    if [[ -n "$ports" ]]; then
+                        log "✓ Porte JACK operative (tentativo $attempt):"
+                        echo "$ports" | while read -r port; do
+                            log "  $port"
+                        done
+                        ports_found=true
+                        break
+                    else
+                        warn "✗ Nessuna porta JACK operativa (tentativo $attempt/$max_attempts)"
+                        if [[ $attempt -lt $max_attempts ]]; then
+                            log "Attesa 2 secondi prima del prossimo tentativo..."
+                            sleep 2
+                        fi
+                    fi
+                    attempt=$((attempt + 1))
+                done
+                
+                if [[ "$ports_found" == "false" ]]; then
+                    warn "✗ Nessuna porta JACK operativa dopo $max_attempts tentativi"
+                fi
+            fi
         else
-            warn "✗ Nessuna porta JACK operativa"
+            warn "✗ JACK server non attivo (status: $jack_status), salto test porte"
         fi
     fi
     
@@ -294,16 +330,32 @@ verify_audio_status() {
         fi
     fi
     
-    # Metodo 5: Connection status
+    # Metodo 5: Connection status - Enhanced with multiple user contexts
     if command -v jack_lsp >/dev/null 2>&1; then
-        local ardour_ports=$(jack_lsp 2>/dev/null | grep -i ardour || true)
-        if [[ -n "$ardour_ports" ]]; then
-            log "✓ Ardour connesso a JACK:"
-            echo "$ardour_ports" | while read -r port; do
-                log "  $port"
-            done
-        else
-            warn "✗ Ardour non connesso a JACK"
+        local ardour_ports=""
+        local connection_tested=false
+        
+        # Test connection as different users
+        local test_users=("root" "$USER" "francesco_ssh")
+        
+        for test_user in "${test_users[@]}"; do
+            if id "$test_user" >/dev/null 2>&1; then
+                if sudo -u "$test_user" -E JACK_DEFAULT_SERVER=olms jack_lsp 2>/dev/null | grep -q "ardour"; then
+                    ardour_ports=$(sudo -u "$test_user" -E JACK_DEFAULT_SERVER=olms jack_lsp 2>/dev/null | grep -i ardour || true)
+                    if [[ -n "$ardour_ports" ]]; then
+                        log "✓ Ardour connesso a JACK (utente: $test_user):"
+                        echo "$ardour_ports" | while read -r port; do
+                            log "  $port"
+                        done
+                        connection_tested=true
+                        break
+                    fi
+                fi
+            fi
+        done
+        
+        if [[ "$connection_tested" == "false" ]]; then
+            warn "✗ Ardour non connesso a JACK (testato con più utenti)"
         fi
     fi
 }
@@ -368,8 +420,11 @@ generate_verification_report() {
     local verification_passed=true
     
     # Controlla errori nel log
-    local error_count=$(grep -c "ERROR:" "$VERIFICATION_LOG" 2>/dev/null || echo "0")
-    local warning_count=$(grep -c "WARNING:" "$VERIFICATION_LOG" 2>/dev/null || echo "0")
+    local error_count=$(grep -c "ERROR:" "$VERIFICATION_LOG" 2>/dev/null | tr -d '\n' || echo "0")
+    error_count=$((error_count + 0)) # Forza il cast a intero
+    
+    local warning_count=$(grep -c "WARNING:" "$VERIFICATION_LOG" 2>/dev/null | tr -d '\n' || echo "0")
+    warning_count=$((warning_count + 0)) # Forza il cast a intero
     
     log "Riepilogo:"
     log "  Errori: $error_count"

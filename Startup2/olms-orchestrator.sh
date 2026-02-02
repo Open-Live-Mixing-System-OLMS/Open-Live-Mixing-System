@@ -147,26 +147,44 @@ phase1_rt_optimization() {
     fi
 }
 
-# Fase 2: Configurazione hardware e IRQ pinning
-phase2_hardware_config() {
-    log "=== FASE 2: CONFIGURAZIONE HARDWARE & IRQ PINNING ==="
+# Fase 2: JACK server initialization
+phase2_jack_init() {
+    log "=== FASE 2: JACK SERVER INITIALIZATION ==="
     
-    if [[ -f "$SCRIPT_DIR/phase2-hardware-config.sh" ]]; then
-        bash "$SCRIPT_DIR/phase2-hardware-config.sh"
+    if [[ -f "$SCRIPT_DIR/phase3-jack-init-fixed.sh" ]]; then
+        # Esegui con timeout di 120 secondi per evitare blocchi
+        timeout 120 bash "$SCRIPT_DIR/phase3-jack-init-fixed.sh" || {
+            error "Fase 2 fallita o timeout superato"
+            exit 1
+        }
     else
-        error "Script phase2-hardware-config.sh non trovato"
+        error "Script phase3-jack-init-fixed.sh non trovato"
         exit 1
     fi
 }
 
-# Fase 3: JACK server initialization
-phase3_jack_init() {
-    log "=== FASE 3: JACK SERVER INITIALIZATION ==="
+# Fase 3: Configurazione hardware e IRQ pinning
+phase3_hardware_config() {
+    log "=== FASE 3: CONFIGURAZIONE HARDWARE & IRQ PINNING ==="
     
-    if [[ -f "$SCRIPT_DIR/phase3-jack-init.sh" ]]; then
-        bash "$SCRIPT_DIR/phase3-jack-init.sh"
+    # Debug: mostra l'EUID corrente
+    info "Debug EUID: $EUID (0=root, altro=utente normale)"
+    
+    # Verifica che lo script sia eseguito come root per la fase hardware
+    if [[ $EUID -ne 0 ]]; then
+        error "Fase 3 richiede privilegi root. Eseguire con: sudo $0"
+        error "Debug: EUID corrente è $EUID, ma è richiesto 0 (root)"
+        exit 1
+    fi
+    
+    if [[ -f "$SCRIPT_DIR/phase2-hardware-config.sh" ]]; then
+        # Esegui con timeout di 60 secondi per evitare blocchi
+        timeout 60 bash "$SCRIPT_DIR/phase2-hardware-config.sh" || {
+            error "Fase 3 fallita o timeout superato"
+            exit 1
+        }
     else
-        error "Script phase3-jack-init.sh non trovato"
+        error "Script phase2-hardware-config.sh non trovato"
         exit 1
     fi
 }
@@ -251,8 +269,8 @@ main() {
     # Esegui tutte le fasi
     phase0_pre_startup
     phase1_rt_optimization
-    phase2_hardware_config
-    phase3_jack_init
+    phase2_jack_init
+    phase3_hardware_config
     phase4_x11_setup
     phase5_ardour_startup
     phase6_cpu_affinity

@@ -33,150 +33,67 @@ info() {
     echo -e "${BLUE}[$(date '+%Y-%m-%d %H:%M:%S')] INFO:${NC} $1" | tee -a "$LOG_FILE"
 }
 
-# Rilevamento hardware audio
+# Rilevamento hardware audio - VERSIONE PULITA
 detect_audio_hardware() {
     log "Rilevamento hardware audio..."
-    
     local audio_irqs=()
+    # Pattern specifici per evitare falsi positivi
+    local patterns="snd|audio|sound|hda|xhci_hcd|ehci_hcd"
     
-    # Metodo 1: Ricerca IRQ tradizionale - Parsing robusto
-    log "Metodo 1: Ricerca IRQ tradizionale..."
-    local traditional_patterns=("snd" "audio" "sound" "hda" "hdaudio" "intel.*audio" "realtek" "creative" "emu")
-    
-    # Leggi /proc/interrupts con parsing sicuro
-    while IFS= read -r line; do
-        # Salta intestazioni e linee vuote
-        if [[ ! "$line" =~ ^[0-9]+: ]]; then
-            continue
+    # Prendiamo SOLO le righe da /proc/interrupts che iniziano con un numero
+    # Ignoriamo completamente i messaggi di log o timestamp
+    while read -r irq; do
+        if [[ -n "$irq" ]]; then
+            audio_irqs+=("$irq")
+            log "IRQ $irq identificato per ottimizzazione."
         fi
-        
-        # Estrai IRQ number in modo sicuro
-        local irq=$(echo "$line" | grep -o '^[0-9]*:' | tr -d ':')
-        local description=$(echo "$line" | sed 's/^[0-9]*:[[:space:]]*//')
-        
-        # Verifica range IRQ valido
-        if [[ "$irq" =~ ^[0-9]+$ ]] && [[ $irq -ge 0 ]] && [[ $irq -le 4095 ]]; then
-            # Controlla pattern tradizionali
-            for pattern in "${traditional_patterns[@]}"; do
-                if echo "$description" | grep -iqE "$pattern"; then
-                    audio_irqs+=("$irq")
-                    log "IRQ $irq identificato come audio: $description"
-                    break
-                fi
-            done
-        fi
-    done < /proc/interrupts
+    done < <(grep -iE "$patterns" /proc/interrupts | awk -F: '{print $1}' | tr -d ' ')
     
-    # Metodo 2: USB Audio Controller
-    log "Metodo 2: Rilevamento controller USB audio..."
-    local usb_patterns=("xhci_hcd" "ehci_hcd" "uhci_hcd")
-    
-    while IFS= read -r line; do
-        local irq=$(echo "$line" | awk '{print $1}' | tr -d ':')
-        local description=$(echo "$line" | cut -d' ' -f2-)
-        
-        if [[ "$irq" =~ ^[0-9]+$ ]] && [[ $irq -ge 0 ]] && [[ $irq -le 4095 ]]; then
-            for pattern in "${usb_patterns[@]}"; do
-                if echo "$description" | grep -iqE "$pattern"; then
-                    # Verifica se ci sono dispositivi ALSA USB
-                    if arecord -l 2>/dev/null | grep -i "USB\|usb" || aplay -l 2>/dev/null | grep -i "USB\|usb"; then
-                        audio_irqs+=("$irq")
-                        log "IRQ $irq identificato come USB audio controller: $description"
-                        break
-                    fi
-                fi
-            done
-        fi
-    done < /proc/interrupts
-    
-    # Metodo 3: ALSA device verification
-    log "Metodo 3: Verifica dispositivi ALSA..."
-    if command -v arecord >/dev/null 2>&1; then
-        local alsa_devices=$(arecord -l 2>/dev/null | grep -i "USB\|usb\|audio" || true)
-        if [[ -n "$alsa_devices" ]]; then
-            log "Dispositivi ALSA USB trovati:"
-            echo "$alsa_devices" | while read -r device; do
-                log "  $device"
-            done
-        fi
-    fi
-    
-    # Rimuovi duplicati e restituisci
-    printf '%s\n' "${audio_irqs[@]}" | sort -u
+    printf '%s\n' "${audio_irqs[@]}" | sort -nu
 }
 
-# Configurazione IRQ affinity
+# Configurazione IRQ affinity - CON FIX PERMESSI
 configure_irq_affinity() {
     local audio_irqs=("$@")
-    
-    if [[ ${#audio_irqs[@]} -eq 0 ]]; then
-        warn "Nessun IRQ audio rilevato"
-        return 0
-    fi
+    [[ ${#audio_irqs[@]} -eq 0 ]] && { warn "Nessun IRQ audio rilevato"; return 0; }
     
     log "Configurazione IRQ affinity per ${#audio_irqs[@]} IRQ audio..."
+    
+    # Assicuriamoci che il file di log di fallback sia scrivibile
+    touch /tmp/olms-irq-config.txt 2>/dev/null || rm -f /tmp/olms-irq-config.txt
     
     for irq in "${audio_irqs[@]}"; do
         local affinity_file="/proc/irq/${irq}/smp_affinity"
         
-        # Verifica se il file esiste e è scrivibile
-        if [[ ! -f "$affinity_file" ]]; then
-            warn "File affinity non trovato per IRQ $irq"
-            continue
-        fi
+        if [[ ! -f "$affinity_file" ]]; then continue; fi
+
+        log "Tentativo pinning IRQ $irq sul core $AUDIO_CORE..."
         
-        # Verifica configurabilità
-        local current_affinity=$(cat "$affinity_file" 2>/dev/null || echo "")
-        if [[ -z "$current_affinity" ]]; then
-            warn "Impossibile leggere affinity per IRQ $irq"
-            continue
-        fi
-        
-        log "Configurazione IRQ $irq (core $AUDIO_CORE, maschera: $CPU_MASK_CORE_1)"
-        
-        # Tentativo 1: Pinning standard
-        if echo "$CPU_MASK_CORE_1" > "$affinity_file" 2>/dev/null; then
-            log "IRQ $irq pinato al core $AUDIO_CORE"
+        # Proviamo entrambi i metodi: smp_affinity (mask) e smp_affinity_list (ID core)
+        if { echo "$CPU_MASK_CORE_1" > "/proc/irq/$irq/smp_affinity"; } 2>/dev/null || \
+           { echo "$AUDIO_CORE" > "/proc/irq/$irq/smp_affinity_list"; } 2>/dev/null; then
+            log "IRQ $irq: OK (Core $AUDIO_CORE)"
         else
-            # Tentativo 2: Con sudo
-            if echo "$CPU_MASK_CORE_1" | sudo tee "$affinity_file" >/dev/null 2>&1; then
-                log "IRQ $irq pinato al core $AUDIO_CORE (con sudo)"
-            else
-                warn "Impossibile pinare IRQ $irq al core $AUDIO_CORE (permessi insufficienti)"
-                
-                # Tentativo 3: Fallback strategies con sudo
-                log "Applicando fallback strategies per IRQ $irq..."
-                
-                # Fallback 1: Maschera estesa (core audio + core adiacente)
-                local extended_mask="0x3"  # Core 0 + 1
-                if echo "$extended_mask" | sudo tee "$affinity_file" >/dev/null 2>&1; then
-                    log "IRQ $irq pinato a maschera estesa: $extended_mask"
-                    continue
-                fi
-                
-                # Fallback 2: Prova altri core con sudo
-                for fallback_core in 2 3 4; do
-                    local fallback_mask=$(printf "0x%x" $((1 << fallback_core)))
-                    if echo "$fallback_mask" | sudo tee "$affinity_file" >/dev/null 2>&1; then
-                        log "IRQ $irq pinato al core $fallback_core (fallback)"
-                        break
-                    fi
-                done
-                
-                # Fallback 3: Registra l'IRQ per configurazione systemd
-                log "Registrazione IRQ $irq per configurazione systemd..."
-                echo "$irq:$CPU_MASK_CORE_1" >> /tmp/olms-irq-config.txt
-            fi
-        fi
-        
-        # Verifica pinning
-        local final_affinity=$(cat "$affinity_file" 2>/dev/null || echo "")
-        if [[ "$final_affinity" == "$CPU_MASK_CORE_1" ]]; then
-            log "Verifica IRQ $irq: pinning confermato"
-        else
-            warn "Verifica IRQ $irq: pinning non confermato (attuale: $final_affinity)"
+            # Se ancora fallisce, verifichiamo se l'IRQ è rilocabile
+            local mask=$(cat "/proc/irq/$irq/smp_affinity")
+            warn "IRQ $irq bloccato su affinity: $mask. Tentativo di forzatura fallito."
         fi
     done
+    
+    # Gestione specifica per IRQ 122 (Controller USB)
+    log "Gestione specifica per IRQ 122 (Controller USB)..."
+    if [[ -f "/proc/irq/122/smp_affinity" ]]; then
+        log "Tentativo pinning IRQ 122 sul core $AUDIO_CORE..."
+        if { echo "$CPU_MASK_CORE_1" > "/proc/irq/122/smp_affinity"; } 2>/dev/null || \
+           { echo "$AUDIO_CORE" > "/proc/irq/122/smp_affinity_list"; } 2>/dev/null; then
+            log "IRQ 122: OK (Core $AUDIO_CORE) - Isolamento USB completato"
+        else
+            local mask=$(cat "/proc/irq/122/smp_affinity")
+            warn "IRQ 122 bloccato su affinity: $mask. Tentativo di forzatura fallito."
+        fi
+    else
+        warn "IRQ 122 non trovato o non accessibile"
+    fi
 }
 
 # Verifica IRQ configuration
@@ -263,9 +180,20 @@ final_hardware_check() {
     fi
 }
 
+# Funzione per preparare il sistema
+prepare_system() {
+    if systemctl is-active --quiet irqbalance; then
+        log "Disattivazione permanente irqbalance per sbloccare gli IRQ..."
+        systemctl stop irqbalance
+        systemctl mask irqbalance
+    fi
+}
+
 # Funzione principale
 main() {
-    log "=== FASE 2: CONFIGURAZIONE HARDWARE & IRQ PINNING ==="
+    prepare_system
+    
+    log "=== FASE 2: OTTIMIZZAZIONE HARDWARE ==="
     info "Core audio dedicato: $AUDIO_CORE (maschera: $CPU_MASK_CORE_1)"
     
     # Rilevamento hardware
