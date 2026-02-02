@@ -58,12 +58,12 @@ detect_audio_hardware() {
     printf '%s\n' "${audio_irqs[@]}" | sort -nu
 }
 
-# Configurazione IRQ affinity - CON FIX PERMESSI
+# Configurazione IRQ affinity - ENHANCED VERSION with IRQ 126 Fix
 configure_irq_affinity() {
     local audio_irqs=("$@")
     [[ ${#audio_irqs[@]} -eq 0 ]] && { warn "Nessun IRQ audio rilevato"; return 0; }
     
-    log "Configurazione IRQ affinity per ${#audio_irqs[@]} IRQ audio..."
+    log "Configurazione IRQ affinity per ${#audio_irqs[@]} IRQ audio (ENHANCED)..."
     
     # Assicuriamoci che il file di log di fallback sia scrivibile
     # Controllo proprietà file prima della rimozione
@@ -85,13 +85,40 @@ configure_irq_affinity() {
         log "Tentativo pinning IRQ $irq sul core $AUDIO_CORE..."
         
         # Proviamo entrambi i metodi: smp_affinity (mask) e smp_affinity_list (ID core)
-        if { echo "$CPU_MASK_CORE_1" > "/proc/irq/$irq/smp_affinity"; } 2>/dev/null || \
-           { echo "$AUDIO_CORE" > "/proc/irq/$irq/smp_affinity_list"; } 2>/dev/null; then
-            log "IRQ $irq: OK (Core $AUDIO_CORE)"
-        else
+        # DOPPIO TENTATIVO con formati diversi per risolvere il problema IRQ 126
+        local success=false
+        
+        # Tentativo 1: Maschera esadecimale (0x2)
+        if { echo "0x2" > "$affinity_file"; } 2>/dev/null; then
+            log "IRQ $irq: OK (Core $AUDIO_CORE) - Maschera esadecimale"
+            success=true
+        elif { echo "$CPU_MASK_CORE_1" > "$affinity_file"; } 2>/dev/null; then
+            log "IRQ $irq: OK (Core $AUDIO_CORE) - Maschera esadecimale alternativa"
+            success=true
+        fi
+        
+        # Tentativo 2: ID core numerico
+        if [[ "$success" == "false" ]] && { echo "$AUDIO_CORE" > "/proc/irq/$irq/smp_affinity_list"; } 2>/dev/null; then
+            log "IRQ $irq: OK (Core $AUDIO_CORE) - ID core numerico"
+            success=true
+        fi
+        
+        # Tentativo 3: Maschera binaria
+        if [[ "$success" == "false" ]] && { echo "2" > "$affinity_file"; } 2>/dev/null; then
+            log "IRQ $irq: OK (Core $AUDIO_CORE) - Maschera binaria"
+            success=true
+        fi
+        
+        if [[ "$success" == "false" ]]; then
             # Se ancora fallisce, verifichiamo se l'IRQ è rilocabile
-            local mask=$(cat "/proc/irq/$irq/smp_affinity")
+            local mask=$(cat "$affinity_file" 2>/dev/null || echo "unknown")
             warn "IRQ $irq bloccato su affinity: $mask. Tentativo di forzatura fallito."
+            
+            # Notifica specifica per IRQ 126
+            if [[ "$irq" == "126" ]]; then
+                warn "IRQ 126: Problema specifico rilevato - potrebbe richiedere riavvio del kernel"
+                warn "Suggerimento: Verifica che il kernel supporti il pinning IRQ 126"
+            fi
         fi
     done
     
@@ -99,15 +126,43 @@ configure_irq_affinity() {
     log "Gestione specifica per IRQ 122 (Controller USB)..."
     if [[ -f "/proc/irq/122/smp_affinity" ]]; then
         log "Tentativo pinning IRQ 122 sul core $AUDIO_CORE..."
-        if { echo "$CPU_MASK_CORE_1" > "/proc/irq/122/smp_affinity"; } 2>/dev/null || \
-           { echo "$AUDIO_CORE" > "/proc/irq/122/smp_affinity_list"; } 2>/dev/null; then
-            log "IRQ 122: OK (Core $AUDIO_CORE) - Isolamento USB completato"
-        else
-            local mask=$(cat "/proc/irq/122/smp_affinity")
+        local success=false
+        
+        # Doppio tentativo per IRQ 122
+        if { echo "0x2" > "/proc/irq/122/smp_affinity"; } 2>/dev/null; then
+            log "IRQ 122: OK (Core $AUDIO_CORE) - Maschera esadecimale"
+            success=true
+        elif { echo "$AUDIO_CORE" > "/proc/irq/122/smp_affinity_list"; } 2>/dev/null; then
+            log "IRQ 122: OK (Core $AUDIO_CORE) - ID core numerico"
+            success=true
+        fi
+        
+        if [[ "$success" == "false" ]]; then
+            local mask=$(cat "/proc/irq/122/smp_affinity" 2>/dev/null || echo "unknown")
             warn "IRQ 122 bloccato su affinity: $mask. Tentativo di forzatura fallito."
         fi
     else
         warn "IRQ 122 non trovato o non accessibile"
+    fi
+    
+    # Gestione specifica per IRQ 126 (PROBLEMA PRINCIPALE)
+    log "Gestione specifica per IRQ 126 (CORREZIONE SPECIFICA)..."
+    if [[ -f "/proc/irq/126/smp_affinity" ]]; then
+        log "Tentativo pinning IRQ 126 sul core $AUDIO_CORE (CORREZIONE SPECIFICA)..."
+        
+        # CORREZIONE: Forza la maschera esadecimale corretta
+        if { echo "0x2" > "/proc/irq/126/smp_affinity"; } 2>/dev/null; then
+            local new_affinity=$(cat "/proc/irq/126/smp_affinity" 2>/dev/null || echo "unknown")
+            log "IRQ 126: CORRETTO (Core $AUDIO_CORE) - Maschera esadecimale 0x2 impostata"
+            log "IRQ 126: Nuova affinity: $new_affinity"
+        else
+            local current_affinity=$(cat "/proc/irq/126/smp_affinity" 2>/dev/null || echo "unknown")
+            warn "IRQ 126: Impossibile correggere affinity (corrente: $current_affinity)"
+            warn "IRQ 126: Potrebbe richiedere riavvio del kernel o modifica GRUB"
+            warn "Suggerimento: Aggiungi 'irqaffinity=2' a GRUB_CMDLINE_LINUX"
+        fi
+    else
+        warn "IRQ 126 non trovato o non accessibile"
     fi
 }
 
