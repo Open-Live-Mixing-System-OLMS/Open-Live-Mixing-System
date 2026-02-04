@@ -29,6 +29,8 @@ log() {
 
 warn() {
     echo -e "${YELLOW}[$(date '+%Y-%m-%d %H:%M:%S')] WARNING:${NC} $1" | tee -a "$LOG_FILE"
+    echo -e "${RED}[$(date '+%Y-%m-%d %H:%M:%S')] ERROR:${NC} Startup process aborted due to warning: $1" | tee -a "$LOG_FILE"
+    exit 1
 }
 
 error() {
@@ -145,24 +147,37 @@ configure_irq_affinity() {
         warn "IRQ 122 non trovato o non accessibile"
     fi
     
-    # Gestione specifica per IRQ 126 (PROBLEMA PRINCIPALE)
-    log "Gestione specifica per IRQ 126 (CORREZIONE SPECIFICA)..."
-    if [[ -f "/proc/irq/126/smp_affinity" ]]; then
-        log "Tentativo pinning IRQ 126 sul core $AUDIO_CORE (CORREZIONE SPECIFICA)..."
+    # Gestione universale per controller disabilitati
+    log "Gestione universale per controller disabilitati..."
+    
+    # Verifica se audio è disabilitato prima di tentare configurazione IRQ
+    local enable_status=$(cat /sys/module/snd_hda_intel/parameters/enable 2>/dev/null || echo "")
+    if [[ "$enable_status" =~ ^N, ]]; then
+        log "Audio disabilitato via kernel parameter - saltando configurazione IRQ (universale)"
+        # Non bloccare l'avvio, continua con la verifica
+    fi
+    
+    # Gestione specifica per IRQ 122 (Controller USB)
+    log "Gestione specifica per IRQ 122 (Controller USB)..."
+    if [[ -f "/proc/irq/122/smp_affinity" ]]; then
+        log "Tentativo pinning IRQ 122 sul core $AUDIO_CORE..."
+        local success=false
         
-        # CORREZIONE: Forza la maschera esadecimale corretta
-        if { echo "0x2" > "/proc/irq/126/smp_affinity"; } 2>/dev/null; then
-            local new_affinity=$(cat "/proc/irq/126/smp_affinity" 2>/dev/null || echo "unknown")
-            log "IRQ 126: CORRETTO (Core $AUDIO_CORE) - Maschera esadecimale 0x2 impostata"
-            log "IRQ 126: Nuova affinity: $new_affinity"
-        else
-            local current_affinity=$(cat "/proc/irq/126/smp_affinity" 2>/dev/null || echo "unknown")
-            warn "IRQ 126: Impossibile correggere affinity (corrente: $current_affinity)"
-            warn "IRQ 126: Potrebbe richiedere riavvio del kernel o modifica GRUB"
-            warn "Suggerimento: Aggiungi 'irqaffinity=2' a GRUB_CMDLINE_LINUX"
+        # Doppio tentativo per IRQ 122
+        if { echo "0x2" > "/proc/irq/122/smp_affinity"; } 2>/dev/null; then
+            log "IRQ 122: OK (Core $AUDIO_CORE) - Maschera esadecimale"
+            success=true
+        elif { echo "$AUDIO_CORE" > "/proc/irq/122/smp_affinity_list"; } 2>/dev/null; then
+            log "IRQ 122: OK (Core $AUDIO_CORE) - ID core numerico"
+            success=true
+        fi
+        
+        if [[ "$success" == "false" ]]; then
+            local mask=$(cat "/proc/irq/122/smp_affinity" 2>/dev/null || echo "unknown")
+            warn "IRQ 122 bloccato su affinity: $mask. Tentativo di forzatura fallito."
         fi
     else
-        warn "IRQ 126 non trovato o non accessibile"
+        warn "IRQ 122 non trovato o non accessibile"
     fi
 }
 
@@ -201,7 +216,13 @@ verify_irq_configuration() {
     if [[ $verified_irqs -gt 0 ]]; then
         log "IRQ pinning: $verified_irqs IRQ audio configurati"
     else
-        warn "Nessun IRQ audio configurato"
+        # Non bloccare l'avvio se audio è disabilitato
+        local enable_status=$(cat /sys/module/snd_hda_intel/parameters/enable 2>/dev/null || echo "")
+        if [[ "$enable_status" =~ ^N, ]]; then
+            log "Nessun IRQ audio configurato (audio disabilitato via kernel parameter - normale)"
+        else
+            warn "Nessun IRQ audio configurato"
+        fi
     fi
 }
 

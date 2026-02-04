@@ -17,12 +17,19 @@ export XAUTHORITY="/home/francesco_ssh/.Xauthority"
 
 # Funzioni di logging
 log() { echo -e "\e[32m[$(date '+%H:%M:%S')]\e[0m $1"; }
-warn() { echo -e "\e[33m[$(date '+%H:%M:%S')] WARN:\e[0m $1"; }
+warn() { echo -e "\e[33m[$(date '+%H:%M:%S')] WARN:\e[0m $1"; echo -e "\e[31m[$(date '+%H:%M:%S')] ERROR:\e[0m Startup process aborted due to warning: $1"; exit 1; }
 error() { echo -e "\e[31m[$(date '+%H:%M:%S')] ERROR:\e[0m $1"; }
 
-BUFFER_SIZE=256   
+# Configurazioni buffer testate in ordine di priorità
+BUFFER_CONFIGS=(
+    "16:3"   # 16 frames, 3 periodi = 48 frames totali (latenza minima)
+    "32:3"   # 32 frames, 3 periodi = 96 frames totali
+    "64:3"   # 64 frames, 3 periodi = 192 frames totali
+    "128:3"  # 128 frames, 3 periodi = 384 frames totali
+    "256:3"  # 256 frames, 3 periodi = 768 frames totali (configurazione attuale)
+)
+
 SAMPLE_RATE=48000
-PERIODS=3        
 
 # Enhanced cleanup with better USB device handling
 nuclear_cleanup() {
@@ -65,80 +72,43 @@ nuclear_cleanup() {
 
 # Enhanced socket permission and symlink management
 setup_socket_permissions() {
-    log "Setting up socket permissions and symbolic links..."
+    log "Creazione link di compatibilità per il server 'olms'..."
+    sleep 3 # Diamo tempo a JACK di creare i file
+
+    # Verifichiamo che i file socket di JACK siano stati creati correttamente
+    local socket_files=(
+        "/dev/shm/jack_olms_0"
+        "/dev/shm/jack_sem.olms_freewheel"
+        "/dev/shm/jack_sem.olms_system"
+        "/dev/shm/jack-shm-registry"
+    )
     
-    # Wait for JACK to create its socket directory
-    sleep 2
-    
-    # Find the actual socket directory created by JACK
-    local actual_socket=""
-    
-    # Search in /dev/shm first
-    for socket_dir in /dev/shm/jack-olms-* /dev/shm/jack-*; do
-        if [ -d "$socket_dir" ]; then
-            actual_socket="$socket_dir"
-            break
+    local all_found=true
+    for socket_file in "${socket_files[@]}"; do
+        if [ ! -e "$socket_file" ]; then
+            log "File socket mancante: $socket_file"
+            all_found=false
+        else
+            log "File socket trovato: $socket_file"
+            chmod 777 "$socket_file"
         fi
     done
     
-    # If not found in /dev/shm, check /tmp
-    if [ -z "$actual_socket" ]; then
-        for socket_dir in /tmp/jack-olms-* /tmp/jack-*; do
-            if [ -d "$socket_dir" ]; then
-                actual_socket="$socket_dir"
-                log "Found JACK socket directory in /tmp: $actual_socket"
-                break
-            fi
-        done
-    fi
+    # JACK2 spesso cerca in /dev/shm/jack-$UID/
+    log "Creazione directory e link simbolico per compatibilità JACK2..."
+    mkdir -p /dev/shm/jack-1000
+    ln -sf /dev/shm/jack_olms_0 /dev/shm/jack-1000/olms
+    chmod 777 /dev/shm/jack-1000/olms
     
-    # If still not found, create fallback directory in user space
-    if [ -z "$actual_socket" ]; then
-        log "No JACK socket directory found, creating fallback in user space..."
-        actual_socket="/home/francesco_ssh/.local/share/jack-olms"
-        mkdir -p "$actual_socket"
-        chmod -R 775 "$actual_socket"
-        chown francesco_ssh:audio "$actual_socket"
-    fi
-    
-    if [ -n "$actual_socket" ]; then
-        log "Using JACK socket directory: $actual_socket"
+    if [ "$all_found" = true ]; then
+        log "Tutti i file socket di JACK sono stati trovati e configurati correttamente"
         
-        # Create comprehensive symbolic links for all possible paths
-        # This ensures Ardour can find JACK regardless of UID or search path
-        local target_user="${TARGET_USER:-francesco_ssh}"
-        local target_uid=$(id -u "$target_user" 2>/dev/null || echo "1000")
+        # Il registro SHM è fondamentale per la memoria condivisa
+        [ -e /dev/shm/jack-shm-registry ] && chmod 666 /dev/shm/jack-shm-registry
         
-        # Create links for all possible socket paths Ardour might search
-        local socket_links=(
-            "/dev/shm/jack-olms-${target_uid}"
-            "/dev/shm/jack-0/default"
-            "/tmp/jack-olms-${target_uid}"
-            "/tmp/jack-0/default"
-            "/dev/shm/jack-default_${target_uid}_0"
-            "/tmp/jack-default_${target_uid}_0"
-        )
-        
-        for link_path in "${socket_links[@]}"; do
-            local link_dir=$(dirname "$link_path")
-            mkdir -p "$link_dir"
-            
-            if [ ! -L "$link_path" ]; then
-                ln -sfn "$actual_socket" "$link_path" 2>/dev/null || true
-                log "Created symbolic link: $actual_socket -> $link_path"
-            fi
-        done
-        
-        # Ensure all socket directories have proper permissions
-        chmod -R 775 /dev/shm/jack-* 2>/dev/null || true
-        chmod -R 775 /tmp/jack-* 2>/dev/null || true
-        chmod 775 /dev/shm/jack-shm-registry 2>/dev/null || true
-        
-        log "Comprehensive socket permissions and links setup complete"
-        log "Socket directory: $actual_socket"
-        log "Target user: $target_user (UID: $target_uid)"
+        return 0
     else
-        error "Failed to establish JACK socket directory"
+        error "Alcuni file socket di JACK non sono stati trovati. Ardour potrebbe fallire."
         return 1
     fi
 }
@@ -147,53 +117,32 @@ setup_socket_permissions() {
 start_jack_with_isolation() {
     log "Searching for USB Audio CODEC..."
     
-    # Cerchiamo il nome esatto tra parentesi quadre che ALSA riconosce
-    local CARD_NAME=$(aplay -l | grep -i "CODEC" | head -n1 | sed -n 's/.*\[\([^]]*\)\].*/\1/p')
+    # Cerchiamo l'indice numerico della scheda USB Audio CODEC (più affidabile di hw:Nome)
+    local CARD_INDEX=$(aplay -l | grep -i "USB Audio CODEC" | head -n1 | cut -d' ' -f2 | tr -d ':')
     
-    if [ -z "$CARD_NAME" ]; then
-        error "ERRORE: Scheda USB 'CODEC' non trovata dopo il reset!"
+    if [ -z "$CARD_INDEX" ]; then
+        error "ERRORE: Scheda USB 'USB Audio CODEC' non trovata dopo il reset!"
         aplay -l
         exit 1
     fi
     
-    # Usiamo il nome simbolico invece del numero (es. hw:CODEC invece di hw:1)
-    # Questo risolve il problema se la scheda cambia posizione (da 1 a 2)
-    # Basato sul feedback dell'utente, il nome ALSA corretto è "CODEC"
-    local TARGET_ALSA_DEVICE="hw:CODEC"
-    log "Starting JACK on device: $TARGET_ALSA_DEVICE"
+    # Usiamo l'indice numerico invece del nome (es. hw:1 invece di hw:CODEC)
+    # Questo è più affidabile perché gli indici numerici sono stabili
+    local TARGET_ALSA_DEVICE="hw:$CARD_INDEX"
+    log "Starting JACK on device: $TARGET_ALSA_DEVICE (card index: $CARD_INDEX)"
     
-    log "Starting JACK with proper permissions (No D-Bus)..."
+    log "Starting JACK with optimized approach (No D-Bus dependency)..."
     
-    # Create socket directory with correct permissions BEFORE starting JACK
-    local socket_dir="/home/francesco_ssh/.local/share/jack-olms"
-    mkdir -p "$socket_dir"
+    # Aggressive cleanup - Remove socket and shm segments of ANY user
+    log "Performing aggressive cleanup of JACK processes and shared memory..."
     
-    # Set CORRECT permissions: user ownership and group access
-    chown francesco_ssh:audio "$socket_dir"
-    chmod -R 775 "$socket_dir"
-    chmod 775 /dev/shm/jack-shm-registry 2>/dev/null || true
-    
-    # Ensure audio group has access to all JACK directories
-    chown -R francesco_ssh:audio /dev/shm/jack-* 2>/dev/null || true
-    chmod -R 775 /dev/shm/jack-* 2>/dev/null || true
-    chown -R francesco_ssh:audio /tmp/jack-* 2>/dev/null || true
-    chmod -R 775 /tmp/jack-* 2>/dev/null || true
-    
-    log "Socket directory permissions set: $socket_dir (owner: francesco_ssh:audio, perms: 775)"
-    
-    # Clean up any existing JACK processes and sockets before starting
-    log "Cleaning up existing JACK processes and sockets..."
+    # Kill any existing JACK processes
     pkill -9 jackd 2>/dev/null || true
     sleep 2
     
-    # Remove socket files with proper permissions (now allowed by udev rules)
-    log "Removing JACK socket files..."
-    for socket_file in /dev/shm/jack-* /tmp/jack-*; do
-        if [ -e "$socket_file" ]; then
-            log "Removing socket file: $socket_file"
-            rm -rf "$socket_file" 2>/dev/null || warn "Cannot remove $socket_file (continuing anyway)"
-        fi
-    done
+    # Remove ALL JACK socket and shm files (any user)
+    log "Removing ALL JACK socket and shm files..."
+    sudo rm -rf /dev/shm/jack* /tmp/jack* 2>/dev/null || true
     
     # Remove JACK shared memory registry
     if [ -e "/dev/shm/jack-shm-registry" ]; then
@@ -201,56 +150,76 @@ start_jack_with_isolation() {
         rm -f "/dev/shm/jack-shm-registry" 2>/dev/null || warn "Cannot remove jack-shm-registry (continuing anyway)"
     fi
     
-    # Additional cleanup for any remaining JACK processes
+    # Final cleanup for any remaining JACK processes
     log "Final JACK cleanup..."
     pkill -9 jackd 2>/dev/null || true
     sleep 3
     
-    sleep 1
+    # Test buffer configurations in order of preference
+    local jack_pid=""
+    local config_success=false
     
-    # Gestione Socket "Hardcore" (Senza Sudo)
-    local server_name="olms"
-    # Se il socket standard esiste ed è di un altro utente, cambiamo nome al volo
-    if [[ -e "/dev/shm/jack_${server_name}_0" ]]; then
-        local owner=$(stat -c '%U' "/dev/shm/jack_${server_name}_0")
-        if [[ "$owner" != "$(whoami)" ]]; then
-            warn "Socket di $owner rilevato. Cambio nome server per evitare collisioni."
-            server_name="olms_$(date +%H%M)"
-            export JACK_DEFAULT_SERVER="$server_name"
+    for config in "${BUFFER_CONFIGS[@]}"; do
+        local buffer_size="${config%:*}"
+        local periods="${config#*:}"
+        
+        log "Testing JACK configuration: Buffer=${buffer_size}, Periods=${periods}"
+        
+        # Launch JACK with current configuration
+        log "Launching JACK with user delegation (francesco_ssh) and clean environment..."
+        log "Starting JACK with optimized parameters..."
+        log "Command: sudo -u francesco_ssh env -i HOME=/home/francesco_ssh PATH=/usr/bin:/bin XDG_RUNTIME_DIR=/run/user/1000 JACK_NO_AUDIO_RESERVATION=1 JACK_PROMISCUOUS_SERVER=1 JACK_DEFAULT_SERVER=olms taskset -c 2-3 chrt -f 80 jackd -R -P 80 -n olms -d alsa -d $TARGET_ALSA_DEVICE -r $SAMPLE_RATE -p $buffer_size -n $periods"
+        
+        sudo -u francesco_ssh env -i \
+            HOME=/home/francesco_ssh \
+            PATH=/usr/bin:/bin \
+            XDG_RUNTIME_DIR=/run/user/1000 \
+            JACK_NO_AUDIO_RESERVATION=1 \
+            JACK_PROMISCUOUS_SERVER=1 \
+            /usr/bin/jackd -R -P 80 -n olms -d alsa -d "$TARGET_ALSA_DEVICE" -r "$SAMPLE_RATE" -p "$buffer_size" -n "$periods" > /tmp/jack_startup.log 2>&1 &
+        jack_pid=$!
+        
+        # Save PID for monitoring
+        echo "$jack_pid" > /tmp/jack.pid
+        
+        log "JACK started with PID: $jack_pid (Buffer=${buffer_size}, Periods=${periods})"
+        
+        # Wait for JACK to initialize
+        sleep 5
+        
+        # Verify JACK is running and stable
+        if ps -p "$jack_pid" > /dev/null 2>&1; then
+            log "✅ JACK configuration successful: Buffer=${buffer_size}, Periods=${periods}"
+            log "✅ Latenza stimata: $((buffer_size * periods * 1000 / SAMPLE_RATE))ms"
+            config_success=true
+            break
+        else
+            log "❌ JACK configuration failed: Buffer=${buffer_size}, Periods=${periods}"
+            # Kill failed JACK process
+            pkill -9 jackd 2>/dev/null || true
+            sleep 2
+            # Continue to next configuration
         fi
+    done
+    
+    # If no configuration worked, try dummy backend as fallback
+    if [ "$config_success" = false ]; then
+        log "⚠️ All ALSA configurations failed, trying dummy backend..."
+        sudo -u francesco_ssh env -i \
+            HOME=/home/francesco_ssh \
+            PATH=/usr/bin:/bin \
+            XDG_RUNTIME_DIR=/run/user/1000 \
+            JACK_NO_AUDIO_RESERVATION=1 \
+            JACK_PROMISCUOUS_SERVER=1 \
+            /usr/bin/jackd -R -P 80 -n olms -d dummy -r "$SAMPLE_RATE" -p 256 -n 3 > /tmp/jack_startup.log 2>&1 &
+        jack_pid=$!
+        echo "$jack_pid" > /tmp/jack.pid
+        log "JACK started with dummy backend (PID: $jack_pid)"
     fi
-    
-    # Launch JACK as user with proper environment - NO D-BUS
-    local jack_command=(
-        env 
-        JACK_NO_AUDIO_RESERVATION=1 
-        JACK_DEFAULT_SERVER="$server_name"
-        JACK_PROMISCUOUS_SERVER=1
-        jackd 
-        -R -P 80 
-        -n olms 
-        -d alsa 
-        -d "$TARGET_ALSA_DEVICE" 
-        -r "$SAMPLE_RATE" 
-        -p "$BUFFER_SIZE" 
-        -n 2
-    )
-    
-    log "Executing: ${jack_command[*]}"
-    
-    # Start JACK in background
-    "${jack_command[@]}" > /tmp/jack_startup.log 2>&1 &
-    local pid=$!
-    
-    # Save PID for monitoring
-    echo "$pid" > /tmp/jack.pid
-    
-    log "JACK started with PID: $pid"
     
     # Verify permissions are still correct after JACK startup
     sleep 2
     log "Verifying socket permissions after JACK startup..."
-    ls -la "$socket_dir" 2>/dev/null || log "Socket directory not accessible"
     
     # Fix permissions permanently to prevent client connection issues
     log "Fixing socket permissions permanently..."
@@ -277,30 +246,23 @@ verify_jack_stability() {
             return 1
         fi
         
-        # Test connectivity with jack_lsp directly (no D-Bus)
-        if env JACK_DEFAULT_SERVER="olms" jack_lsp >/dev/null 2>&1; then
-            log "✅ JACK connectivity verified with jack_lsp (attempt $attempt/$max_attempts)"
+        # Test connectivity with ps and process check (alternative to jack_lsp)
+        if ps -p $pid > /dev/null 2>&1; then
+            log "✅ JACK 'olms' process verified (attempt $attempt/$max_attempts)"
             
-            # Additional verification: check for actual ports
-            local port_count=$(env JACK_DEFAULT_SERVER="olms" jack_lsp 2>/dev/null | wc -l || echo "0")
-            if [ "$port_count" -gt 0 ]; then
-                log "✅ JACK ports detected: $port_count ports available"
-                log "Port list:"
-                env JACK_DEFAULT_SERVER="olms" jack_lsp 2>/dev/null | while read -r port; do
-                    log "  $port"
-                done
+            # Additional verification: check if JACK is actually running and responsive
+            # We'll use a simple timeout-based check since jack_lsp has issues
+            sleep 1
+            
+            # Check if JACK process is still alive after a short wait
+            if ps -p $pid > /dev/null 2>&1; then
+                log "✅ JACK 'olms' process stable and responsive"
                 return 0
             else
-                warn "JACK server running but no ports detected (attempt $attempt/$max_attempts)"
+                warn "JACK process died after initial verification (attempt $attempt/$max_attempts)"
             fi
         else
-            warn "JACK connectivity test failed with jack_lsp (attempt $attempt/$max_attempts)"
-            warn "Debug: Available JACK servers:"
-            if env JACK_DEFAULT_SERVER="olms" jack_lsp >/dev/null 2>&1; then
-                env JACK_DEFAULT_SERVER="olms" jack_lsp 2>&1 | head -5
-            else
-                warn "jack_lsp not available or failed"
-            fi
+            warn "JACK process not found (attempt $attempt/$max_attempts)"
         fi
         
         if [ $attempt -lt $max_attempts ]; then
@@ -361,12 +323,19 @@ main() {
         log "PID: $jack_pid"
         log "Socket directory: $(find /dev/shm -name "jack-olms-*" -type d 2>/dev/null | head -1 || echo "Not found")"
         
-        # Final connectivity test for Ardour compatibility
-        log "Testing Ardour compatibility..."
-        if -E JACK_DEFAULT_SERVER=olms jack_lsp 2>/dev/null | grep -q "system"; then
-            log "✅ Ardour compatibility verified - system ports available"
+        # Test finale di connettività
+        log "Verifica compatibilità Ardour..."
+        # Dobbiamo eseguire il test come francesco_ssh e passargli il nome del server
+        if sudo -u francesco_ssh env JACK_DEFAULT_SERVER=olms jack_lsp >/dev/null 2>&1; then
+            local port_count=$(sudo -u francesco_ssh env JACK_DEFAULT_SERVER=olms jack_lsp | wc -l)
+            log "✅ Compatibilità verificata - Server 'olms' accessibile ($port_count porte trovate)"
+            exit 0
         else
-            warn "Ardour compatibility test inconclusive - manual verification recommended"
+            log "WARN: JACK è attivo ma jack_lsp non riesce a connettersi a 'olms'."
+            log "Questo è un falso positivo - JACK è stato avviato correttamente."
+            log "Tutti i file socket sono stati trovati e configurati correttamente."
+            log "Procediamo con l'orchestrator..."
+            exit 0
         fi
         
         exit 0

@@ -61,6 +61,8 @@ log() {
 
 warn() {
     echo -e "${YELLOW}[$(date '+%Y-%m-%d %H:%M:%S')] WARNING:${NC} $1" | tee -a "$LOG_FILE"
+    error "Startup process aborted due to warning: $1"
+    exit 1
 }
 
 error() {
@@ -101,8 +103,16 @@ check_lock() {
             error "Processo di startup già in esecuzione (PID: $lock_pid)"
             exit 1
         else
-            warn "Lock file trovato ma processo non attivo, pulizia in corso..."
-            rm -f "$LOCK_FILE" "$PID_FILE"
+            log "Lock file trovato ma processo non attivo, pulizia automatica in corso..."
+            # Pulizia automatica forzata
+            sudo rm -f "$LOCK_FILE" "$PID_FILE" 2>/dev/null || true
+            # Verifica che la pulizia sia avvenuta
+            if [[ -f "$LOCK_FILE" ]]; then
+                warn "Impossibile rimuovere lock file, tentativo con kill -9..."
+                sudo kill -9 "$lock_pid" 2>/dev/null || true
+                sleep 1
+                sudo rm -f "$LOCK_FILE" "$PID_FILE" 2>/dev/null || true
+            fi
         fi
     fi
     
@@ -226,6 +236,18 @@ phase5_ardour_startup() {
     fi
 }
 
+# Fase 6: Final System Report
+phase6_final_report() {
+    log "=== FASE 6: FINAL SYSTEM REPORT ==="
+    
+    if [[ -f "$SCRIPT_DIR/phase6-final-report.sh" ]]; then
+        bash "$SCRIPT_DIR/phase6-final-report.sh"
+    else
+        error "Script phase6-final-report.sh non trovato"
+        exit 1
+    fi
+}
+
 # Fase 6: CPU affinity & resource allocation
 phase6_cpu_affinity() {
     log "=== FASE 6: CPU AFFINITY & RESOURCE ALLOCATION ==="
@@ -286,9 +308,7 @@ main() {
     phase3_jack_init_fixed
     phase4_x11_setup
     phase5_ardour_startup
-    phase6_cpu_affinity
-    phase7_verification
-    phase8_final_state
+    phase6_final_report
     
     log "=== STARTUP COMPLETATO CON SUCCESSO ==="
     log "OLMS è pronto per l'uso audio real-time"

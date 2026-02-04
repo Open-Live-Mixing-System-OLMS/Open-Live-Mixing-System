@@ -26,6 +26,8 @@ log() {
 
 warn() {
     echo -e "${YELLOW}[$(date '+%Y-%m-%d %H:%M:%S')] WARNING:${NC} $1" | tee -a "$LOG_FILE"
+    echo -e "${RED}[$(date '+%Y-%m-%d %H:%M:%S')] ERROR:${NC} Startup process aborted due to warning: $1" | tee -a "$LOG_FILE"
+    exit 1
 }
 
 error() {
@@ -247,66 +249,29 @@ setup_dbus_session() {
     local target_user="$1"
     local user_id="$2"
     
-    log "Setup D-Bus session per utente: $target_user (UID: $user_id)"
+    log "Setup D-Bus session per utente: $target_user"
+    rm -f /tmp/olms_dbus_vars.sh
     
-    # Forza l'indirizzo se il socket esiste ma la variabile è vuota o malformata
-    if [[ -S "/run/user/$user_id/bus" ]]; then
-        export DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$user_id/bus"
-        # IMPORTANTE: Esporta anche questa per app basate su vecchi toolkit
-        export DBUS_SESSION_BUS_PID=$(pgrep -u "$target_user" dbus-daemon | head -n 1)
-        log "D-Bus session già disponibile: $DBUS_SESSION_BUS_ADDRESS"
-    else
-        warn "D-Bus session non disponibile, tentativo di avvio..."
-        
-        # Se siamo root, prova ad avviare D-Bus per l'utente
-        if [[ "$EUID" -eq 0 ]]; then
-            log "Avvio D-Bus session per utente $target_user..."
-            
-            # Crea directory D-Bus se necessario
-            mkdir -p "/run/user/$user_id"
-            
-            # Avvia D-Bus session
-            dbus-launch --sh-syntax --exit-with-session > "/tmp/dbus_session_$user_id.env" 2>/dev/null || {
-                warn "Impossibile avviare D-Bus session per $target_user"
-                return 1
-            }
-            
-            # Carica variabili d'ambiente D-Bus
-            if [[ -f "/tmp/dbus_session_$user_id.env" ]]; then
-                source "/tmp/dbus_session_$user_id.env"
-                export DBUS_SESSION_BUS_ADDRESS
-                log "D-Bus session avviato: $DBUS_SESSION_BUS_ADDRESS"
-                
-                # Cleanup file temporaneo
-                rm -f "/tmp/dbus_session_$user_id.env"
-            fi
-        else
-            warn "Non root, impossibile avviare D-Bus session"
-        fi
-    fi
+    # Uccidiamo residui per liberare il socket astratto
+    sudo -u "$target_user" pkill -u "$target_user" -f "olms_bus_${user_id}" || true
+    sleep 1
     
-    # Verifica D-Bus connectivity
-    if [[ -n "${DBUS_SESSION_BUS_ADDRESS:-}" ]]; then
-        log "D-Bus session address: $DBUS_SESSION_BUS_ADDRESS"
-        
-        # Test D-Bus connectivity (se disponibile) - eseguito come utente target
-        if command -v dbus-send >/dev/null 2>&1; then
-            if [[ "$EUID" -eq 0 ]]; then
-                if DBUS_SESSION_BUS_ADDRESS="$DBUS_SESSION_BUS_ADDRESS" dbus-send --session --print-reply --dest=org.freedesktop.DBus / org.freedesktop.DBus.ListNames >/dev/null 2>&1; then
-                    log "D-Bus connectivity verificata per l'utente $target_user"
-                else
-                    warn "D-Bus connectivity fallita per l'utente $target_user"
-                fi
-            else
-                if dbus-send --session --print-reply --dest=org.freedesktop.DBus / org.freedesktop.DBus.ListNames >/dev/null 2>&1; then
-                    log "D-Bus connectivity verificata"
-                else
-                    warn "D-Bus connectivity fallita"
-                fi
-            fi
-        fi
+    local abstract_addr="unix:abstract=olms_bus_${user_id}"
+    log "Avvio dbus-daemon su: $abstract_addr"
+    
+    # Avvio e cattura dell'indirizzo reale
+    sudo -u "$target_user" dbus-daemon --fork --session --address="$abstract_addr" --print-address > /dev/null
+    
+    # Verifica PID
+    local dbus_pid=$(sudo -u "$target_user" pgrep -u "$target_user" -f "olms_bus_${user_id}")
+    
+    if [[ -n "$dbus_pid" ]]; then
+        export DBUS_SESSION_BUS_ADDRESS="$abstract_addr"
+        echo "export DBUS_SESSION_BUS_ADDRESS=\"$abstract_addr\"" > /tmp/olms_dbus_vars.sh
+        log "✅ D-Bus privato avviato (PID: $dbus_pid)"
     else
-        warn "D-Bus session address non impostato"
+        error "Impossibile avviare dbus-daemon."
+        exit 1
     fi
 }
 

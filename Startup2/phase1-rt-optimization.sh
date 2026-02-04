@@ -30,6 +30,8 @@ log() {
 
 warn() {
     echo -e "${YELLOW}[$(date '+%Y-%m-%d %H:%M:%S')] WARNING:${NC} $1" | tee -a "$LOG_FILE"
+    echo -e "${RED}[$(date '+%Y-%m-%d %H:%M:%S')] ERROR:${NC} Startup process aborted due to warning: $1" | tee -a "$LOG_FILE"
+    exit 1
 }
 
 error() {
@@ -200,15 +202,47 @@ configure_power_management() {
         log "irqbalance è disattivato (corretto per audio RT)"
     fi
     
-    # Configurazione C-states (richiede modifica GRUB, qui solo verifica)
-    log "Verifica C-states configuration..."
-    if [[ -f "/proc/cmdline" ]]; then
-        local cmdline=$(cat /proc/cmdline)
-        if echo "$cmdline" | grep -q "idle=nomwait\|processor.max_cstate=1"; then
-            log "C-states già disabilitati nel kernel"
-        else
-            warn "C-states non disabilitati nel kernel (richiede modifica GRUB)"
+    # Configurazione C-states (disabilitazione via sysfs per sistemi senza GRUB)
+    log "Configurazione C-states via sysfs..."
+    disable_cstates
+}
+
+# Funzione per disabilitare C-states problematici via sysfs
+disable_cstates() {
+    log "Disabilitazione C-states problematici per audio real-time..."
+    
+    local num_cores=$(nproc)
+    local disabled_states=0
+    
+    # Disabilita C3 e C6 per tutti i core (i più problematici per latenza)
+    for i in $(seq 0 $((num_cores - 1))); do
+        local cpu_path="/sys/devices/system/cpu/cpu${i}/cpuidle"
+        
+        # Disabilita C3 state (se presente)
+        if [[ -f "${cpu_path}/state3/disable" ]]; then
+            if echo 1 > "${cpu_path}/state3/disable" 2>/dev/null; then
+                log "C3 state disabilitato per CPU $i"
+                disabled_states=$((disabled_states + 1))
+            else
+                warn "Impossibile disabilitare C3 state per CPU $i (permessi)"
+            fi
         fi
+        
+        # Disabilita C6 state (se presente)
+        if [[ -f "${cpu_path}/state4/disable" ]]; then
+            if echo 1 > "${cpu_path}/state4/disable" 2>/dev/null; then
+                log "C6 state disabilitato per CPU $i"
+                disabled_states=$((disabled_states + 1))
+            else
+                warn "Impossibile disabilitare C6 state per CPU $i (permessi)"
+            fi
+        fi
+    done
+    
+    if [[ $disabled_states -gt 0 ]]; then
+        log "C-states disabilitati con successo: $disabled_states stati"
+    else
+        warn "Nessun C-state disabilitato (potrebbe essere già configurato o mancanza permessi)"
     fi
 }
 

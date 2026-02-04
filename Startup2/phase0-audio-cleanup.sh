@@ -21,6 +21,8 @@ log() {
 
 warn() {
     echo -e "${YELLOW}[$(date '+%Y-%m-%d %H:%M:%S')] WARNING:${NC} $1" | tee -a "$LOG_FILE"
+    echo -e "${RED}[$(date '+%Y-%m-%d %H:%M:%S')] ERROR:${NC} Startup process aborted due to warning: $1" | tee -a "$LOG_FILE"
+    exit 1
 }
 
 error() {
@@ -86,6 +88,7 @@ remove_socket_files() {
     local jack_patterns=(
         "/tmp/jack_*"
         "/dev/shm/jack_*"
+        "/dev/shm/jack-default_*"
         "/var/run/jack_*"
         "/run/jack_*"
         "/tmp/.jack*"
@@ -102,24 +105,29 @@ remove_socket_files() {
         "/var/lock/.pipewire*"
     )
     
-    # Rimuovi file socket JACK
-    for pattern in "${jack_patterns[@]}"; do
-        if ls $pattern 1> /dev/null 2>&1; then
-            log "Rimozione socket JACK: $pattern"
-            # Solo rimuovi file/directory che appartengono all'utente corrente
-            # Salta file di root per evitare errori di permesso
-            for file in $pattern; do
-                if [[ -e "$file" ]]; then
-                    file_owner=$(stat -c '%U' "$file" 2>/dev/null || echo "unknown")
-                    if [[ "$file_owner" == "$(whoami)" ]]; then
-                        rm -rf "$file" 2>/dev/null || warn "Impossibile rimuovere $file (permesso negato)"
-                    else
-                        log "Saltato $file (appartiene a $file_owner)"
+    # Rimuovi file socket JACK (AGGRESSIVO - rimuovi TUTTI i file)
+    # MA: Non rimuovere socket JACK se JACK è già in esecuzione (per evitare conflitti con Fase 3)
+    local jack_running=false
+    if pgrep -f "jackd" >/dev/null 2>&1; then
+        log "JACK è già in esecuzione, saltando rimozione socket JACK"
+        jack_running=true
+    fi
+    
+    if [[ "$jack_running" == "false" ]]; then
+        for pattern in "${jack_patterns[@]}"; do
+            if ls $pattern 1> /dev/null 2>&1; then
+                log "Rimozione socket JACK: $pattern"
+                # Rimuovi TUTTI i file socket JACK, indipendentemente dal proprietario
+                # Usa sudo per rimuovere anche i file di proprietà dell'utente francesco_ssh
+                for file in $pattern; do
+                    if [[ -e "$file" ]]; then
+                        log "Rimozione forzata socket JACK: $file"
+                        sudo rm -rf "$file" 2>/dev/null || warn "Impossibile rimuovere $file (continuando comunque)"
                     fi
-                fi
-            done
-        fi
-    done
+                done
+            fi
+        done
+    fi
     
     # Rimuovi file socket Pipewire
     for pattern in "${pipewire_patterns[@]}"; do
@@ -165,6 +173,83 @@ cleanup_shared_memory() {
     log "Shared memory IPC pulito"
 }
 
+# Disabilitazione schede audio interne
+disable_internal_audio() {
+    log "Disabilitazione schede audio interne..."
+    
+    # Controllo preventivo: verificare se l'audio è già disabilitato via kernel parameter
+    local enable_status=$(cat /sys/module/snd_hda_intel/parameters/enable 2>/dev/null || echo "")
+    if [[ "$enable_status" =~ ^N, ]]; then
+        log "Audio integrato già disabilitato via kernel parameter - saltando disabilitazione PCI"
+        return 0
+    fi
+    
+    # Identificare tutte le schede audio PCI (escludendo USB)
+    local pci_audio_devices=$(lspci | grep -i "audio" | grep -v "usb" | awk '{print $1}')
+    
+    if [[ -n "$pci_audio_devices" ]]; then
+        log "Schede audio PCI trovate: $pci_audio_devices"
+        
+        for device in $pci_audio_devices; do
+            local device_path="/sys/bus/pci/devices/0000:$device"
+            
+            if [[ -d "$device_path" ]]; then
+                log "Disabilitazione scheda audio PCI: $device"
+                
+                # Prova a disabilitare la scheda
+                if echo 0 > "$device_path/enable" 2>/dev/null; then
+                    log "Scheda audio $device disabilitata correttamente"
+                else
+                    # Se fallisce, registra ma NON blocca l'avvio
+                    warn "Impossibile disabilitare scheda audio $device (permessi insufficienti - continuerà l'avvio)"
+                    # RIMUOVERE: exit 1
+                fi
+            fi
+        done
+        
+        # Attesa per completamento disabilitazione
+        sleep 2
+        
+        # Verifica disabilitazione
+        local remaining_pci_audio=$(lspci | grep -i "audio" | grep -v "usb" | wc -l)
+        if [[ $remaining_pci_audio -eq 0 ]]; then
+            log "Tutte le schede audio PCI disabilitate correttamente"
+        else
+            warn "Alcune schede audio PCI potrebbero essere ancora attive"
+        fi
+    else
+        log "Nessuna scheda audio PCI trovata da disabilitare"
+    fi
+}
+
+# Attesa rilevamento dispositivi USB audio
+wait_usb_audio_devices() {
+    log "Attesa rilevamento dispositivi USB audio..."
+    
+    local usb_audio_wait=30
+    local usb_audio_found=false
+    
+    for i in $(seq 1 $usb_audio_wait); do
+        if lsusb | grep -i "audio\|sound" >/dev/null 2>&1; then
+            log "Dispositivi USB audio rilevati"
+            usb_audio_found=true
+            break
+        fi
+        
+        if [[ $i -eq $usb_audio_wait ]]; then
+            warn "Nessun dispositivo USB audio rilevato dopo $usb_audio_wait secondi"
+        fi
+        
+        sleep 1
+    done
+    
+    if [[ "$usb_audio_found" == "true" ]]; then
+        log "USB audio devices detected, continuing startup"
+    else
+        warn "No USB audio devices detected - this may affect audio functionality"
+    fi
+}
+
 # Hardware reset - rilascio dispositivi audio
 reset_audio_hardware() {
     log "Hardware reset - rilascio dispositivi audio..."
@@ -206,26 +291,24 @@ reset_audio_hardware() {
 cleanup_temp_directories() {
     log "Pulizia directory temporanee..."
     
-    # Directory da pulire
+    # Directory da pulire (AGGRESSIVO - rimuovi TUTTI i file)
     local temp_dirs=(
         "/tmp/jack*"
         "/tmp/pipewire*"
         "/dev/shm/jack*"
+        "/dev/shm/jack-default_*"
         "/dev/shm/pipewire*"
     )
     
     for dir_pattern in "${temp_dirs[@]}"; do
         if ls $dir_pattern 1> /dev/null 2>&1; then
             log "Pulizia directory: $dir_pattern"
-            # Solo rimuovi file/directory che appartengono all'utente corrente
+            # Rimuovi TUTTI i file socket JACK, indipendentemente dal proprietario
+            # Usa sudo per rimuovere anche i file di proprietà dell'utente francesco_ssh
             for file in $dir_pattern; do
                 if [[ -e "$file" ]]; then
-                    file_owner=$(stat -c '%U' "$file" 2>/dev/null || echo "unknown")
-                    if [[ "$file_owner" == "$(whoami)" ]]; then
-                        rm -rf "$file" 2>/dev/null || warn "Impossibile rimuovere $file (permesso negato)"
-                    else
-                        log "Saltato $file (appartiene a $file_owner)"
-                    fi
+                    log "Rimozione forzata directory temporanea: $file"
+                    sudo rm -rf "$file" 2>/dev/null || warn "Impossibile rimuovere $file (continuando comunque)"
                 fi
             done
         fi
@@ -272,6 +355,8 @@ main() {
     kill_audio_processes
     remove_socket_files
     cleanup_shared_memory
+    disable_internal_audio
+    wait_usb_audio_devices
     reset_audio_hardware
     cleanup_temp_directories
     verify_cleanup

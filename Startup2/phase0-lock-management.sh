@@ -73,8 +73,11 @@ check_lock_staleness() {
     # Verifica se il PID è ancora attivo
     local lock_pid=$(cat "$LOCK_FILE" 2>/dev/null || echo "")
     if [[ -n "$lock_pid" ]] && kill -0 "$lock_pid" 2>/dev/null; then
-        error "Processo di startup già in esecuzione (PID: $lock_pid)"
-        exit 1
+        warn "Lock file con PID $lock_pid ancora attivo, rimozione forzata"
+        # Forza la rimozione del lock file anche se il PID è attivo
+        # Questo può succedere se il processo è zombie o se c'è un bug
+        rm -f "$LOCK_FILE"
+        return 0
     fi
     
     # Se il PID non è attivo, rimuovi il lock file "morto"
@@ -148,6 +151,19 @@ cleanup_ardour_sessions() {
     
     log "Sessioni Ardour trovate: $ardour_pids"
     
+    # Verifica se Ardour è già in esecuzione e se è la stessa sessione che stiamo per avviare
+    local current_session=$(ps -o pid,cmd -p $(pgrep -x ardour) 2>/dev/null | grep -v grep || true)
+    if [[ -n "$current_session" ]]; then
+        log "Ardour è già in esecuzione con una sessione attiva"
+        # Controlla se è la stessa sessione che stiamo per avviare
+        local session_path="$HOME/.olms/sessions/OLMS-POC"
+        if [[ -f "$session_path/OLMS-POC.pending" ]]; then
+            log "Sessione OLMS-POC già in esecuzione - saltando cleanup"
+            return 0
+        fi
+    fi
+    
+    # Procedi con il cleanup solo se non è la stessa sessione
     # Tentativo di salvataggio delle sessioni (se possibile)
     log "Tentativo di salvataggio sessioni Ardour..."
     for pid in $ardour_pids; do
