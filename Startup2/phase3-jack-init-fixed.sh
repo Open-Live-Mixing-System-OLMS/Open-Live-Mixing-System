@@ -179,8 +179,8 @@ start_jack_with_isolation() {
             /usr/bin/jackd -R -P 80 -n olms -d alsa -d "$TARGET_ALSA_DEVICE" -r "$SAMPLE_RATE" -p "$buffer_size" -n "$periods" > /tmp/jack_startup.log 2>&1 &
         jack_pid=$!
         
-        # Save PID for monitoring
-        echo "$jack_pid" > /tmp/jack.pid
+        # Save PID for monitoring - ensure it's owned by francesco_ssh
+        sudo -u francesco_ssh bash -c "echo '$jack_pid' > /tmp/jack.pid"
         
         log "JACK started with PID: $jack_pid (Buffer=${buffer_size}, Periods=${periods})"
         
@@ -223,8 +223,8 @@ start_jack_with_isolation() {
     
     # Fix permissions permanently to prevent client connection issues
     log "Fixing socket permissions permanently..."
-    chmod -R 777 /dev/shm/jack-* /tmp/jack-* 2>/dev/null || true
-    chmod 777 /dev/shm/jack-shm-registry 2>/dev/null || true
+    sudo -u francesco_ssh bash -c "chmod -R 777 /dev/shm/jack-* /tmp/jack-* 2>/dev/null || true"
+    sudo -u francesco_ssh bash -c "chmod 777 /dev/shm/jack-shm-registry 2>/dev/null || true"
     
     return 0
 }

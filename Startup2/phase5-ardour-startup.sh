@@ -52,6 +52,10 @@ start_ardour_with_fallback() {
     local base_env="DISPLAY=$DISPLAY XAUTHORITY=$XAUTHORITY_PATH XDG_RUNTIME_DIR=/run/user/$ARD_UID DBUS_SESSION_BUS_ADDRESS=unix:abstract=$DBUS_SOCKET_ABSTRACT JACK_DEFAULT_SERVER=$JACK_SERVER_NAME JACK_SESSION_DIR=$JACK_SESSION_DIR JACK_NO_START_SERVER=1 JACK_PROMISCUOUS_SERVER=1"
 
     log "Esecuzione comando finale..."
+    log "Transizione utente: sudo -u $ARD_USER (UID: $ARD_UID)"
+    log "Ambiente impostato: DISPLAY=$DISPLAY, XAUTHORITY=$XAUTHORITY_PATH"
+    log "Comando: taskset -c $CPU_CORES chrt -f $RT_PRIORITY /usr/bin/ardour8 -Z olms -n $ARD_SESSION_PATH"
+    
     # Aggiungi esplicitamente il flag -Z (o --jack-server) ad Ardour
     sudo -u "$ARD_USER" -E env $base_env taskset -c "$CPU_CORES" chrt -f "$RT_PRIORITY" /usr/bin/ardour8 -Z olms -n "$ARD_SESSION_PATH"
 }
@@ -79,6 +83,20 @@ main() {
     log "Avvio Ardour con parametri di compatibilità JACK2..."
     
     # Prepariamo l'ambiente esatto per francesco_ssh
+    log "Transizione utente: sudo -u $ARD_USER (UID: $ARD_UID)"
+    log "Ambiente impostato per utente $ARD_USER:"
+    log "  HOME=/home/francesco_ssh"
+    log "  DISPLAY=:0"
+    log "  XAUTHORITY=/home/francesco_ssh/.Xauthority"
+    log "  XDG_RUNTIME_DIR=/run/user/1000"
+    log "  JACK_DEFAULT_SERVER=olms"
+    log "  JACK_PROMISCUOUS_SERVER=1"
+    log "  JACK_NO_START_SERVER=1"
+    log "  CPU affinity: taskset -c $CPU_CORES"
+    log "  RT priority: chrt -f $RT_PRIORITY"
+    log "Comando finale: /usr/bin/ardour8 --no-splash $ARD_SESSION_PATH"
+    
+    # Avvio Ardour in background per permettere al processo di continuare
     sudo -u "$ARD_USER" env \
         HOME=/home/francesco_ssh \
         DISPLAY=:0 \
@@ -89,7 +107,19 @@ main() {
         JACK_NO_START_SERVER=1 \
         taskset -c "$CPU_CORES" \
         chrt -f "$RT_PRIORITY" \
-        /usr/bin/ardour8 --no-splash "$ARD_SESSION_PATH"
+        /usr/bin/ardour8 --no-splash "$ARD_SESSION_PATH" &
+    
+    # Aspetta un momento per assicurarsi che Ardour sia avviato
+    sleep 2
+    
+    # Verifica che Ardour sia effettivamente in esecuzione
+    if pgrep -f "ardour8.*--no-splash" > /dev/null; then
+        local ardour_pid=$(pgrep -f "ardour8.*--no-splash")
+        log "✅ Ardour avviato correttamente in background (PID: $ardour_pid)"
+    else
+        error "ERRORE: Ardour non è stato avviato correttamente"
+        exit 1
+    fi
 }
 
 main "$@"

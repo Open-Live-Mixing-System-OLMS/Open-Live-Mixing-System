@@ -229,7 +229,10 @@ phase5_ardour_startup() {
     log "=== FASE 5: ARDOUR DAW STARTUP ==="
     
     if [[ -f "$SCRIPT_DIR/phase5-ardour-startup.sh" ]]; then
+        log "Avvio script phase5-ardour-startup.sh..."
+        log "Questo script eseguirà la transizione utente a francesco_ssh per avviare Ardour"
         bash "$SCRIPT_DIR/phase5-ardour-startup.sh"
+        log "Script phase5-ardour-startup.sh completato"
     else
         error "Script phase5-ardour-startup.sh non trovato"
         exit 1

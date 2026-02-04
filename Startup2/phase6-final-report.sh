@@ -97,7 +97,15 @@ generate_final_report() {
     fi
     
     # IRQ Audio
-    local irq_audio=$(grep -c "0x2" /proc/irq/*/smp_affinity 2>/dev/null || echo "0")
+    local irq_audio=0
+    for irq_file in /proc/irq/*/smp_affinity; do
+        if [[ -f "$irq_file" ]]; then
+            local affinity=$(cat "$irq_file" 2>/dev/null | tr -d ' \n')
+            if [[ "$affinity" == "0x2" ]]; then
+                ((irq_audio++))
+            fi
+        fi
+    done
     if [[ "$irq_audio" -gt 0 ]]; then
         log "║  ✓ IRQ Audio: $irq_audio pinati su Core 1                         ║"
     else
@@ -114,11 +122,29 @@ generate_final_report() {
     log "║  ✓ RT Runtime: ${rt_alloc}% CPU disponibile per task real-time   ║"
     
     # Parametri Audio JACK
-    local jack_params=$(ps aux | grep "jackd" | grep -o "r [0-9]*" | head -1 | cut -d' ' -f2 || echo "unknown")
-    local jack_buffer=$(ps aux | grep "jackd" | grep -o "p [0-9]*" | head -1 | cut -d' ' -f2 || echo "unknown")
-    local jack_periods=$(ps aux | grep "jackd" | grep -o "n [0-9]*" | head -1 | cut -d' ' -f2 || echo "unknown")
+    local jack_params="unknown"
+    local jack_buffer="unknown"
+    local jack_periods="unknown"
+    local jack_cmd=""
     
-    if [[ "$jack_params" != "unknown" ]] && [[ "$jack_buffer" != "unknown" ]] && [[ "$jack_periods" != "unknown" ]]; then
+    # Cerca il comando JACK attivo
+    for pid in $(pgrep -f "jackd" 2>/dev/null || true); do
+        if kill -0 "$pid" 2>/dev/null; then
+            jack_cmd=$(ps -p "$pid" -o args= 2>/dev/null)
+            if [[ -n "$jack_cmd" ]]; then
+                break
+            fi
+        fi
+    done
+    
+    if [[ -n "$jack_cmd" ]]; then
+        # Estrai i parametri usando pattern più robusti
+        jack_params=$(echo "$jack_cmd" | sed -n 's/.*-r \([0-9]*\).*/\1/p')
+        jack_buffer=$(echo "$jack_cmd" | sed -n 's/.*-p \([0-9]*\).*/\1/p')
+        jack_periods=$(echo "$jack_cmd" | sed -n 's/.*-n \([0-9]*\).*/\1/p')
+    fi
+    
+    if [[ "$jack_params" != "unknown" ]] && [[ "$jack_buffer" != "unknown" ]] && [[ "$jack_periods" != "unknown" ]] && [[ -n "$jack_params" ]] && [[ -n "$jack_buffer" ]] && [[ -n "$jack_periods" ]]; then
         local latency_ms=$(echo "scale=2; $jack_buffer * $jack_periods / ($jack_params / 1000)" | bc -l 2>/dev/null || echo "unknown")
         log "║  ✓ Sample Rate: ${jack_params}Hz, Buffer: ${jack_buffer} frames, Periods: ${jack_periods}        ║"
         log "║  ✓ Latenza stimata: ${latency_ms}ms                                    ║"
