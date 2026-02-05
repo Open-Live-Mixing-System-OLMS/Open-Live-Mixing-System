@@ -23,7 +23,7 @@ url="https://github.com/Open-Live-Mixing-System-OLMS/Open-Live-Mixing-System" # 
 license=('GPLv3') # GPLv3 License as per specifications
 groups=()
 depends=(
-    'alsa-utils'
+    'alsa-utils'        # Includes alsabat for hardware-level latency testing
     'ardour'
     'jack-example-tools'
     'pulseaudio-jack'
@@ -98,6 +98,10 @@ package() {
     install -m755 scripts/cpu_shielding.sh "${pkgdir}/usr/bin/cpu_shielding"
     install -m755 scripts/setup_realtime_privileges.sh "${pkgdir}/usr/bin/setup_realtime_privileges"
     install -m755 scripts/usb_audio_session_adapter.sh "${pkgdir}/usr/bin/usb_audio_session_adapter"
+    
+    # Copy latency test scripts
+    install -m755 scripts/olms-latency-test.sh "${pkgdir}/usr/bin/olms-latency-test"
+    install -m755 scripts/olms-alsa-latency-test.sh "${pkgdir}/usr/bin/olms-alsa-latency-test"
     
     # Copy JACK socket permissions fix scripts
     install -m755 Startup2/phase3-jack-init.sh "${pkgdir}/usr/bin/olms-jack-init"
@@ -229,6 +233,10 @@ post_install() {
     echo "14. Launch OLMS system:"
     echo "    ./scripts/olms-test-launcher.sh    # For testing with GUI"
     echo "    ./scripts/olms-prod-launcher.sh    # For production (headless)"
+    echo ""
+    echo "15. Test system latency:"
+    echo "    olms-latency-test                  # JACK-level latency measurement tool"
+    echo "    olms-alsa-latency-test             # Hardware-level latency measurement tool (ALSA)"
     echo ""
     echo "For more information, see:"
     echo "  - OLMS_specs.md for detailed documentation"

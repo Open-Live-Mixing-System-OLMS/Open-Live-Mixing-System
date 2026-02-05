@@ -10,6 +10,9 @@ echo "Installing/updating required packages..."
 # Using --noconfirm to prevent interactive prompts, as this is a setup script.
 sudo pacman -Syu --noconfirm alsa-utils ardour jack-example-tools pulseaudio-jack qjackctl nodejs npm git openssh libxcrypt-compat icu tar wget linux linux-headers dkms r8168-dkms r8168
 
+# Note: alsabat is included in alsa-utils package for hardware-level latency testing
+echo "✓ alsabat (ALSA Basic Audio Tester) included for hardware latency measurements"
+
 # 2. Configure OpenSSH for remote access
 echo "Configuring OpenSSH..."
 sudo systemctl enable --now sshd
@@ -72,6 +75,12 @@ sudo chmod +x /usr/bin/olms-jack-init
 sudo chmod +x /usr/bin/olms-ardour-startup
 sudo chmod +x /usr/bin/olms-test-jack-stability
 echo "✓ JACK socket permissions fix scripts installed"
+
+# Install latency test script
+echo "Installing latency test script..."
+sudo cp scripts/olms-latency-test.sh /usr/bin/olms-latency-test
+sudo chmod +x /usr/bin/olms-latency-test
+echo "✓ Latency test script installed"
 
 # Function to print status messages
 print_status() {
