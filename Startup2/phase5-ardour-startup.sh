@@ -96,8 +96,8 @@ main() {
     log "  RT priority: chrt -f $RT_PRIORITY"
     log "Comando finale: /usr/bin/ardour8 --no-splash $ARD_SESSION_PATH"
     
-    # Avvio Ardour in background per permettere al processo di continuare
-    sudo -u "$ARD_USER" env \
+    # Avvio Ardour in background per permettere al processo di continuare (usando exec per evitare shell shim)
+    exec sudo -u "$ARD_USER" env \
         HOME=/home/francesco_ssh \
         DISPLAY=:0 \
         XAUTHORITY=/home/francesco_ssh/.Xauthority \

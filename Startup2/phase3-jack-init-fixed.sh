@@ -29,6 +29,12 @@ BUFFER_CONFIGS=(
     "256:3"  # 256 frames, 3 periodi = 768 frames totali (configurazione attuale)
 )
 
+# Configurazioni bit-depth in ordine di preferenza (24-bit → 16-bit fallback)
+BIT_DEPTH_CONFIGS=(
+    "24"   # Primo tentativo: 24-bit (per compatibilità Ardour)
+    "16"   # Fallback: 16-bit (hardware limit della PCM2902)
+)
+
 SAMPLE_RATE=48000
 
 # Enhanced cleanup with better USB device handling
@@ -155,57 +161,72 @@ start_jack_with_isolation() {
     pkill -9 jackd 2>/dev/null || true
     sleep 3
     
-    # Test buffer configurations in order of preference
+    # Test bit-depth and buffer configurations with fallback strategy
     local jack_pid=""
     local config_success=false
     
-    for config in "${BUFFER_CONFIGS[@]}"; do
-        local buffer_size="${config%:*}"
-        local periods="${config#*:}"
+    # Outer loop: test bit-depth configurations (24-bit → 16-bit fallback)
+    for bit_depth in "${BIT_DEPTH_CONFIGS[@]}"; do
+        log "Testing JACK with ${bit_depth}-bit depth..."
         
-        log "Testing JACK configuration: Buffer=${buffer_size}, Periods=${periods}"
+        # Inner loop: test buffer configurations for current bit-depth
+        for config in "${BUFFER_CONFIGS[@]}"; do
+            local buffer_size="${config%:*}"
+            local periods="${config#*:}"
+            
+            log "Testing JACK configuration: Buffer=${buffer_size}, Periods=${periods}, Bit-depth=${bit_depth}"
+            
+            # Launch JACK with current configuration using exec to avoid shell shim
+            log "Launching JACK with user delegation (francesco_ssh) and clean environment..."
+            log "Starting JACK with optimized parameters..."
+            log "Command: exec sudo -u francesco_ssh env -i HOME=/home/francesco_ssh PATH=/usr/bin:/bin XDG_RUNTIME_DIR=/run/user/1000 JACK_NO_AUDIO_RESERVATION=1 JACK_PROMISCUOUS_SERVER=1 JACK_DEFAULT_SERVER=olms taskset -c 2-3 chrt -f 80 jackd -R -P 80 -n olms -d alsa -d $TARGET_ALSA_DEVICE -r $SAMPLE_RATE -p $buffer_size -n $periods -S ${bit_depth}"
+            
+            exec sudo -u francesco_ssh env -i \
+                HOME=/home/francesco_ssh \
+                PATH=/usr/bin:/bin \
+                XDG_RUNTIME_DIR=/run/user/1000 \
+                JACK_NO_AUDIO_RESERVATION=1 \
+                JACK_PROMISCUOUS_SERVER=1 \
+                /usr/bin/jackd -R -P 80 -n olms -d alsa -d "$TARGET_ALSA_DEVICE" -r "$SAMPLE_RATE" -p "$buffer_size" -n "$periods" -S "$bit_depth" > /tmp/jack_startup.log 2>&1 &
+            jack_pid=$!
+            
+            # Save PID for monitoring - ensure it's owned by francesco_ssh
+            sudo -u francesco_ssh bash -c "echo '$jack_pid' > /tmp/jack.pid"
+            
+            log "JACK started with PID: $jack_pid (Buffer=${buffer_size}, Periods=${periods}, Bit-depth=${bit_depth})"
+            
+            # Wait for JACK to initialize
+            sleep 5
+            
+            # Verify JACK is running and stable
+            if ps -p "$jack_pid" > /dev/null 2>&1; then
+                # Check actual JACK configuration from log
+                local actual_format=$(grep "final selected sample format" /tmp/jack_startup.log | tail -1 | grep -o "16bit\|24bit\|32bit" | head -1)
+                if [ -z "$actual_format" ]; then
+                    actual_format="unknown"
+                fi
+                
+                log "✅ JACK configuration successful: Buffer=${buffer_size}, Periods=${periods}, Bit-depth=${bit_depth} (actual: ${actual_format})"
+                log "✅ Latenza stimata: $((buffer_size * periods * 1000 / SAMPLE_RATE))ms"
+                config_success=true
+                break 2  # Exit both loops on success
+            else
+                log "❌ JACK configuration failed: Buffer=${buffer_size}, Periods=${periods}, Bit-depth=${bit_depth}"
+                # Kill failed JACK process
+                pkill -9 jackd 2>/dev/null || true
+                sleep 2
+                # Continue to next buffer configuration
+            fi
+        done
         
-        # Launch JACK with current configuration
-        log "Launching JACK with user delegation (francesco_ssh) and clean environment..."
-        log "Starting JACK with optimized parameters..."
-        log "Command: sudo -u francesco_ssh env -i HOME=/home/francesco_ssh PATH=/usr/bin:/bin XDG_RUNTIME_DIR=/run/user/1000 JACK_NO_AUDIO_RESERVATION=1 JACK_PROMISCUOUS_SERVER=1 JACK_DEFAULT_SERVER=olms taskset -c 2-3 chrt -f 80 jackd -R -P 80 -n olms -d alsa -d $TARGET_ALSA_DEVICE -r $SAMPLE_RATE -p $buffer_size -n $periods"
-        
-        sudo -u francesco_ssh env -i \
-            HOME=/home/francesco_ssh \
-            PATH=/usr/bin:/bin \
-            XDG_RUNTIME_DIR=/run/user/1000 \
-            JACK_NO_AUDIO_RESERVATION=1 \
-            JACK_PROMISCUOUS_SERVER=1 \
-            /usr/bin/jackd -R -P 80 -n olms -d alsa -d "$TARGET_ALSA_DEVICE" -r "$SAMPLE_RATE" -p "$buffer_size" -n "$periods" > /tmp/jack_startup.log 2>&1 &
-        jack_pid=$!
-        
-        # Save PID for monitoring - ensure it's owned by francesco_ssh
-        sudo -u francesco_ssh bash -c "echo '$jack_pid' > /tmp/jack.pid"
-        
-        log "JACK started with PID: $jack_pid (Buffer=${buffer_size}, Periods=${periods})"
-        
-        # Wait for JACK to initialize
-        sleep 5
-        
-        # Verify JACK is running and stable
-        if ps -p "$jack_pid" > /dev/null 2>&1; then
-            log "✅ JACK configuration successful: Buffer=${buffer_size}, Periods=${periods}"
-            log "✅ Latenza stimata: $((buffer_size * periods * 1000 / SAMPLE_RATE))ms"
-            config_success=true
-            break
-        else
-            log "❌ JACK configuration failed: Buffer=${buffer_size}, Periods=${periods}"
-            # Kill failed JACK process
-            pkill -9 jackd 2>/dev/null || true
-            sleep 2
-            # Continue to next configuration
-        fi
+        # If we reach here, all buffer configs failed for this bit-depth
+        log "⚠️ All buffer configurations failed for ${bit_depth}-bit depth"
     done
     
     # If no configuration worked, try dummy backend as fallback
     if [ "$config_success" = false ]; then
         log "⚠️ All ALSA configurations failed, trying dummy backend..."
-        sudo -u francesco_ssh env -i \
+        exec sudo -u francesco_ssh env -i \
             HOME=/home/francesco_ssh \
             PATH=/usr/bin:/bin \
             XDG_RUNTIME_DIR=/run/user/1000 \

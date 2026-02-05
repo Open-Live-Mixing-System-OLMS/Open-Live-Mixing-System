@@ -41,9 +41,9 @@ info() {
     echo -e "${BLUE}[$(date '+%Y-%m-%d %H:%M:%S')] INFO:${NC} $1" | tee -a "$LOG_FILE"
 }
 
-# Rilevamento hardware audio - VERSIONE PULITA
+# Rilevamento hardware audio - VERSIONE DINAMICA
 detect_audio_hardware() {
-    log "Rilevamento hardware audio..."
+    log "Rilevamento hardware audio (approccio dinamico)..."
     local audio_irqs=()
     # Pattern specifici per evitare falsi positivi
     local patterns="snd|audio|sound|hda|xhci_hcd|ehci_hcd"
@@ -60,125 +60,71 @@ detect_audio_hardware() {
     printf '%s\n' "${audio_irqs[@]}" | sort -nu
 }
 
+# Funzione per trovare IRQ USB in modo dinamico (soluzione al problema IRQ 122)
+find_usb_irq_dynamic() {
+    log "Ricerca IRQ USB dinamico per xhci_hcd..."
+    
+    # Cerca l'IRQ associato a xhci_hcd (controller USB)
+    # Formato /proc/interrupts: "122:      40313    4390635          0          0 PCI-MSI-0000:00:14.0    0-edge      xhci_hcd"
+    local usb_irq=$(grep "xhci_hcd" /proc/interrupts | awk '{print $1}' | tr -d ':')
+    
+    if [[ -n "$usb_irq" ]]; then
+        log "IRQ USB trovato dinamicamente: $usb_irq (driver: xhci_hcd)"
+        echo "$usb_irq"
+    else
+        # Fallback: cerca altri pattern USB
+        local usb_irq_alt=$(grep -E "usb.*hcd|ehci_hcd" /proc/interrupts | awk '{print $1}' | tr -d ':' | head -1)
+        if [[ -n "$usb_irq_alt" ]]; then
+            log "IRQ USB alternativo trovato: $usb_irq_alt"
+            echo "$usb_irq_alt"
+        else
+            log "Nessun IRQ USB trovato dinamicamente"
+            echo ""
+        fi
+    fi
+}
+
 # Configurazione IRQ affinity - ENHANCED VERSION with IRQ 126 Fix
 configure_irq_affinity() {
     local audio_irqs=("$@")
-    [[ ${#audio_irqs[@]} -eq 0 ]] && { warn "Nessun IRQ audio rilevato"; return 0; }
+    [[ ${#audio_irqs[@]} -eq 0 ]] && { log "Nessun IRQ audio rilevato dai pattern standard"; }
     
-    log "Configurazione IRQ affinity per ${#audio_irqs[@]} IRQ audio (ENHANCED)..."
+    log "Configurazione IRQ affinity per IRQ rilevati..."
     
-    # Assicuriamoci che il file di log di fallback sia scrivibile
-    # Controllo proprietà file prima della rimozione
-    if [[ -f "$OLMS_HOME/olms-irq-config.txt" ]]; then
-        file_owner=$(stat -c '%U' "$OLMS_HOME/olms-irq-config.txt" 2>/dev/null || echo "unknown")
-        if [[ "$file_owner" == "$(whoami)" ]]; then
-            rm -f "$OLMS_HOME/olms-irq-config.txt" 2>/dev/null || warn "Impossibile rimuovere $OLMS_HOME/olms-irq-config.txt (permesso negato)"
-        else
-            log "Saltato $OLMS_HOME/olms-irq-config.txt (appartiene a $file_owner)"
-        fi
+    # Uniamo gli IRQ rilevati con quello USB dinamico per processarli tutti insieme
+    local usb_irq=$(find_usb_irq_dynamic)
+    if [[ -n "$usb_irq" ]]; then
+        audio_irqs+=("$usb_irq")
     fi
-    touch "$OLMS_HOME/olms-irq-config.txt" 2>/dev/null || warn "Impossibile creare $OLMS_HOME/olms-irq-config.txt (permesso negato)"
-    
-    for irq in "${audio_irqs[@]}"; do
+
+    # Rimuovi duplicati
+    local unique_irqs=($(printf "%s\n" "${audio_irqs[@]}" | sort -u))
+
+    for irq in "${unique_irqs[@]}"; do
         local affinity_file="/proc/irq/${irq}/smp_affinity"
         
-        if [[ ! -f "$affinity_file" ]]; then continue; fi
+        if [[ ! -f "$affinity_file" ]]; then 
+            log "IRQ $irq non presente in /proc/irq, salto..."
+            continue 
+        fi
 
         log "Tentativo pinning IRQ $irq sul core $AUDIO_CORE..."
         
-        # Proviamo entrambi i metodi: smp_affinity (mask) e smp_affinity_list (ID core)
-        # DOPPIO TENTATIVO con formati diversi per risolvere il problema IRQ 126
         local success=false
-        
-        # Tentativo 1: Maschera esadecimale (0x2)
+        # Tentativo 1: Maschera esadecimale (0x2 per core 1)
         if { echo "0x2" > "$affinity_file"; } 2>/dev/null; then
             log "IRQ $irq: OK (Core $AUDIO_CORE) - Maschera esadecimale"
             success=true
-        elif { echo "$CPU_MASK_CORE_1" > "$affinity_file"; } 2>/dev/null; then
-            log "IRQ $irq: OK (Core $AUDIO_CORE) - Maschera esadecimale alternativa"
-            success=true
-        fi
-        
         # Tentativo 2: ID core numerico
-        if [[ "$success" == "false" ]] && { echo "$AUDIO_CORE" > "/proc/irq/$irq/smp_affinity_list"; } 2>/dev/null; then
+        elif { echo "$AUDIO_CORE" > "/proc/irq/$irq/smp_affinity_list"; } 2>/dev/null; then
             log "IRQ $irq: OK (Core $AUDIO_CORE) - ID core numerico"
             success=true
         fi
         
-        # Tentativo 3: Maschera binaria
-        if [[ "$success" == "false" ]] && { echo "2" > "$affinity_file"; } 2>/dev/null; then
-            log "IRQ $irq: OK (Core $AUDIO_CORE) - Maschera binaria"
-            success=true
-        fi
-        
         if [[ "$success" == "false" ]]; then
-            # Se ancora fallisce, verifichiamo se l'IRQ è rilocabile
-            local mask=$(cat "$affinity_file" 2>/dev/null || echo "unknown")
-            warn "IRQ $irq bloccato su affinity: $mask. Tentativo di forzatura fallito."
-            
-            # Notifica specifica per IRQ 126
-            if [[ "$irq" == "126" ]]; then
-                warn "IRQ 126: Problema specifico rilevato - potrebbe richiedere riavvio del kernel"
-                warn "Suggerimento: Verifica che il kernel supporti il pinning IRQ 126"
-            fi
+            log "WARNING: IRQ $irq non rilocabile (permesso negato o hardware fisso)"
         fi
     done
-    
-    # Gestione specifica per IRQ 122 (Controller USB)
-    log "Gestione specifica per IRQ 122 (Controller USB)..."
-    if [[ -f "/proc/irq/122/smp_affinity" ]]; then
-        log "Tentativo pinning IRQ 122 sul core $AUDIO_CORE..."
-        local success=false
-        
-        # Doppio tentativo per IRQ 122
-        if { echo "0x2" > "/proc/irq/122/smp_affinity"; } 2>/dev/null; then
-            log "IRQ 122: OK (Core $AUDIO_CORE) - Maschera esadecimale"
-            success=true
-        elif { echo "$AUDIO_CORE" > "/proc/irq/122/smp_affinity_list"; } 2>/dev/null; then
-            log "IRQ 122: OK (Core $AUDIO_CORE) - ID core numerico"
-            success=true
-        fi
-        
-        if [[ "$success" == "false" ]]; then
-            local mask=$(cat "/proc/irq/122/smp_affinity" 2>/dev/null || echo "unknown")
-            warn "IRQ 122 bloccato su affinity: $mask. Tentativo di forzatura fallito."
-        fi
-    else
-        warn "IRQ 122 non trovato o non accessibile"
-    fi
-    
-    # Gestione universale per controller disabilitati
-    log "Gestione universale per controller disabilitati..."
-    
-    # Verifica se audio è disabilitato prima di tentare configurazione IRQ
-    local enable_status=$(cat /sys/module/snd_hda_intel/parameters/enable 2>/dev/null || echo "")
-    if [[ "$enable_status" =~ ^N, ]]; then
-        log "Audio disabilitato via kernel parameter - saltando configurazione IRQ (universale)"
-        # Non bloccare l'avvio, continua con la verifica
-    fi
-    
-    # Gestione specifica per IRQ 122 (Controller USB)
-    log "Gestione specifica per IRQ 122 (Controller USB)..."
-    if [[ -f "/proc/irq/122/smp_affinity" ]]; then
-        log "Tentativo pinning IRQ 122 sul core $AUDIO_CORE..."
-        local success=false
-        
-        # Doppio tentativo per IRQ 122
-        if { echo "0x2" > "/proc/irq/122/smp_affinity"; } 2>/dev/null; then
-            log "IRQ 122: OK (Core $AUDIO_CORE) - Maschera esadecimale"
-            success=true
-        elif { echo "$AUDIO_CORE" > "/proc/irq/122/smp_affinity_list"; } 2>/dev/null; then
-            log "IRQ 122: OK (Core $AUDIO_CORE) - ID core numerico"
-            success=true
-        fi
-        
-        if [[ "$success" == "false" ]]; then
-            local mask=$(cat "/proc/irq/122/smp_affinity" 2>/dev/null || echo "unknown")
-            warn "IRQ 122 bloccato su affinity: $mask. Tentativo di forzatura fallito."
-        fi
-    else
-        warn "IRQ 122 non trovato o non accessibile"
-    fi
 }
 
 # Verifica IRQ configuration
@@ -280,6 +226,45 @@ prepare_system() {
     fi
 }
 
+# Funzione per configurare i volumi hardware dopo il reload dei moduli
+fix_hardware_volumes() {
+    log "Configurazione volumi hardware per PCM2902..."
+    
+    # Prova diversi metodi per impostare il volume al 100% e sbloccare
+    local success=false
+    
+    # Metodo 1: Usa il nome del controllo PCM
+    if amixer -c 1 sset 'PCM' 100% unmute 2>/dev/null; then
+        log "✅ Volume PCM impostato al 100% (metodo 1)"
+        success=true
+    fi
+    
+    # Metodo 2: Usa il controllo specifico numid=4 (se il primo fallisce)
+    if [[ "$success" == "false" ]] && amixer -c 1 cset numid=4 128 2>/dev/null; then
+        log "✅ Volume impostato tramite numid=4 (metodo 2)"
+        success=true
+    fi
+    
+    # Metodo 3: Prova con Capture se PCM non è disponibile
+    if [[ "$success" == "false" ]] && amixer -c 1 sset 'Capture' 100% unmute 2>/dev/null; then
+        log "✅ Volume Capture impostato al 100% (metodo 3)"
+        success=true
+    fi
+    
+    # Metodo 4: Prova con Master se altri metodi falliscono
+    if [[ "$success" == "false" ]] && amixer -c 1 sset 'Master' 100% unmute 2>/dev/null; then
+        log "✅ Volume Master impostato al 100% (metodo 4)"
+        success=true
+    fi
+    
+    if [[ "$success" == "false" ]]; then
+        warn "Impossibile configurare il volume hardware automaticamente"
+        warn "Suggerimento: eseguire manualmente 'amixer -c 1 cset numid=4 128'"
+    else
+        log "Volume hardware configurato correttamente"
+    fi
+}
+
 # Funzione principale
 main() {
     prepare_system
@@ -296,10 +281,13 @@ main() {
     # Verifica configurazione
     verify_irq_configuration
     
+    # Configurazione volumi hardware (nuova funzione per prevenire il problema del volume a zero)
+    fix_hardware_volumes
+    
     # Hardware check finale
     final_hardware_check
     
-    log "Configurazione hardware e IRQ pinning completata"
+    log "Configurazione hardware, IRQ pinning e volumi completata"
 }
 
 # Esegui se chiamato direttamente

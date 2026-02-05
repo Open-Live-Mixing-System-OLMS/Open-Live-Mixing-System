@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<UndoHistory>
+  <UndoTransaction tv-sec="1770240309" tv-usec="285325" name="add marker">
+    <MementoCommand obj-id="57" type-name="ARDOUR::Locations">
+      <Locations/>
+      <Locations>
+        <Location id="8852" name="mark1" start="a0" end="a0" flags="IsMark" locked="0" timestamp="1770240309" cue="0"/>
+      </Locations>
+    </MementoCommand>
+  </UndoTransaction>
+</UndoHistory>

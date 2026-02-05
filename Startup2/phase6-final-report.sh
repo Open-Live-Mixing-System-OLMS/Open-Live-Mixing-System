@@ -96,18 +96,41 @@ generate_final_report() {
         log "║  ✗ Scheda Audio: non rilevata                                 ║"
     fi
     
-    # IRQ Audio
+    # IRQ Audio - Verifica migliorata con approccio dinamico
     local irq_audio=0
+    local usb_irq_found=""
+    
+    # Cerchiamo l'IRQ USB in modo dinamico (stesso approccio di phase2-hardware-config.sh)
+    usb_irq_found=$(grep "xhci_hcd" /proc/interrupts | cut -d: -f1 | tr -d ' ')
+    
+    # Controlliamo tutti gli IRQ pinati su Core 1 (maschera 0x2)
     for irq_file in /proc/irq/*/smp_affinity; do
         if [[ -f "$irq_file" ]]; then
+            local irq_num=$(basename "$irq_file" | sed 's/smp_affinity//')
             local affinity=$(cat "$irq_file" 2>/dev/null | tr -d ' \n')
+            local description=$(grep "^${irq_num}:" /proc/interrupts | cut -d' ' -f2-)
+            
             if [[ "$affinity" == "0x2" ]]; then
                 ((irq_audio++))
+                log "║  ✓ IRQ $irq_num: $description -> Core 1 (0x2)                    ║"
             fi
         fi
     done
+    
+    # Verifica specifica per l'IRQ USB (soluzione al problema IRQ 122)
+    if [[ -n "$usb_irq_found" ]]; then
+        local usb_affinity=$(cat "/proc/irq/${usb_irq_found}/smp_affinity" 2>/dev/null | tr -d ' \n')
+        if [[ "$usb_affinity" == "0x2" ]]; then
+            log "║  ✓ IRQ USB $usb_irq_found: xhci_hcd -> Core 1 (dinamico)              ║"
+        else
+            log "║  ⚠ IRQ USB $usb_irq_found: xhci_hcd -> ${usb_affinity} (non pinato)         ║"
+        fi
+    else
+        log "║  ⚠ IRQ USB: non trovato (xhci_hcd non rilevato)               ║"
+    fi
+    
     if [[ "$irq_audio" -gt 0 ]]; then
-        log "║  ✓ IRQ Audio: $irq_audio pinati su Core 1                         ║"
+        log "║  ✓ IRQ Audio: $irq_audio pinati su Core 1 (dinamico)               ║"
     else
         log "║  ✗ IRQ Audio: nessun pinning rilevato                           ║"
     fi
