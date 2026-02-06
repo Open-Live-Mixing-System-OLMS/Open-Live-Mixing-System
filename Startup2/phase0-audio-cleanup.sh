@@ -329,10 +329,22 @@ verify_cleanup() {
         log "Nessun processo audio attivo"
     fi
     
-    # Verifica socket
+    # Verifica socket (migliorata)
     local remaining_sockets=$(find /tmp /dev/shm /var/run /run -name "*jack*" -o -name "*pipewire*" 2>/dev/null || true)
     if [[ -n "$remaining_sockets" ]]; then
-        warn "Socket audio ancora presenti: $remaining_sockets"
+        # Filtra solo socket esistenti
+        local existing_sockets=""
+        for socket in $remaining_sockets; do
+            if [[ -e "$socket" ]]; then
+                existing_sockets="$existing_sockets $socket"
+            fi
+        done
+        
+        if [[ -n "$existing_sockets" ]]; then
+            warn "Socket audio ancora presenti: $existing_sockets"
+        else
+            log "Nessun socket audio presente (pattern trovati ma file non esistenti)"
+        fi
     else
         log "Nessun socket audio presente"
     fi
