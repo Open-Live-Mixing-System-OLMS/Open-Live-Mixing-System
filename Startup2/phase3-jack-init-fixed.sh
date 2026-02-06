@@ -22,11 +22,16 @@ error() { echo -e "\e[31m[$(date '+%H:%M:%S')] ERROR:\e[0m $1"; }
 
 # Configurazioni buffer testate in ordine di priorità
 BUFFER_CONFIGS=(
-    "16:3"   # 16 frames, 3 periodi = 48 frames totali (latenza minima)
+    "16:2"   # 16 frames, 2 periodi = 32 frames totali (latenza minima)
+    "32:2"   # 32 frames, 2 periodi = 64 frames totali
+    "64:2"   # 64 frames, 2 periodi = 128 frames totali
+    "128:2"  # 128 frames, 2 periodi = 256 frames totali
+    "256:2"  # 256 frames, 2 periodi = 512 frames totali (configurazione attuale)
+    "16:3"   # 16 frames, 3 periodi = 48 frames totali (fallback a 3 cicli)
     "32:3"   # 32 frames, 3 periodi = 96 frames totali
     "64:3"   # 64 frames, 3 periodi = 192 frames totali
     "128:3"  # 128 frames, 3 periodi = 384 frames totali
-    "256:3"  # 256 frames, 3 periodi = 768 frames totali (configurazione attuale)
+    "256:3"  # 256 frames, 3 periodi = 768 frames totali (fallback finale)
 )
 
 # Configurazioni bit-depth in ordine di preferenza (24-bit → 16-bit fallback)
@@ -182,6 +187,44 @@ start_jack_with_isolation() {
             local periods="${config#*:}"
             
             log "Testing JACK configuration: Buffer=${buffer_size}, Periods=${periods}, Bit-depth=${bit_depth}"
+            
+            # Controllo preventivo se la scheda supporta i 2 cicli
+            if [ "$periods" -eq 2 ]; then
+                log "🔍 Verifica preventiva: test scheda con 2 cicli (Buffer=${buffer_size})"
+                
+                # Test rapido per verificare se la scheda supporta 2 cicli
+                # Usiamo un timeout breve per evitare attese lunghe
+                timeout 3 sudo -u francesco_ssh env -i \
+                    HOME=/home/francesco_ssh \
+                    PATH=/usr/bin:/bin \
+                    XDG_RUNTIME_DIR=/run/user/1000 \
+                    JACK_NO_AUDIO_RESERVATION=1 \
+                    JACK_PROMISCUOUS_SERVER=1 \
+                    taskset -c "$AUDIO_CORES" chrt -f 80 \
+                    /usr/bin/jackd -R -P 80 -n olms -d alsa -d "$TARGET_ALSA_DEVICE" -r "$SAMPLE_RATE" -p "$buffer_size" -n 2 -S "$bit_depth" -t 1000 > /tmp/jack_test.log 2>&1 &
+                local test_pid=$!
+                
+                sleep 2
+                
+                # Verifica se JACK è riuscito ad avviarsi con 2 cicli
+                if ps -p "$test_pid" > /dev/null 2>&1; then
+                    log "✅ Scheda supporta 2 cicli - procediamo con la configurazione"
+                    # Kill test process
+                    pkill -9 jackd 2>/dev/null || true
+                    sleep 1
+                else
+                    log "⚠️ Scheda non supporta 2 cicli - fallback a 3 cicli"
+                    # Kill test process
+                    pkill -9 jackd 2>/dev/null || true
+                    sleep 1
+                    # Passa direttamente a 3 cicli per questa configurazione
+                    local fallback_config="${buffer_size}:3"
+                    log "🔄 Fallback a: Buffer=${buffer_size}, Periods=3, Bit-depth=${bit_depth}"
+                    config="$fallback_config"
+                    buffer_size="${config%:*}"
+                    periods="${config#*:}"
+                fi
+            fi
             
             # Launch JACK with current configuration using exec to avoid shell shim
             log "Launching JACK with user delegation (francesco_ssh) and clean environment..."
