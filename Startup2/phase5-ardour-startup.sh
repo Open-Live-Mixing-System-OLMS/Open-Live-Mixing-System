@@ -14,6 +14,13 @@ ARD_SESSION_DIR="/home/francesco_ssh/Progetti/OLMS-Core/engine/session-template/
 ARD_USER="francesco_ssh"
 ARD_UID=1000
 
+# Variabili universali per architettura CPU dinamica
+TOTAL_CORES=$(nproc)
+LAST_CORE=$((TOTAL_CORES - 1))
+SYSTEM_CORE="0"
+IRQ_CORE="1"
+AUDIO_CORES="2-$LAST_CORE"
+
 # Variabili JACK/D-Bus/X11
 JACK_SERVER_NAME="olms"
 JACK_SESSION_DIR="/dev/shm/jack_olms_0"
@@ -21,7 +28,7 @@ JACK_SOCKET_DIR="/dev/shm/jack_olms_0"
 DBUS_SOCKET_ABSTRACT="olms_bus_1000"
 XAUTHORITY_PATH="/home/francesco_ssh/.Xauthority"
 DISPLAY=":0"
-CPU_CORES="2-3"
+CPU_CORES="$AUDIO_CORES"
 RT_PRIORITY=70
 
 log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1"; }

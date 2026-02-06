@@ -119,7 +119,14 @@ setup_socket_permissions() {
     fi
 }
 
-# Enhanced JACK startup with proper permissions - NO D-BUS
+# Variabili universali per architettura CPU dinamica
+TOTAL_CORES=$(nproc)
+LAST_CORE=$((TOTAL_CORES - 1))
+SYSTEM_CORE="0"
+IRQ_CORE="1"
+AUDIO_CORES="2-$LAST_CORE"
+
+# Enhanced JACK startup with proper permissions - NO D-Bus
 start_jack_with_isolation() {
     log "Searching for USB Audio CODEC..."
     
@@ -179,7 +186,7 @@ start_jack_with_isolation() {
             # Launch JACK with current configuration using exec to avoid shell shim
             log "Launching JACK with user delegation (francesco_ssh) and clean environment..."
             log "Starting JACK with optimized parameters..."
-            log "Command: exec sudo -u francesco_ssh env -i HOME=/home/francesco_ssh PATH=/usr/bin:/bin XDG_RUNTIME_DIR=/run/user/1000 JACK_NO_AUDIO_RESERVATION=1 JACK_PROMISCUOUS_SERVER=1 JACK_DEFAULT_SERVER=olms taskset -c 2-3 chrt -f 80 jackd -R -P 80 -n olms -d alsa -d $TARGET_ALSA_DEVICE -r $SAMPLE_RATE -p $buffer_size -n $periods -S ${bit_depth}"
+            log "Command: exec sudo -u francesco_ssh env -i HOME=/home/francesco_ssh PATH=/usr/bin:/bin XDG_RUNTIME_DIR=/run/user/1000 JACK_NO_AUDIO_RESERVATION=1 JACK_PROMISCUOUS_SERVER=1 JACK_DEFAULT_SERVER=olms taskset -c $AUDIO_CORES chrt -f 80 jackd -R -P 80 -n olms -d alsa -d $TARGET_ALSA_DEVICE -r $SAMPLE_RATE -p $buffer_size -n $periods -S ${bit_depth}"
             
             exec sudo -u francesco_ssh env -i \
                 HOME=/home/francesco_ssh \
@@ -187,6 +194,7 @@ start_jack_with_isolation() {
                 XDG_RUNTIME_DIR=/run/user/1000 \
                 JACK_NO_AUDIO_RESERVATION=1 \
                 JACK_PROMISCUOUS_SERVER=1 \
+                taskset -c "$AUDIO_CORES" chrt -f 80 \
                 /usr/bin/jackd -R -P 80 -n olms -d alsa -d "$TARGET_ALSA_DEVICE" -r "$SAMPLE_RATE" -p "$buffer_size" -n "$periods" -S "$bit_depth" > /tmp/jack_startup.log 2>&1 &
             jack_pid=$!
             
@@ -232,6 +240,7 @@ start_jack_with_isolation() {
             XDG_RUNTIME_DIR=/run/user/1000 \
             JACK_NO_AUDIO_RESERVATION=1 \
             JACK_PROMISCUOUS_SERVER=1 \
+            taskset -c "$AUDIO_CORES" chrt -f 80 \
             /usr/bin/jackd -R -P 80 -n olms -d dummy -r "$SAMPLE_RATE" -p 256 -n 3 > /tmp/jack_startup.log 2>&1 &
         jack_pid=$!
         echo "$jack_pid" > /tmp/jack.pid
