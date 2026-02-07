@@ -60,13 +60,71 @@ info() {
     echo -e "${BLUE}[$(date '+%Y-%m-%d %H:%M:%S')] INFO:${NC} $1" | tee -a "$LOG_FILE" "$FINAL_REPORT_LOG"
 }
 
+# Estrae dati tecnici in tempo reale dal sistema
+get_realtime_audio_data() {
+    local jack_pid=$(pgrep -u "$TARGET_USER" -x "jackd" | head -n 1)
+    local audio_data=""
+    
+    if [[ -n "$jack_pid" ]]; then
+        # Estrae configurazione JACK in tempo reale
+        local jack_cmdline=$(cat /proc/"$jack_pid"/cmdline 2>/dev/null | tr '\0' ' ')
+        local buffer_size=$(echo "$jack_cmdline" | grep -o " -p [0-9]*" | awk '{print $2}')
+        local periods=$(echo "$jack_cmdline" | grep -o " -n [0-9]*" | awk '{print $2}')
+        local sample_rate=$(echo "$jack_cmdline" | grep -o " -r [0-9]*" | awk '{print $2}')
+        local device=$(echo "$jack_cmdline" | grep -o " -d [^ ]*" | awk '{print $2}')
+        
+        # Calcola latenza effettiva
+        local latency_ms=0
+        if [[ -n "$buffer_size" && -n "$periods" && -n "$sample_rate" ]]; then
+            latency_ms=$(( (buffer_size * periods * 1000) / sample_rate ))
+        fi
+        
+        # Estrae informazioni sul dispositivo ALSA
+        local card_info=""
+        if [[ -n "$device" ]]; then
+            local card_index=$(echo "$device" | sed 's/hw://')
+            card_info=$(cat /proc/asound/cards 2>/dev/null | grep -A1 "^[[:space:]]*$card_index\[" | tail -1 | sed 's/^[[:space:]]*//')
+        fi
+        
+        audio_data="JACK Configuration:
+  Device: $device
+  Sample Rate: ${sample_rate}Hz
+  Buffer Size: $buffer_size frames
+  Periods: $periods
+  Latency: ${latency_ms}ms
+  PID: $jack_pid"
+        
+        # Controlla socket JACK
+        local socket_count=$(find /dev/shm -name "jack_*" 2>/dev/null | wc -l)
+        audio_data="$audio_data
+  Socket Files: $socket_count found"
+        
+        # Controlla stato porte JACK
+        local port_count=0
+        if command -v jack_lsp >/dev/null 2>&1; then
+            port_count=$(sudo -u "$TARGET_USER" env JACK_DEFAULT_SERVER=olms jack_lsp 2>/dev/null | wc -l || echo "0")
+        fi
+        audio_data="$audio_data
+  Active Ports: $port_count"
+        
+        # Informazioni dispositivo hardware
+        if [[ -n "$card_info" ]]; then
+            audio_data="$audio_data
+  Hardware: $card_info"
+        fi
+    else
+        audio_data="JACK Server: NOT RUNNING"
+    fi
+    
+    echo "$audio_data"
+}
+
 # Genera report finale sintetico
 generate_final_report() {
     log "=== FASE 6: FINAL SYSTEM REPORT (UNIVERSAL) ==="
     echo ""
-    log "╔══════════════════════════════════════════════════════════════╗"
-    log "║                    OLMS STARTUP COMPLETATO                    ║"
-    log "╠═══════════════════════════════════════════════════════════════╣"
+    log "OLMS STARTUP COMPLETATO"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     
     # --- 1. VERIFICA ISOLAMENTO SISTEMA (Core 0) ---
     # Controlliamo un processo di sistema a caso (es. init o kthreadd)
@@ -75,13 +133,13 @@ generate_final_report() {
     
     # Verifica se il sistema è isolato su core 0
     if [[ "$sys_aff" == "0" ]]; then
-        log "║  ✓ Sistema: Isolato correttamente su Core $SYSTEM_CORE              ║"
+        log "✓ Sistema: Isolato correttamente su Core $SYSTEM_CORE"
     else
         # Controlliamo se è un falso positivo (processo con affinità multi-core)
         if [[ "$sys_aff" == *"0"* ]]; then
-            log "║  ✓ Sistema: Core $SYSTEM_CORE incluso (OK - multi-core)           ║"
+            log "✓ Sistema: Core $SYSTEM_CORE incluso (OK - multi-core)"
         else
-            log "║  ⚠ Sistema: Non isolato (Affinità attuale: $sys_aff)          ║"
+            log "⚠ Sistema: Non isolato (Affinità attuale: $sys_aff)"
         fi
     fi
 
@@ -93,9 +151,9 @@ generate_final_report() {
         
         # Verifica se l'affinità non tocca i core 0 e 1
         if [[ "$affinity" != *"0"* && "$affinity" != *"1"* ]]; then
-            log "║  ✓ JACK Server: Core $affinity (OK), RT Prio $priority             ║"
+            log "✓ JACK Server: Core $affinity (OK), RT Prio $priority"
         else
-            log "║  ⚠ JACK Server: Core $affinity (CONFLITTO SISTEMA/IRQ)       ║"
+            log "⚠ JACK Server: Core $affinity (CONFLITTO SISTEMA/IRQ)"
         fi
     fi
     
@@ -104,9 +162,9 @@ generate_final_report() {
     if [[ -n "$ardour_pid" ]]; then
         local affinity=$(taskset -cp "$ardour_pid" 2>/dev/null | awk -F': ' '{print $2}')
         if [[ "$affinity" != *"0"* && "$affinity" != *"1"* ]]; then
-            log "║  ✓ Ardour DAW:  Core $affinity (OK)                           ║"
+            log "✓ Ardour DAW:  Core $affinity (OK)"
         else
-            log "║  ⚠ Ardour DAW:  Core $affinity (CONFLITTO SISTEMA/IRQ)       ║"
+            log "⚠ Ardour DAW:  Core $affinity (CONFLITTO SISTEMA/IRQ)"
         fi
     fi
 
@@ -116,16 +174,25 @@ generate_final_report() {
         local aff_mask=$(cat "/proc/irq/$usb_irq/smp_affinity" 2>/dev/null | tr -d ' \n' | sed 's/^0*//')
         # 2 in hex/dec è sempre il secondo core (Core 1)
         if [[ "$aff_mask" == "2" ]]; then
-            log "║  ✓ IRQ USB $usb_irq: Core $IRQ_CORE (Verificato 0x2)                 ║"
+            log "✓ IRQ USB $usb_irq: Core $IRQ_CORE (Verificato 0x2)"
         else
-            log "║  ⚠ IRQ USB $usb_irq: Errore Pinning (Mask: 0x$aff_mask)           ║"
+            log "⚠ IRQ USB $usb_irq: Errore Pinning (Mask: 0x$aff_mask)"
         fi
     fi
     
-    # --- 5. RIASSUNTO ARCHITETTURA ---
-    log "╠═══════════════════════════════════════════════════════════════╣"
-    log "║  INFO: Core 0=SISTEMA | Core 1=AUDIO IRQ | Core $AUDIO_CORES=AUDIO RT  ║"
-    log "╚══════════════════════════════════════════════════════════════╝"
+    # --- 5. DATI TECNICI DINAMICI ---
+    echo ""
+    log "DETTAGLI TECNICI DINAMICI"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    local audio_data=$(get_realtime_audio_data)
+    echo "$audio_data" | while IFS= read -r line; do
+        log "$line"
+    done
+    
+    # --- 6. RIASSUNTO ARCHITETTURA ---
+    echo ""
+    log "INFO: Core 0=SISTEMA | Core 1=AUDIO IRQ | Core $AUDIO_CORES=AUDIO RT"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     
     # Summary finale
     local error_count=$(grep -c "ERROR:" "$FINAL_REPORT_LOG" 2>/dev/null | tr -d '\n' || echo "0")

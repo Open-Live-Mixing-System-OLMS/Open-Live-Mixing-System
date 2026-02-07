@@ -42,6 +42,7 @@ kill_audio_processes() {
         "artix-alsa" "artix-pulse"
         "pipewire-pulse" "pipewire-alsa"
         "ardour" "ardour8"
+        "Xvfb" "xvfb"
     )
     
     for process in "${audio_processes[@]}"; do
@@ -321,6 +322,15 @@ cleanup_temp_directories() {
 verify_cleanup() {
     log "Verifica cleanup audio completato..."
     
+    # Controlla quanti dispositivi USB ci sono (escludendo hub e dispositivi non critici)
+    local usb_count=$(lsusb | grep -v "Alcor Micro Corp. USB Hub" | grep -v "Linux Foundation" | wc -l)
+    if [[ $usb_count -gt 3 ]]; then
+        warn "Troppi dispositivi USB rilevati ($usb_count). Possibile blocco durante cleanup."
+        warn "SUGGERIMENTO: Scollegare HD esterni o dispositivi non essenziali prima dell'avvio audio."
+        warn "ESEGUIRE: sudo /home/francesco_ssh/Progetti/OLMS-Core/Startup2/olms-orchestrator.sh dopo aver scollegato i dispositivi"
+        exit 1
+    fi
+    
     # Verifica processi
     local remaining_audio=$(pgrep -f "jackd|pipewire|pulseaudio" 2>/dev/null || true)
     if [[ -n "$remaining_audio" ]]; then
@@ -329,8 +339,8 @@ verify_cleanup() {
         log "Nessun processo audio attivo"
     fi
     
-    # Verifica socket (migliorata)
-    local remaining_sockets=$(find /tmp /dev/shm /var/run /run -name "*jack*" -o -name "*pipewire*" 2>/dev/null || true)
+    # Verifica socket (migliorata) - LIMITA LA RICERCA AI PRIMI 20 RISULTATI
+    local remaining_sockets=$(find /tmp /dev/shm /var/run /run -name "*jack*" -o -name "*pipewire*" 2>/dev/null | head -20)
     if [[ -n "$remaining_sockets" ]]; then
         # Filtra solo socket esistenti
         local existing_sockets=""

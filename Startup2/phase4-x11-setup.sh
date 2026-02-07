@@ -229,7 +229,7 @@ setup_xdg_runtime_dir() {
         export XDG_RUNTIME_DIR="$XDG_RUNTIME_DIR"
         log "XDG_RUNTIME_DIR impostato: $XDG_RUNTIME_DIR"
     else
-        warn "XDG_RUNTIME_DIR non esiste: $XDG_RUNTIME_DIR"
+        log "XDG_RUNTIME_DIR non esiste: $XDG_RUNTIME_DIR"
         
         # Tentativo di creazione (se root)
         if [[ "$EUID" -eq 0 ]]; then

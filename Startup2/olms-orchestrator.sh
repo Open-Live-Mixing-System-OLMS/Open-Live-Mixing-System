@@ -35,6 +35,13 @@ elif [[ ! -w "$LOG_FILE" ]]; then
     warn "Il file di log esistente non è scrivibile, uso: $LOG_FILE"
 fi
 
+# Parsing argomenti
+MODE="headless"  # default
+if [[ "${1:-}" == "--test" ]]; then
+    MODE="test"
+    shift
+fi
+
 # Variabili d'ambiente per l'approccio "tutto come stesso utente"
 export TARGET_USER="francesco_ssh"
 export DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/1000/bus"
@@ -292,6 +299,7 @@ main() {
     log "Avvio OLMS Startup Orchestrator v2.0"
     log "Script directory: $SCRIPT_DIR"
     log "Log file: $LOG_FILE"
+    log "Modalità di avvio: $MODE"
     
     # Verifica comandi necessari
     check_command "pgrep"
@@ -304,17 +312,35 @@ main() {
     # Verifica lock file
     check_lock
     
-    # Esegui tutte le fasi
-    phase0_pre_startup
-    phase1_rt_optimization
-    phase2_jack_init
-    phase3_jack_init_fixed
-    phase4_x11_setup
-    phase5_ardour_startup
+    # Esegui fasi in base alla modalità
+    if [[ "$MODE" == "test" ]]; then
+        log "=== MODALITÀ TEST: Avvio completo con interfaccia grafica ==="
+        phase0_pre_startup
+        phase1_rt_optimization
+        phase2_jack_init
+        phase3_jack_init_fixed
+        phase4_x11_setup
+        # Passa la modalità alla fase 5
+        export OLMS_MODE="test"
+        phase5_ardour_startup
+    else
+        log "=== MODALITÀ HEADLESS: Avvio senza interfaccia grafica ==="
+        phase0_pre_startup
+        phase1_rt_optimization
+        phase2_jack_init
+        phase3_jack_init_fixed
+        # Avvia Ardour in modalità headless (senza interfaccia grafica)
+        export OLMS_MODE="headless"
+        phase5_ardour_startup
+    fi
     phase6_final_report
     
     log "=== STARTUP COMPLETATO CON SUCCESSO ==="
-    log "OLMS è pronto per l'uso audio real-time"
+    if [[ "$MODE" == "test" ]]; then
+        log "OLMS è pronto per l'uso audio real-time con interfaccia grafica"
+    else
+        log "OLMS è pronto per l'uso audio real-time in modalità headless"
+    fi
     
     # Rimuovi trap di cleanup poiché l'esecuzione è completata con successo
     trap - EXIT INT TERM

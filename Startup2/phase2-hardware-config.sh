@@ -41,21 +41,35 @@ info() {
     echo -e "${BLUE}[$(date '+%Y-%m-%d %H:%M:%S')] INFO:${NC} $1" | tee -a "$LOG_FILE"
 }
 
-# Rilevamento hardware audio - VERSIONE DINAMICA
+# Rilevamento hardware audio - VERSIONE DINAMICA CON CONTROLLO USB
 detect_audio_hardware() {
     log "Rilevamento hardware audio (approccio dinamico)..."
     local audio_irqs=()
+    local usb_devices=()
+    
     # Pattern specifici per evitare falsi positivi
     local patterns="snd|audio|sound|hda|xhci_hcd|ehci_hcd"
     
-    # Prendiamo SOLO le righe da /proc/interrupts che iniziano con un numero
-    # Ignoriamo completamente i messaggi di log o timestamp
+    # Raccogli tutti i risultati prima di elaborarli
+    local irq_results=$(grep -iE "$patterns" /proc/interrupts | awk -F: '{print $1}' | tr -d ' ')
+    local usb_results=$(grep -iE "xhci_hcd|ehci_hcd" /proc/interrupts | wc -l)
+    
+    # Controlla se ci sono troppi dispositivi USB
+    if [[ $usb_results -gt 3 ]]; then
+        warn "Troppi dispositivi USB rilevati sullo stesso bus ($usb_results dispositivi)"
+        warn "Questo può causare blocchi durante l'IRQ pinning"
+        warn "SUGGERIMENTO: Scollegare HD esterni o altri dispositivi USB non essenziali"
+        warn "ESEGUIRE: sudo /home/francesco_ssh/Progetti/OLMS-Core/Startup2/olms-orchestrator.sh dopo aver scollegato i dispositivi"
+        exit 1
+    fi
+    
+    # Elabora i risultati in modo sicuro
     while read -r irq; do
         if [[ -n "$irq" ]]; then
             audio_irqs+=("$irq")
             log "IRQ $irq identificato per ottimizzazione."
         fi
-    done < <(grep -iE "$patterns" /proc/interrupts | awk -F: '{print $1}' | tr -d ' ')
+    done <<< "$irq_results"
     
     printf '%s\n' "${audio_irqs[@]}" | sort -nu
 }
