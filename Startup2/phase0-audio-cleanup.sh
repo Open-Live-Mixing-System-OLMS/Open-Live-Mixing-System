@@ -223,31 +223,39 @@ disable_internal_audio() {
     fi
 }
 
-# Attesa rilevamento dispositivi USB audio
+# Attesa rilevamento dispositivi USB audio (Versione Universale UAC)
 wait_usb_audio_devices() {
-    log "Attesa rilevamento dispositivi USB audio..."
+    log "Attesa rilevamento dispositivi USB audio (Metodo Kernel-Class)..."
     
     local usb_audio_wait=30
     local usb_audio_found=false
     
     for i in $(seq 1 $usb_audio_wait); do
-        if lsusb | grep -i "audio\|sound" >/dev/null 2>&1; then
-            log "Dispositivi USB audio rilevati"
+        # 1. Controllo primario: Driver snd-usb-audio caricato e attivo
+        if grep -q "usb" /proc/asound/cards 2>/dev/null; then
+            local card_info=$(grep "usb" /proc/asound/cards | head -n1)
+            log "✅ Dispositivo USB Audio rilevato nel kernel: $card_info"
             usb_audio_found=true
             break
         fi
         
-        if [[ $i -eq $usb_audio_wait ]]; then
-            warn "Nessun dispositivo USB audio rilevato dopo $usb_audio_wait secondi"
+        # 2. Controllo secondario: Presenza fisica via SysFS (più veloce di lsusb)
+        if find /sys/class/sound/card* -name "id" -exec grep -l "" {} + 2>/dev/null | xargs cat | grep -qi "usb\|codec\|audio" 2>/dev/null; then
+            log "✅ Dispositivo USB Audio rilevato via SysFS"
+            usb_audio_found=true
+            break
         fi
-        
+
+        log "Tentativo $i/$usb_audio_wait: Nessun dispositivo USB audio ancora pronto..."
         sleep 1
     done
     
     if [[ "$usb_audio_found" == "true" ]]; then
         log "USB audio devices detected, continuing startup"
     else
-        warn "No USB audio devices detected - this may affect audio functionality"
+        # Invece di 'warn' che fa exit 1, usiamo un log di errore ma permettiamo il fallback
+        error "Nessun dispositivo USB audio rilevato. JACK proverà a usare il backend dummy o integrato."
+        # Se vuoi comunque bloccare l'avvio, tieni 'warn', ma per flessibilità meglio continuare.
     fi
 }
 

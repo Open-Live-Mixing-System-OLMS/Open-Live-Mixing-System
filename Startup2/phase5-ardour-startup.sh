@@ -31,9 +31,194 @@ ARD_SESSION_DIR="/home/francesco_ssh/Progetti/OLMS-Core/engine/session-template/
 ARD_USER="francesco_ssh"
 ARD_UID=1000
 
+# Variabili per l'adattamento sessione
+JACK_SERVER_NAME="olms"
+SESSION_BACKUP_PATH="${ARD_SESSION_PATH}.backup"
+SESSION_TEMP_PATH="${ARD_SESSION_PATH}.temp"
+
 # Definizione funzioni (spostate prima dell'uso)
 log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1"; }
 error() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] ERRORE: $1" >&2; }
+
+# Funzioni di adattamento sessione Ardour
+detect_jack_ports() {
+    log "🔍 Rilevamento porte JACK disponibili per il server '$JACK_SERVER_NAME'..."
+    
+    # Configurazione ambiente completa (come nel latency test)
+    local base_env="PATH=/usr/local/sbin:/usr/local/bin:/usr/bin:/bin JACK_DEFAULT_SERVER=$JACK_SERVER_NAME JACK_PROMISCUOUS_SERVER=1 JACK_NO_START_SERVER=1"
+    
+    # Rileva le porte JACK disponibili con ambiente completo
+    local available_ports
+    available_ports=$(sudo -u "$ARD_USER" env $base_env jack_lsp 2>/dev/null | grep "^system:" | sort)
+    
+    if [ -z "$available_ports" ]; then
+        error "Nessuna porta JACK trovata per il server '$JACK_SERVER_NAME'"
+        return 1
+    fi
+    
+    log "Porte JACK disponibili trovate:"
+    echo "$available_ports" | while read -r port; do
+        log "  - $port"
+    done
+    
+    # Salva le porte disponibili in variabili globali
+    export JACK_CAPTURE_PORTS=$(echo "$available_ports" | grep "capture" | head -10)
+    export JACK_PLAYBACK_PORTS=$(echo "$available_ports" | grep "playback" | head -10)
+    
+    # Conta le porte disponibili
+    export CAPTURE_COUNT=$(echo "$JACK_CAPTURE_PORTS" | wc -l)
+    export PLAYBACK_COUNT=$(echo "$JACK_PLAYBACK_PORTS" | wc -l)
+    
+    log "Porte disponibili: $CAPTURE_COUNT capture, $PLAYBACK_COUNT playback"
+    
+    return 0
+}
+
+backup_session() {
+    log "📁 Creazione backup sessione Ardour..."
+    
+    if [ -f "$ARD_SESSION_PATH" ]; then
+        sudo -u francesco_ssh cp "$ARD_SESSION_PATH" "$SESSION_BACKUP_PATH"
+        if [ $? -eq 0 ]; then
+            log "✅ Backup sessione creato: $SESSION_BACKUP_PATH"
+            return 0
+        else
+            error "Impossibile creare il backup della sessione"
+            return 1
+        fi
+    else
+        error "File sessione non trovato: $ARD_SESSION_PATH"
+        return 1
+    fi
+}
+
+validate_port_mapping() {
+    log "✅ Validazione mappatura porte..."
+    
+    # Controlla che ci siano abbastanza porte per la sessione
+    local required_capture=1  # Audio 1 richiede 1 porta capture
+    local required_playback=2 # Master e Click richiedono 2 porte playback
+    
+    if [ "$CAPTURE_COUNT" -lt "$required_capture" ]; then
+        error "Porte capture insufficienti: necessarie $required_capture, disponibili $CAPTURE_COUNT"
+        return 1
+    fi
+    
+    if [ "$PLAYBACK_COUNT" -lt "$required_playback" ]; then
+        error "Porte playback insufficienti: necessarie $required_playback, disponibili $PLAYBACK_COUNT"
+        return 1
+    fi
+    
+    log "✅ Validazione superata: porte sufficienti per la sessione"
+    return 0
+}
+
+adapt_session_to_ports() {
+    log "🔧 Adattamento sessione Ardour alle porte disponibili..."
+    
+    if ! validate_port_mapping; then
+        return 1
+    fi
+    
+    # Estrai la prima porta capture disponibile
+    local capture_port=$(echo "$JACK_CAPTURE_PORTS" | head -1)
+    # Estrai le prime 2 porte playback disponibili
+    local playback_port_1=$(echo "$JACK_PLAYBACK_PORTS" | head -1)
+    local playback_port_2=$(echo "$JACK_PLAYBACK_PORTS" | sed -n '2p')
+    
+    log "Mappatura porte:"
+    log "  Capture: system:capture_1 → $capture_port"
+    log "  Playback 1: system:playback_1 → $playback_port_1"
+    log "  Playback 2: system:playback_2 → $playback_port_2"
+    
+    # Crea il file temporaneo con le sostituzioni come utente francesco_ssh
+    sudo -u francesco_ssh cp "$ARD_SESSION_PATH" "$SESSION_TEMP_PATH"
+    
+    # Sostituzione delle connessioni JACK nel file XML come utente francesco_ssh
+    # Usiamo sed per sostituire i pattern specifici
+    sudo -u francesco_ssh sed -i "s/other=\"system:capture_1\"/other=\"$capture_port\"/g" "$SESSION_TEMP_PATH"
+    sudo -u francesco_ssh sed -i "s/other=\"system:playback_1\"/other=\"$playback_port_1\"/g" "$SESSION_TEMP_PATH"
+    sudo -u francesco_ssh sed -i "s/other=\"system:playback_2\"/other=\"$playback_port_2\"/g" "$SESSION_TEMP_PATH"
+    
+    # Verifica che le sostituzioni siano avvenute correttamente
+    local capture_subs=$(grep -c "$capture_port" "$SESSION_TEMP_PATH")
+    local playback1_subs=$(grep -c "$playback_port_1" "$SESSION_TEMP_PATH")
+    local playback2_subs=$(grep -c "$playback_port_2" "$SESSION_TEMP_PATH")
+    
+    log "Sostituzioni effettuate:"
+    log "  Capture: $capture_subs occorrenze"
+    log "  Playback 1: $playback1_subs occorrenze"
+    log "  Playback 2: $playback2_subs occorrenze"
+    
+    if [ "$capture_subs" -gt 0 ] && [ "$playback1_subs" -gt 0 ] && [ "$playback2_subs" -gt 0 ]; then
+        log "✅ Sessione adattata correttamente alle porte disponibili"
+        return 0
+    else
+        error "Sostituzione porte fallita o incompleta"
+        return 1
+    fi
+}
+
+reload_ardour_session() {
+    log "🔄 Ricaricamento sessione Ardour..."
+    
+    # Trova il PID di Ardour
+    local ardour_pid
+    ardour_pid=$(pgrep -f "ardour8.*--no-splash")
+    
+    if [ -z "$ardour_pid" ]; then
+        error "Impossibile trovare il processo Ardour"
+        return 1
+    fi
+    
+    log "Ardour in esecuzione (PID: $ardour_pid)"
+    
+    # Invia segnale di ricarica alla sessione
+    # Ardour non supporta il reload diretto via segnale, quindi dobbiamo riavviarlo
+    log "Riavvio Ardour con sessione aggiornata..."
+    
+    # Termina Ardour in modo pulito
+    kill -TERM "$ardour_pid" 2>/dev/null || true
+    sleep 2
+    
+    # Verifica che Ardour sia terminato
+    if pgrep -f "ardour8.*--no-splash" > /dev/null; then
+        log "Ardour non si è chiuso correttamente, forzatura terminazione..."
+        kill -KILL "$ardour_pid" 2>/dev/null || true
+        sleep 1
+    fi
+    
+    # Sposta il file temporaneo al posto di quello originale come utente francesco_ssh
+    sudo -u francesco_ssh mv "$SESSION_TEMP_PATH" "$ARD_SESSION_PATH"
+    
+    # Riavvia Ardour con la sessione aggiornata
+    log "Riavvio Ardour con sessione adattata..."
+    
+    exec sudo -u "$ARD_USER" env \
+        HOME=/home/francesco_ssh \
+        DISPLAY=:0 \
+        XAUTHORITY=/home/francesco_ssh/.Xauthority \
+        XDG_RUNTIME_DIR=/run/user/1000 \
+        JACK_DEFAULT_SERVER="olms" \
+        JACK_PROMISCUOUS_SERVER=1 \
+        JACK_NO_START_SERVER=1 \
+        taskset -c "$CPU_CORES" \
+        chrt -f "$RT_PRIORITY" \
+        /usr/bin/ardour8 --no-splash "$ARD_SESSION_PATH" &
+    
+    # Aspetta che Ardour si riavvii
+    sleep 3
+    
+    # Verifica che Ardour sia di nuovo in esecuzione
+    if pgrep -f "ardour8.*--no-splash" > /dev/null; then
+        local new_ardour_pid=$(pgrep -f "ardour8.*--no-splash")
+        log "✅ Ardour riavviato con sessione adattata (PID: $new_ardour_pid)"
+        return 0
+    else
+        error "Riavvio Ardour fallito"
+        return 1
+    fi
+}
 
 # Controllo modalità headless
 if [[ "${OLMS_MODE:-}" == "headless" ]]; then
@@ -128,7 +313,7 @@ main() {
     fi
 
     # 2. Verifica del processo
-    if pgrep -f "jackd.*-n olms" > /dev/shm/null; then
+    if pgrep -f "jackd.*-n olms" > /dev/null; then
         log "✅ Processo JACK 'olms' verificato."
     else
         error "ERRORE: Processo jackd non trovato."
@@ -176,6 +361,59 @@ main() {
         error "ERRORE: Ardour non è stato avviato correttamente"
         exit 1
     fi
+    
+    # 4. Adattamento automatico della sessione alle porte JACK disponibili
+    log "🔧 INIZIO ADATTAMENTO SESSIONE ARDOUR"
+    
+    # Rileva le porte JACK disponibili
+    if ! detect_jack_ports; then
+        error "Impossibile rilevare le porte JACK disponibili"
+        log "⚠️ Continuo con la sessione originale (potrebbero esserci problemi di connessione)"
+        return 0
+    fi
+    
+    # Crea backup della sessione originale
+    if ! backup_session; then
+        error "Impossibile creare il backup della sessione"
+        log "⚠️ Continuo senza backup (rischio di perdita configurazione)"
+    fi
+    
+    # Adatta la sessione alle porte disponibili
+    if ! adapt_session_to_ports; then
+        error "Impossibile adattare la sessione alle porte disponibili"
+        log "⚠️ Ripristino sessione originale dal backup"
+        
+        # Ripristina il backup se esiste
+        if [ -f "$SESSION_BACKUP_PATH" ]; then
+            cp "$SESSION_BACKUP_PATH" "$ARD_SESSION_PATH"
+            log "✅ Sessione ripristinata dal backup"
+        fi
+        
+        # Verifica connessioni manualmente
+        log "🔍 Verifica connessioni JACK manuali..."
+        sudo -u "$ARD_USER" env JACK_DEFAULT_SERVER="$JACK_SERVER_NAME" jack_lsp -c | grep -E "(capture|playback)" || log "Nessuna connessione trovata"
+        
+        return 1
+    fi
+    
+    # Ricarica Ardour con la sessione adattata
+    if ! reload_ardour_session; then
+        error "Impossibile ricaricare Ardour con la sessione adattata"
+        log "⚠️ Ripristino sessione originale dal backup"
+        
+        # Ripristina il backup se esiste
+        if [ -f "$SESSION_BACKUP_PATH" ]; then
+            cp "$SESSION_BACKUP_PATH" "$ARD_SESSION_PATH"
+            log "✅ Sessione ripristinata dal backup"
+        fi
+        
+        return 1
+    fi
+    
+    log "✅ ADATTAMENTO SESSIONE COMPLETATO CON SUCCESSO"
+    log "✅ Ardour è ora configurato per utilizzare le porte della scheda audio corrente"
+    
+    return 0
 }
 
 main "$@"

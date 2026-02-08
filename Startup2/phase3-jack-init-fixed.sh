@@ -133,20 +133,113 @@ AUDIO_CORES="2-$LAST_CORE"
 
 # Enhanced JACK startup with proper permissions - NO D-Bus
 start_jack_with_isolation() {
-    log "Searching for USB Audio CODEC..."
+    log "Universal USB Audio Device Detection - UAC Class Compliant Compatible"
+    log "⚠️  ATTENZIONE: Questo sistema supporta SOLO schede audio USB Class Compliant"
+    log "   Le schede Class Compliant usano il driver standard snd-usb-audio del kernel"
+    log "   e funzionano senza driver proprietari su Linux/ALSA/JACK"
+    log "   Esempi di schede compatibili: Behringer UMC, Focusrite Scarlett (alcuni modelli),"
+    log "   Tascam US-x2x, M-Audio Fast Track, ecc."
+    log "   Schede NON compatibili: quelle che richiedono driver proprietari Windows/Mac"
     
-    # Cerchiamo l'indice numerico della scheda USB Audio CODEC (più affidabile di hw:Nome)
-    local CARD_INDEX=$(aplay -l | grep -i "USB Audio CODEC" | head -n1 | cut -d' ' -f2 | tr -d ':')
+    # Rilevamento automatico delle schede audio USB UAC
+    local TARGET_ALSA_DEVICE=""
+    local CARD_INDEX=""
     
+    # Pattern di riconoscimento per schede audio UAC (Universal Audio Class)
+    local UAC_PATTERNS=(
+        "USB Audio CODEC"           # Pattern originale per compatibilità
+        "USB Audio Device"          # Standard UAC generico
+        "USB PnP Sound Device"      # Pattern comune per dispositivi plug-and-play
+        "USB Audio Interface"       # Pattern per interfacce audio professionali
+        "USB Sound Card"           # Pattern generico per schede audio
+        "USB.*Audio"               # Pattern wildcard per altri nomi UAC
+    )
+    
+    log "Scansione schede audio disponibili..."
+    aplay -l | grep -E "card [0-9]+:" | while read -r line; do
+        log "Dispositivo trovato: $line"
+    done
+    
+    # Metodo infallibile: cerca qualsiasi scheda che usi il driver USB Audio
+    log "🔍 Ricerca universale dispositivi basati su driver snd-usb-audio..."
+    
+    # Cerchiamo nelle interfacce del kernel quali schede sono USB
+    for card_path in /sys/class/sound/card*; do
+        [ -e "$card_path" ] || continue
+        CARD_ID=$(basename "$card_path" | sed 's/card//')
+        
+        # Verifica se la scheda è USB controllando il percorso del dispositivo fisico
+        if readlink "$card_path/device" 2>/dev/null | grep -q "usb"; then
+            CARD_NAME=$(cat "$card_path/id" 2>/dev/null || echo "Unknown")
+            log "✅ Dispositivo UAC Hardware rilevato: card $CARD_ID ($CARD_NAME)"
+            TARGET_ALSA_DEVICE="hw:$CARD_ID"
+            CARD_INDEX="$CARD_ID"
+            break
+        fi
+    done
+    
+    # Se non troviamo dispositivi UAC via kernel, proviamo il metodo fallback con aplay
     if [ -z "$CARD_INDEX" ]; then
-        error "ERRORE: Scheda USB 'USB Audio CODEC' non trovata dopo il reset!"
-        aplay -l
-        exit 1
+        log "⚠️ Nessun dispositivo UAC trovato via kernel, fallback a rilevamento ALSA..."
+        
+        # Algoritmo di selezione gerarchica per schede UAC (metodo alternativo)
+        for pattern in "${UAC_PATTERNS[@]}"; do
+            log "Ricerca scheda UAC con pattern: '$pattern'"
+            
+            # Cerchiamo l'indice numerico della scheda che corrisponde al pattern
+            CARD_INDEX=$(aplay -l | grep -i "$pattern" | head -n1 | cut -d' ' -f2 | tr -d ':')
+            
+            if [ -n "$CARD_INDEX" ]; then
+                log "✅ Scheda UAC trovata con pattern '$pattern': card $CARD_INDEX"
+                
+                # Verifichiamo che la scheda sia effettivamente disponibile
+                if [ -e "/dev/snd/controlC$CARD_INDEX" ]; then
+                    TARGET_ALSA_DEVICE="hw:$CARD_INDEX"
+                    log "✅ Scheda UAC disponibile: $TARGET_ALSA_DEVICE (card index: $CARD_INDEX)"
+                    break
+                else
+                    log "⚠️ Scheda UAC non disponibile (dispositivo mancante): /dev/snd/controlC$CARD_INDEX"
+                    CARD_INDEX=""
+                fi
+            fi
+        done
+        
+        # Se ancora non troviamo schede UAC, proviamo con qualsiasi scheda USB
+        if [ -z "$CARD_INDEX" ]; then
+            log "⚠️ Nessuna scheda UAC trovata, ricerca di schede USB generiche..."
+            
+            # Cerchiamo qualsiasi scheda USB (contiene "USB" nel nome)
+            CARD_INDEX=$(aplay -l | grep -i "USB" | grep -E "card [0-9]+:" | head -n1 | cut -d' ' -f2 | tr -d ':')
+            
+            if [ -n "$CARD_INDEX" ]; then
+                log "✅ Scheda USB generica trovata: card $CARD_INDEX"
+                TARGET_ALSA_DEVICE="hw:$CARD_INDEX"
+            fi
+        fi
     fi
     
-    # Usiamo l'indice numerico invece del nome (es. hw:1 invece di hw:CODEC)
-    # Questo è più affidabile perché gli indici numerici sono stabili
-    local TARGET_ALSA_DEVICE="hw:$CARD_INDEX"
+    # Se non troviamo schede USB, passiamo direttamente al backend dummy
+    # Le schede audio interne vengono disattivate e non devono essere usate come fallback
+    if [ -z "$CARD_INDEX" ]; then
+        log "⚠️ Nessuna scheda USB UAC trovata, fallback al backend dummy..."
+        log "   Possibili cause:"
+        log "   - La scheda audio non è Class Compliant (richiede driver proprietari)"
+        log "   - La scheda non è collegata correttamente"
+        log "   - La scheda è disattivata nei permessi USB"
+        log "   - La scheda non supporta lo standard UAC"
+    fi
+    
+    # Verifica finale: se non troviamo nessuna scheda, usiamo dummy backend
+    if [ -z "$CARD_INDEX" ]; then
+        error "ERRORE: Nessuna scheda audio trovata dopo il reset!"
+        log "Dispositivi audio disponibili:"
+        aplay -l
+        log "⚠️  Avvio JACK con backend dummy come fallback (nessuna scheda UAC disponibile)"
+        log "   Per una configurazione audio funzionante, è necessaria una scheda USB Class Compliant"
+        log "   compatibile con lo standard UAC e il driver snd-usb-audio del kernel Linux."
+        TARGET_ALSA_DEVICE="dummy"
+    fi
+    
     log "Starting JACK on device: $TARGET_ALSA_DEVICE (card index: $CARD_INDEX)"
     
     log "Starting JACK with optimized approach (No D-Bus dependency)..."

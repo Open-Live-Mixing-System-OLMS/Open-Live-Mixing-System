@@ -85,8 +85,40 @@ run_hardware_test() {
     
     local logfile="/tmp/lat_hard.log"
     
-    # Esecuzione su porte fisiche
-    $J_CMD "$BIN_JACK_DELAY" -I system:capture_1 -O system:playback_1 > "$logfile" 2>&1 &
+    # Rilevamento porte JACK dinamico (come nel Session Adaptation)
+    log_info "Rilevamento porte JACK disponibili..."
+    local available_ports
+    available_ports=$($J_CMD jack_lsp 2>/dev/null | grep "^system:" | sort)
+    
+    if [ -z "$available_ports" ]; then
+        log_err "Nessuna porta JACK trovata per il server 'olms'"
+        return 1
+    fi
+    
+    # Estrai porte capture e playback disponibili
+    local capture_ports=$(echo "$available_ports" | grep "capture" | head -10)
+    local playback_ports=$(echo "$available_ports" | grep "playback" | head -10)
+    
+    # Conta le porte disponibili
+    local capture_count=$(echo "$capture_ports" | wc -l)
+    local playback_count=$(echo "$playback_ports" | wc -l)
+    
+    log_info "Porte disponibili: $capture_count capture, $playback_count playback"
+    
+    # Verifica che ci siano abbastanza porte per il test
+    if [ "$capture_count" -lt 1 ] || [ "$playback_count" -lt 1 ]; then
+        log_err "Porte insufficienti per il test hardware"
+        return 1
+    fi
+    
+    # Estrai la prima porta capture e playback disponibili
+    local capture_port=$(echo "$capture_ports" | head -1)
+    local playback_port=$(echo "$playback_ports" | head -1)
+    
+    log_info "Test hardware su porte: $capture_port -> $playback_port"
+    
+    # Esecuzione su porte fisiche dinamiche
+    $J_CMD "$BIN_JACK_DELAY" -I "$capture_port" -O "$playback_port" > "$logfile" 2>&1 &
     local pid=$!
     
     echo "   Campionamento in corso (5s)..."
@@ -113,9 +145,13 @@ run_hardware_test() {
         printf "   %-25s : %s ms\n" "Overhead (USB+Conv)" "$overhead_ms"
         echo "   ---------------------------------------"
         printf "   %-25s : ${GREEN}%s ms${NC} (TOTALE)\n" "LATENZA REALE RILEVATA" "$ms_measured"
+        echo "   ---------------------------------------"
+        printf "   %-25s : %s\n" "Porta Input" "$capture_port"
+        printf "   %-25s : %s\n" "Porta Output" "$playback_port"
         echo "======================================================="
     else
         log_err "Test Hardware fallito. Segnale non ricevuto."
+        log_warn "Porte disponibili: $available_ports"
     fi
 }
 
