@@ -36,9 +36,10 @@ JACK_SERVER_NAME="olms"
 SESSION_BACKUP_PATH="${ARD_SESSION_PATH}.backup"
 SESSION_TEMP_PATH="${ARD_SESSION_PATH}.temp"
 
-# Definizione funzioni (spostate prima dell'uso)
-log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1"; }
-error() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] ERRORE: $1" >&2; }
+# Funzioni di logging (per coerenza con altri script)
+log() { echo -e "\e[32m[$(date '+%Y-%m-%d %H:%M:%S')]\e[0m $1"; }
+warn() { echo -e "\e[33m[$(date '+%Y-%m-%d %H:%M:%S')] WARN:\e[0m $1"; }
+error() { echo -e "\e[31m[$(date '+%Y-%m-%d %H:%M:%S')] ERROR:\e[0m $1"; }
 
 # Funzioni di adattamento sessione Ardour
 detect_jack_ports() {
@@ -52,11 +53,13 @@ detect_jack_ports() {
     available_ports=$(sudo -u "$ARD_USER" env $base_env jack_lsp 2>/dev/null | grep "^system:" | sort)
     
     if [ -z "$available_ports" ]; then
-        error "Nessuna porta JACK trovata per il server '$JACK_SERVER_NAME'"
+        warn "⚠️ Nessuna porta JACK trovata per il server '$JACK_SERVER_NAME'"
+        warn "💡 JACK è stabile ma jack_lsp non riesce a vedere le porte (problema comune con schede economiche)"
+        warn "⚠️ Continuo con la sessione originale - potrebbero esserci problemi di connessione"
         return 1
     fi
     
-    log "Porte JACK disponibili trovate:"
+    log "✅ Porte JACK disponibili trovate:"
     echo "$available_ports" | while read -r port; do
         log "  - $port"
     done
@@ -194,7 +197,7 @@ reload_ardour_session() {
     # Riavvia Ardour con la sessione aggiornata
     log "Riavvio Ardour con sessione adattata..."
     
-    exec sudo -u "$ARD_USER" env \
+    sudo -u "$ARD_USER" env \
         HOME=/home/francesco_ssh \
         DISPLAY=:0 \
         XAUTHORITY=/home/francesco_ssh/.Xauthority \
@@ -320,8 +323,102 @@ main() {
         exit 1
     fi
 
-    # 3. Lancio di Ardour con iniezione totale dell'ambiente
-    log "Avvio Ardour con parametri di compatibilità JACK2..."
+    # 3. Controllo preventivo: verifica che JACK sia stabile prima di lanciare Ardour
+    log "🔍 Controllo preventivo: verifica stabilità JACK prima di lanciare Ardour..."
+    
+    # Leggi il PID di JACK dal file
+    local jack_pid_file="/tmp/jack.pid"
+    local jack_pid=""
+    if [ -f "$jack_pid_file" ]; then
+        jack_pid=$(cat "$jack_pid_file" 2>/dev/null)
+    fi
+    
+    if [ -z "$jack_pid" ]; then
+        log "⚠️ Nessun PID JACK trovato in $jack_pid_file, procedo con verifica generica..."
+    else
+        log "Verifica PID JACK: $jack_pid"
+        if ps -p "$jack_pid" > /dev/null 2>&1; then
+            log "✅ JACK stabile (PID: $jack_pid)"
+        else
+            log "🚨 JACK non stabile - PID $jack_pid non attivo"
+            log "🚨 Attivazione procedura di emergenza..."
+            
+            # Procedura di emergenza: riavvia Phase 3 con parametri conservativi
+            log "🔄 Riavvio Phase 3 con parametri conservativi (256:3)..."
+            
+            # Kill any existing JACK processes
+            pkill -9 jackd 2>/dev/null || true
+            sleep 2
+            
+            # Clean up JACK socket and shm files
+            log "🧹 Pulizia socket e shm files..."
+            sudo rm -rf /dev/shm/jack* /tmp/jack* 2>/dev/null || true
+            
+            # Launch JACK with conservative parameters (256:3)
+            log "🚀 Avvio JACK con parametri conservativi: Buffer=256, Periods=3"
+            sudo -u francesco_ssh env -i \
+                HOME=/home/francesco_ssh \
+                PATH=/usr/bin:/bin \
+                XDG_RUNTIME_DIR=/run/user/1000 \
+                JACK_NO_AUDIO_RESERVATION=1 \
+                JACK_PROMISCUOUS_SERVER=1 \
+                taskset -c "$AUDIO_CORES" chrt -f 80 \
+                /usr/bin/jackd -R -P 80 -n olms -d alsa -d hw:1 -r 48000 -p 256 -n 3 -S 16 > /tmp/jack_emergency.log 2>&1 &
+            local emergency_jack_pid=$!
+            
+            # Save PID for monitoring
+            echo "$emergency_jack_pid" > /tmp/jack.pid
+            
+            # Wait for JACK to initialize
+            sleep 5
+            
+            # Verify emergency JACK is running
+            if ps -p "$emergency_jack_pid" > /dev/null 2>&1; then
+                log "✅ JACK riavviato con successo (PID: $emergency_jack_pid)"
+                log "✅ Parametri conservativi applicati: Buffer=256, Periods=3"
+            else
+                error "ERRORE: JACK non è stato riavviato correttamente con parametri conservativi"
+                exit 1
+            fi
+        fi
+    fi
+
+    # 4. Adattamento automatico della sessione alle porte JACK disponibili
+    log "🔧 INIZIO ADATTAMENTO SESSIONE ARDOUR"
+    
+    # Rileva le porte JACK disponibili
+    if ! detect_jack_ports; then
+        error "Impossibile rilevare le porte JACK disponibili"
+        log "⚠️ Continuo con la sessione originale (potrebbero esserci problemi di connessione)"
+        return 0
+    fi
+    
+    # Crea backup della sessione originale
+    if ! backup_session; then
+        error "Impossibile creare il backup della sessione"
+        log "⚠️ Continuo senza backup (rischio di perdita configurazione)"
+    fi
+    
+    # Adatta la sessione alle porte disponibili
+    if ! adapt_session_to_ports; then
+        error "Impossibile adattare la sessione alle porte disponibili"
+        log "⚠️ Ripristino sessione originale dal backup"
+        
+        # Ripristina il backup se esiste
+        if [ -f "$SESSION_BACKUP_PATH" ]; then
+            cp "$SESSION_BACKUP_PATH" "$ARD_SESSION_PATH"
+            log "✅ Sessione ripristinata dal backup"
+        fi
+        
+        # Verifica connessioni manualmente
+        log "🔍 Verifica connessioni JACK manuali..."
+        sudo -u "$ARD_USER" env JACK_DEFAULT_SERVER="$JACK_SERVER_NAME" jack_lsp -c | grep -E "(capture|playback)" || log "Nessuna connessione trovata"
+        
+        return 1
+    fi
+    
+    # 4. Lancio di Ardour con sessione già adattata
+    log "Avvio Ardour con sessione già adattata..."
     
     # Prepariamo l'ambiente esatto per francesco_ssh
     log "Transizione utente: sudo -u $ARD_USER (UID: $ARD_UID)"
@@ -360,54 +457,6 @@ main() {
     else
         error "ERRORE: Ardour non è stato avviato correttamente"
         exit 1
-    fi
-    
-    # 4. Adattamento automatico della sessione alle porte JACK disponibili
-    log "🔧 INIZIO ADATTAMENTO SESSIONE ARDOUR"
-    
-    # Rileva le porte JACK disponibili
-    if ! detect_jack_ports; then
-        error "Impossibile rilevare le porte JACK disponibili"
-        log "⚠️ Continuo con la sessione originale (potrebbero esserci problemi di connessione)"
-        return 0
-    fi
-    
-    # Crea backup della sessione originale
-    if ! backup_session; then
-        error "Impossibile creare il backup della sessione"
-        log "⚠️ Continuo senza backup (rischio di perdita configurazione)"
-    fi
-    
-    # Adatta la sessione alle porte disponibili
-    if ! adapt_session_to_ports; then
-        error "Impossibile adattare la sessione alle porte disponibili"
-        log "⚠️ Ripristino sessione originale dal backup"
-        
-        # Ripristina il backup se esiste
-        if [ -f "$SESSION_BACKUP_PATH" ]; then
-            cp "$SESSION_BACKUP_PATH" "$ARD_SESSION_PATH"
-            log "✅ Sessione ripristinata dal backup"
-        fi
-        
-        # Verifica connessioni manualmente
-        log "🔍 Verifica connessioni JACK manuali..."
-        sudo -u "$ARD_USER" env JACK_DEFAULT_SERVER="$JACK_SERVER_NAME" jack_lsp -c | grep -E "(capture|playback)" || log "Nessuna connessione trovata"
-        
-        return 1
-    fi
-    
-    # Ricarica Ardour con la sessione adattata
-    if ! reload_ardour_session; then
-        error "Impossibile ricaricare Ardour con la sessione adattata"
-        log "⚠️ Ripristino sessione originale dal backup"
-        
-        # Ripristina il backup se esiste
-        if [ -f "$SESSION_BACKUP_PATH" ]; then
-            cp "$SESSION_BACKUP_PATH" "$ARD_SESSION_PATH"
-            log "✅ Sessione ripristinata dal backup"
-        fi
-        
-        return 1
     fi
     
     log "✅ ADATTAMENTO SESSIONE COMPLETATO CON SUCCESSO"

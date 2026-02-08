@@ -17,26 +17,35 @@ export XAUTHORITY="/home/francesco_ssh/.Xauthority"
 
 # Funzioni di logging
 log() { echo -e "\e[32m[$(date '+%H:%M:%S')]\e[0m $1"; }
-warn() { echo -e "\e[33m[$(date '+%H:%M:%S')] WARN:\e[0m $1"; echo -e "\e[31m[$(date '+%H:%M:%S')] ERROR:\e[0m Startup process aborted due to warning: $1"; exit 1; }
+warn() { 
+    local message="$1"
+    local exit_on_warning="${2:-true}"
+    
+    echo -e "\e[33m[$(date '+%H:%M:%S')] WARN:\e[0m $message"
+    
+    if [ "$exit_on_warning" = "true" ]; then
+        echo -e "\e[31m[$(date '+%H:%M:%S')] ERROR:\e[0m Startup process aborted due to warning: $message"
+        exit 1
+    fi
+}
 error() { echo -e "\e[31m[$(date '+%H:%M:%S')] ERROR:\e[0m $1"; }
 
-# Configurazioni buffer testate in ordine di priorità
+# Configurazioni buffer testate in ordine di priorità (prima 2 cicli, poi 3 cicli per ogni buffer size)
 BUFFER_CONFIGS=(
-    "16:2"   # 16 frames, 2 periodi = 32 frames totali (latenza minima)
-    "32:2"   # 32 frames, 2 periodi = 64 frames totali
-    "64:2"   # 64 frames, 2 periodi = 128 frames totali
-    "128:2"  # 128 frames, 2 periodi = 256 frames totali
-    "256:2"  # 256 frames, 2 periodi = 512 frames totali (configurazione attuale)
-    "16:3"   # 16 frames, 3 periodi = 48 frames totali (fallback a 3 cicli)
-    "32:3"   # 32 frames, 3 periodi = 96 frames totali
-    "64:3"   # 64 frames, 3 periodi = 192 frames totali
-    "128:3"  # 128 frames, 3 periodi = 384 frames totali
-    "256:3"  # 256 frames, 3 periodi = 768 frames totali (fallback finale)
+    "32:2"   # 32 frames, 2 periodi = 64 frames totali (Latenza più bassa)
+    "32:3"   # 32 frames, 3 periodi = 96 frames totali (Fallback più stabile)
+    "64:2"   # 64 frames, 2 periodi = 128 frames totali (Latenza più bassa)
+    "64:3"   # 64 frames, 3 periodi = 192 frames totali (Fallback più stabile)
+    "128:2"  # 128 frames, 2 periodi = 256 frames totali (Latenza più bassa)
+    "128:3"  # 128 frames, 3 periodi = 384 frames totali (Fallback più stabile)
+    "256:2"  # 256 frames, 2 periodi = 512 frames totali (Latenza più bassa)
+    "256:3"  # 256 frames, 3 periodi = 768 frames totali (Fallback più stabile)
 )
 
-# Configurazioni bit-depth in ordine di preferenza (24-bit → 16-bit fallback)
+# Configurazioni bit-depth in ordine di preferenza (32-bit → 24-bit → 16-bit fallback)
 BIT_DEPTH_CONFIGS=(
-    "24"   # Primo tentativo: 24-bit (per compatibilità Ardour)
+    "32"   # Primo tentativo: 32-bit (per efficienza CPU su hardware USB)
+    "24"   # Secondo tentativo: 24-bit (per compatibilità Ardour)
     "16"   # Fallback: 16-bit (hardware limit della PCM2902)
 )
 
@@ -160,21 +169,21 @@ start_jack_with_isolation() {
         log "Dispositivo trovato: $line"
     done
     
-    # Metodo infallibile: cerca qualsiasi scheda che usi il driver USB Audio
-    log "🔍 Ricerca universale dispositivi basati su driver snd-usb-audio..."
+    # Rilevamento universale basato sul driver kernel
+    log "🔍 Ricerca hardware tramite driver kernel snd-usb-audio..."
     
-    # Cerchiamo nelle interfacce del kernel quali schede sono USB
-    for card_path in /sys/class/sound/card*; do
-        [ -e "$card_path" ] || continue
-        CARD_ID=$(basename "$card_path" | sed 's/card//')
-        
-        # Verifica se la scheda è USB controllando il percorso del dispositivo fisico
-        if readlink "$card_path/device" 2>/dev/null | grep -q "usb"; then
-            CARD_NAME=$(cat "$card_path/id" 2>/dev/null || echo "Unknown")
-            log "✅ Dispositivo UAC Hardware rilevato: card $CARD_ID ($CARD_NAME)"
-            TARGET_ALSA_DEVICE="hw:$CARD_ID"
-            CARD_INDEX="$CARD_ID"
-            break
+    TARGET_ALSA_DEVICE=""
+    for card_dir in /sys/class/sound/card*; do
+        if [ -d "$card_dir" ]; then
+            # Controlla se il dispositivo è gestito dal driver USB
+            if readlink "$card_dir/device/driver" 2>/dev/null | grep -q "snd-usb-audio"; then
+                CARD_ID=$(basename "$card_dir" | sed 's/card//')
+                CARD_NAME=$(cat "$card_dir/id" 2>/dev/null || echo "Unknown")
+                log "✅ Scheda UAC rilevata: hw:$CARD_ID ($CARD_NAME)"
+                TARGET_ALSA_DEVICE="hw:$CARD_ID"
+                CARD_INDEX="$CARD_ID"
+                break
+            fi
         fi
     done
     
@@ -281,43 +290,6 @@ start_jack_with_isolation() {
             
             log "Testing JACK configuration: Buffer=${buffer_size}, Periods=${periods}, Bit-depth=${bit_depth}"
             
-            # Controllo preventivo se la scheda supporta i 2 cicli
-            if [ "$periods" -eq 2 ]; then
-                log "🔍 Verifica preventiva: test scheda con 2 cicli (Buffer=${buffer_size})"
-                
-                # Test rapido per verificare se la scheda supporta 2 cicli
-                # Usiamo un timeout breve per evitare attese lunghe
-                timeout 3 sudo -u francesco_ssh env -i \
-                    HOME=/home/francesco_ssh \
-                    PATH=/usr/bin:/bin \
-                    XDG_RUNTIME_DIR=/run/user/1000 \
-                    JACK_NO_AUDIO_RESERVATION=1 \
-                    JACK_PROMISCUOUS_SERVER=1 \
-                    taskset -c "$AUDIO_CORES" chrt -f 80 \
-                    /usr/bin/jackd -R -P 80 -n olms -d alsa -d "$TARGET_ALSA_DEVICE" -r "$SAMPLE_RATE" -p "$buffer_size" -n 2 -S "$bit_depth" -t 1000 > /tmp/jack_test.log 2>&1 &
-                local test_pid=$!
-                
-                sleep 2
-                
-                # Verifica se JACK è riuscito ad avviarsi con 2 cicli
-                if ps -p "$test_pid" > /dev/null 2>&1; then
-                    log "✅ Scheda supporta 2 cicli - procediamo con la configurazione"
-                    # Kill test process
-                    pkill -9 jackd 2>/dev/null || true
-                    sleep 1
-                else
-                    log "⚠️ Scheda non supporta 2 cicli - fallback a 3 cicli"
-                    # Kill test process
-                    pkill -9 jackd 2>/dev/null || true
-                    sleep 1
-                    # Passa direttamente a 3 cicli per questa configurazione
-                    local fallback_config="${buffer_size}:3"
-                    log "🔄 Fallback a: Buffer=${buffer_size}, Periods=3, Bit-depth=${bit_depth}"
-                    config="$fallback_config"
-                    buffer_size="${config%:*}"
-                    periods="${config#*:}"
-                fi
-            fi
             
             # Launch JACK with current configuration using exec to avoid shell shim
             log "Launching JACK with user delegation (francesco_ssh) and clean environment..."
@@ -339,21 +311,52 @@ start_jack_with_isolation() {
             
             log "JACK started with PID: $jack_pid (Buffer=${buffer_size}, Periods=${periods}, Bit-depth=${bit_depth})"
             
+            # CRITICAL FIX: Force permissions on JACK DB directory and socket files
+            log "🔧 Applying critical permission fix for JACK DB and socket files..."
+            sleep 1  # Wait for JACK to create the SHM structure
+            
+            # Make the DB directory and its files fully accessible
+            sudo chmod -R 777 /dev/shm/jack_db-1000 2>/dev/null || true
+            sudo chmod 777 /dev/shm/jack_olms_0 2>/dev/null || true
+            sudo chmod 777 /dev/shm/jack-shm-registry 2>/dev/null || true
+            
+            # Also fix permissions for JACK2 compatibility directory
+            sudo chmod -R 777 /dev/shm/jack-1000 2>/dev/null || true
+            
             # Wait for JACK to initialize
-            sleep 5
+            sleep 2
             
             # Verify JACK is running and stable
             if ps -p "$jack_pid" > /dev/null 2>&1; then
-                # Check actual JACK configuration from log
-                local actual_format=$(grep "final selected sample format" /tmp/jack_startup.log | tail -1 | grep -o "16bit\|24bit\|32bit" | head -1)
-                if [ -z "$actual_format" ]; then
-                    actual_format="unknown"
+                # NEW: Perform long-term stability verification (8 seconds)
+                log "🔍 Performing long-term stability verification..."
+                if verify_long_term_stability "$jack_pid"; then
+                    # Check actual JACK configuration from log
+                    local actual_format=$(grep "final selected sample format" /tmp/jack_startup.log | tail -1 | grep -o "16bit\|24bit\|32bit" | head -1)
+                    if [ -z "$actual_format" ]; then
+                        actual_format="unknown"
+                    fi
+                    
+                    log "✅ JACK configuration successful and stable: Buffer=${buffer_size}, Periods=${periods}, Bit-depth=${bit_depth} (actual: ${actual_format})"
+                    log "✅ Latenza stimata: $((buffer_size * periods * 1000 / SAMPLE_RATE))ms"
+                    config_success=true
+                    break 2  # Exit both loops on success
+                else
+                    # Stability Watchdog failed - JACK crashed or became unstable
+                    log "🚨 Stability Watchdog failed - JACK instability detected"
+                    log "❌ Configuration failed: Buffer=${buffer_size}, Periods=${periods}, Bit-depth=${bit_depth}"
+                    
+                    # Kill failed JACK process
+                    pkill -9 jackd 2>/dev/null || true
+                    sleep 2
+                    
+                    # Clean up JACK socket and shm files
+                    log "🧹 Cleaning up JACK socket and shm files after instability..."
+                    sudo rm -rf /dev/shm/jack* /tmp/jack* 2>/dev/null || true
+                    
+                    # Continue to next buffer configuration
+                    continue
                 fi
-                
-                log "✅ JACK configuration successful: Buffer=${buffer_size}, Periods=${periods}, Bit-depth=${bit_depth} (actual: ${actual_format})"
-                log "✅ Latenza stimata: $((buffer_size * periods * 1000 / SAMPLE_RATE))ms"
-                config_success=true
-                break 2  # Exit both loops on success
             else
                 log "❌ JACK configuration failed: Buffer=${buffer_size}, Periods=${periods}, Bit-depth=${bit_depth}"
                 # Kill failed JACK process
@@ -444,6 +447,67 @@ verify_jack_stability() {
     return 1
 }
 
+# NEW: Stability Watchdog - Long-term stability verification (7-10 seconds)
+verify_long_term_stability() {
+    local pid=$1
+    local stability_duration=8  # Monitor for 8 seconds
+    local check_interval=1      # Check every 1 second
+    local checks_count=$((stability_duration / check_interval))
+    
+    log "🔍 Stability Watchdog: Monitoring JACK for ${stability_duration} seconds (PID: $pid)..."
+    
+    # Wait for JACK to fully initialize before starting monitoring
+    sleep 3
+    
+    local check_num=1
+    local reactivity_test_passed=false
+    while [ $check_num -le $checks_count ]; do
+        if ! ps -p "$pid" > /dev/null 2>&1; then
+            warn "❌ JACK process died at check $check_num/${checks_count} (Signal 1 or crash detected)"
+            log "🚨 Stability Watchdog: JACK instability detected!"
+            return 1
+        fi
+        
+        # Enhanced: Test JACK reactivity with jack_lsp at the 5th second
+        if [ $check_num -eq 5 ]; then
+            log "📡 Testing JACK socket reactivity (Server: olms)..."
+            
+            # Esplicita TUTTE le variabili necessarie per il test
+            if sudo -u "$TARGET_USER" env \
+                JACK_DEFAULT_SERVER="$JACK_DEFAULT_SERVER" \
+                XDG_RUNTIME_DIR="$XDG_RUNTIME_DIR" \
+                JACK_PROMISCUOUS_SERVER=1 \
+                /usr/bin/jack_lsp >/dev/null 2>&1; then
+                
+                log "✅ JACK socket reactivity confirmed."
+                reactivity_test_passed=true
+            else
+                error "🚨 CRITICAL: JACK process is alive but sockets are unreachable!"
+                log "Diagnostica permessi:"
+                ls -la /dev/shm/jack* 2>/dev/null || log "Nessun file in /dev/shm"
+                
+                # Qui decidiamo: è un blocco totale.
+                reactivity_test_passed=false
+                return 1 
+            fi
+        fi
+        
+        log "✅ Stability check $check_num/${checks_count} passed"
+        sleep $check_interval
+        check_num=$((check_num + 1))
+    done
+    
+    # Final evaluation: if process is stable for full duration, accept even if reactivity test failed
+    # This is important for budget audio interfaces like UMD2 that may be stable but have socket issues
+    if [ "$reactivity_test_passed" = true ]; then
+        log "✅ Stability Watchdog: JACK certified stable for ${stability_duration} seconds"
+        return 0
+    else
+        error "🚨 Stability Watchdog: JACK process is alive but NOT RESPONDING to sockets."
+        return 1 # <--- Forza il fallimento della configurazione attuale
+    fi
+}
+
 # Signal handling to prevent premature termination
 setup_signal_handling() {
     log "Setting up signal handling to prevent premature termination..."
@@ -492,8 +556,8 @@ main() {
         # Test finale di connettività
         log "Verifica compatibilità Ardour..."
         # Dobbiamo eseguire il test come francesco_ssh e passargli il nome del server
-        if sudo -u francesco_ssh env JACK_DEFAULT_SERVER=olms jack_lsp >/dev/null 2>&1; then
-            local port_count=$(sudo -u francesco_ssh env JACK_DEFAULT_SERVER=olms jack_lsp | wc -l)
+        if sudo -u francesco_ssh env JACK_DEFAULT_SERVER=olms JACK_PROMISCUOUS_SERVER=1 jack_lsp >/dev/null 2>&1; then
+            local port_count=$(sudo -u francesco_ssh env JACK_DEFAULT_SERVER=olms JACK_PROMISCUOUS_SERVER=1 jack_lsp | wc -l)
             log "✅ Compatibilità verificata - Server 'olms' accessibile ($port_count porte trovate)"
             exit 0
         else
@@ -501,7 +565,7 @@ main() {
             log "Questo è un falso positivo - JACK è stato avviato correttamente."
             log "Tutti i file socket sono stati trovati e configurati correttamente."
             log "Procediamo con l'orchestrator..."
-            exit 0
+            exit 1
         fi
         
         exit 0

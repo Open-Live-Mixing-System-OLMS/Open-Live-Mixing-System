@@ -240,42 +240,244 @@ prepare_system() {
     fi
 }
 
-# Funzione per configurare i volumi hardware dopo il reload dei moduli
-fix_hardware_volumes() {
-    log "Configurazione volumi hardware per PCM2902..."
+# Funzione per rilevare i controlli di volume disponibili su una scheda audio
+detect_volume_controls() {
+    local card_index=$1
+    local controls=()
     
-    # Prova diversi metodi per impostare il volume al 100% e sbloccare
+    log "Rilevamento controlli di volume disponibili per scheda $card_index..."
+    
+    # Ottieni tutti i controlli disponibili per la scheda
+    local all_controls=$(amixer -c "$card_index" controls 2>/dev/null | grep -E "numid=[0-9]+" || true)
+    
+    if [[ -z "$all_controls" ]]; then
+        log "Nessun controllo trovato per la scheda $card_index"
+        return 1
+    fi
+    
+    # Filtra i controlli che sono probabilmente controlli di volume
+    while IFS= read -r control; do
+        local numid=$(echo "$control" | grep -o "numid=[0-9]*" | cut -d'=' -f2)
+        local control_name=$(amixer -c "$card_index" cget numid="$numid" 2>/dev/null | grep -o "name='[^']*'" | head -1 | tr -d "'" || true)
+        
+        if [[ -n "$control_name" ]]; then
+            # Controlli di volume comuni
+            if echo "$control_name" | grep -iqE "volume|pcm|master|capture|playback|headphone|speaker"; then
+                controls+=("$numid:$control_name")
+                log "Controllo volume trovato: numid=$numid, name='$control_name'"
+            fi
+        fi
+    done <<< "$all_controls"
+    
+    if [[ ${#controls[@]} -eq 0 ]]; then
+        log "Nessun controllo di volume specifico trovato, provo con nomi generici..."
+        
+        # Prova con nomi generici di controllo volume
+        local generic_controls=("PCM" "Master" "Capture" "Playback" "Headphone" "Speaker")
+        for control_name in "${generic_controls[@]}"; do
+            if amixer -c "$card_index" sget "$control_name" >/dev/null 2>&1; then
+                controls+=("generic:$control_name")
+                log "Controllo volume generico trovato: $control_name"
+            fi
+        done
+    fi
+    
+    if [[ ${#controls[@]} -eq 0 ]]; then
+        log "Nessun controllo di volume trovato sulla scheda $card_index"
+        return 1
+    fi
+    
+    # Restituisce i controlli trovati
+    printf '%s\n' "${controls[@]}"
+    return 0
+}
+
+# Funzione per ottenere il range massimo di un controllo volume
+get_volume_range() {
+    local card_index=$1
+    local numid=$2
+    local max_value=""
+    
+    # Estrai il range massimo dal controllo
+    max_value=$(amixer -c "$card_index" cget numid="$numid" 2>/dev/null | grep -o "max=[0-9]*" | cut -d'=' -f2)
+    
+    # Verifica che max_value sia un numero valido
+    if [[ -n "$max_value" ]] && [[ "$max_value" =~ ^[0-9]+$ ]]; then
+        echo "$max_value"
+    else
+        # Fallback a valori standard
+        echo "128"
+    fi
+}
+
+# Funzione per applicare la configurazione dei volumi in modo sicuro
+apply_volume_settings() {
+    local card_index=$1
+    shift
+    local controls=("$@")
     local success=false
+    local critical_controls=("PCM" "Master" "Playback" "Headphone")
     
-    # Metodo 1: Usa il nome del controllo PCM
-    if amixer -c 1 sset 'PCM' 100% unmute 2>/dev/null; then
-        log "✅ Volume PCM impostato al 100% (metodo 1)"
-        success=true
-    fi
+    log "Applicazione configurazione volumi sicura per scheda $card_index..."
     
-    # Metodo 2: Usa il controllo specifico numid=4 (se il primo fallisce)
-    if [[ "$success" == "false" ]] && amixer -c 1 cset numid=4 128 2>/dev/null; then
-        log "✅ Volume impostato tramite numid=4 (metodo 2)"
-        success=true
-    fi
+    # Prima prova con i controlli critici (massimo 3 controlli)
+    local critical_found=0
+    for control in "${controls[@]}"; do
+        local numid=$(echo "$control" | cut -d':' -f1)
+        local control_name=$(echo "$control" | cut -d':' -f2-)
+        
+        # Limita a massimo 3 controlli critici per evitare overload
+        if [[ $critical_found -ge 3 ]]; then
+            log "⚠️ Limite controlli critici raggiunto (3), saltando ulteriori modifiche"
+            break
+        fi
+        
+        # Controlla se è un controllo critico
+        local is_critical=false
+        for critical in "${critical_controls[@]}"; do
+            if [[ "$control_name" == *"$critical"* ]]; then
+                is_critical=true
+                break
+            fi
+        done
+        
+        if [[ "$is_critical" == "true" ]] || [[ "$numid" == "generic" ]]; then
+            critical_found=$((critical_found + 1))
+            
+            # Metodo 1: Prova con il nome del controllo (se non è un numid numerico)
+            if [[ "$numid" == "generic" ]]; then
+                # Imposta volume al 70% per evitare overload
+                if amixer -c "$card_index" sset "$control_name" 70% unmute >/dev/null 2>&1; then
+                    log "✅ Volume impostato per controllo critico: $control_name (70%)"
+                    success=true
+                fi
+            # Metodo 2: Prova con il numid specifico (con controllo range)
+            elif [[ "$numid" =~ ^[0-9]+$ ]]; then
+                local max_range=$(get_volume_range "$card_index" "$numid")
+                local safe_value=$((max_range * 70 / 100))
+                
+                # Imposta volume al 70% del range massimo
+                if amixer -c "$card_index" cset numid="$numid" "$safe_value" >/dev/null 2>&1; then
+                    log "✅ Volume impostato per numid=$numid (valore sicuro: $safe_value su $max_range)"
+                    success=true
+                # Fallback a valore medio se il 70% non funziona
+                elif amixer -c "$card_index" cset numid="$numid" $((max_range / 2)) >/dev/null 2>&1; then
+                    log "✅ Volume impostato per numid=$numid (valore medio: $((max_range / 2)))"
+                    success=true
+                # Metodo 3: Prova con unmute
+                elif amixer -c "$card_index" cset numid="$numid" on >/dev/null 2>&1; then
+                    log "✅ Controllo abilitato per numid=$numid"
+                    success=true
+                fi
+            fi
+        fi
+    done
     
-    # Metodo 3: Prova con Capture se PCM non è disponibile
-    if [[ "$success" == "false" ]] && amixer -c 1 sset 'Capture' 100% unmute 2>/dev/null; then
-        log "✅ Volume Capture impostato al 100% (metodo 3)"
-        success=true
-    fi
-    
-    # Metodo 4: Prova con Master se altri metodi falliscono
-    if [[ "$success" == "false" ]] && amixer -c 1 sset 'Master' 100% unmute 2>/dev/null; then
-        log "✅ Volume Master impostato al 100% (metodo 4)"
-        success=true
+    # Se non abbiamo trovato controlli critici, prova con i primi 2 controlli generici
+    if [[ "$success" == "false" ]] && [[ ${#controls[@]} -gt 0 ]]; then
+        log "⚠️ Nessun controllo critico trovato, provo con i primi 2 controlli generici..."
+        
+        local generic_count=0
+        for control in "${controls[@]}"; do
+            if [[ $generic_count -ge 2 ]]; then
+                break
+            fi
+            
+            local numid=$(echo "$control" | cut -d':' -f1)
+            local control_name=$(echo "$control" | cut -d':' -f2-)
+            
+            if [[ "$numid" == "generic" ]]; then
+                if amixer -c "$card_index" sset "$control_name" 50% unmute >/dev/null 2>&1; then
+                    log "✅ Volume impostato per controllo generico: $control_name (50%)"
+                    success=true
+                    generic_count=$((generic_count + 1))
+                fi
+            elif [[ "$numid" =~ ^[0-9]+$ ]]; then
+                local max_range=$(get_volume_range "$card_index" "$numid")
+                local safe_value=$((max_range * 50 / 100))
+                
+                if amixer -c "$card_index" cset numid="$numid" "$safe_value" >/dev/null 2>&1; then
+                    log "✅ Volume impostato per numid=$numid (valore sicuro: $safe_value su $max_range)"
+                    success=true
+                    generic_count=$((generic_count + 1))
+                fi
+            fi
+        done
     fi
     
     if [[ "$success" == "false" ]]; then
-        warn "Impossibile configurare il volume hardware automaticamente"
-        warn "Suggerimento: eseguire manualmente 'amixer -c 1 cset numid=4 128'"
+        log "⚠️ Impossibile configurare i volumi automaticamente"
+        log "Suggerimento: verificare i controlli disponibili con 'amixer -c $card_index controls'"
+        return 1
     else
-        log "Volume hardware configurato correttamente"
+        log "✅ Configurazione volumi sicura completata correttamente"
+        return 0
+    fi
+}
+
+# Funzione principale per la configurazione universale dei volumi hardware
+fix_hardware_volumes() {
+    log "Configurazione volumi hardware universale per schede UAC..."
+    
+    # Trova la scheda audio UAC (stesso approccio della Fase 3)
+    local uac_card=""
+    
+    # Cerchiamo la scheda UAC usando lo stesso metodo della Fase 3
+    for card_path in /sys/class/sound/card*; do
+        [ -e "$card_path" ] || continue
+        CARD_ID=$(basename "$card_path" | sed 's/card//')
+        
+        # Verifica se la scheda è USB controllando il percorso del dispositivo fisico
+        if readlink "$card_path/device" 2>/dev/null | grep -q "usb"; then
+            CARD_NAME=$(cat "$card_path/id" 2>/dev/null || echo "Unknown")
+            log "✅ Dispositivo UAC Hardware rilevato: card $CARD_ID ($CARD_NAME)"
+            uac_card="$CARD_ID"
+            break
+        fi
+    done
+    
+    # Se non troviamo dispositivi UAC via kernel, proviamo il metodo fallback con aplay
+    if [ -z "$uac_card" ]; then
+        log "⚠️ Nessun dispositivo UAC trovato via kernel, fallback a rilevamento ALSA..."
+        
+        # Cerchiamo qualsiasi scheda USB (contiene "USB" nel nome)
+        uac_card=$(aplay -l | grep -i "USB" | grep -E "card [0-9]+:" | head -n1 | cut -d' ' -f2 | tr -d ':')
+        
+        if [ -n "$uac_card" ]; then
+            log "✅ Scheda USB generica trovata: card $uac_card"
+        fi
+    fi
+    
+    # Se non troviamo schede USB, non procediamo con la configurazione volumi
+    if [ -z "$uac_card" ]; then
+        log "⚠️ Nessuna scheda USB UAC trovata, saltando configurazione volumi"
+        log "   Possibili cause:"
+        log "   - La scheda audio non è Class Compliant (richiede driver proprietari)"
+        log "   - La scheda non è collegata correttamente"
+        log "   - La scheda è disattivata nei permessi USB"
+        log "   - La scheda non supporta lo standard UAC"
+        return 0
+    fi
+    
+    log "Configurazione volumi per scheda UAC: card $uac_card"
+    
+    # Rileva i controlli di volume disponibili
+    local volume_controls=($(detect_volume_controls "$uac_card"))
+    
+    if [[ ${#volume_controls[@]} -eq 0 ]]; then
+        log "⚠️ Nessun controllo di volume trovato sulla scheda $uac_card"
+        log "Saltando configurazione volumi (non è un errore critico)"
+        return 0
+    fi
+    
+    # Applica la configurazione dei volumi
+    if apply_volume_settings "$uac_card" "${volume_controls[@]}"; then
+        log "✅ Configurazione volumi hardware completata con successo"
+        return 0
+    else
+        log "⚠️ Configurazione volumi non riuscita, ma non è critico per l'avvio"
+        log "   La scheda audio dovrebbe comunque funzionare"
+        return 0
     fi
 }
 
