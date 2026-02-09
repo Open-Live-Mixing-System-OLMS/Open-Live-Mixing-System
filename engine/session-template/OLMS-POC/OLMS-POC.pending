@@ -158,7 +158,7 @@
       <IO name="Audio 1" id="8619" direction="Input" default-type="audio">
         <Port name="Audio 1/audio_in 1" type="audio" direction="Input">
           <ExtConnection for="JACK"/>
-          <ExtConnection for="JACK" other="system:capture_2"/>
+          <ExtConnection for="JACK" other="system:capture_1"/>
         </Port>
       </IO>
       <IO name="Audio 1" id="8620" direction="Output" default-type="audio">
