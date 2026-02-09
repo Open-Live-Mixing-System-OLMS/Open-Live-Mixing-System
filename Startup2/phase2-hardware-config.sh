@@ -415,31 +415,6 @@ apply_volume_settings() {
     fi
 }
 
-# Funzione per silenziare TUTTO prima dei test critici
-# NOTA: Durante i test JACK, è normale sentire rumori o click dovuti a buffer incompleti.
-# Si consiglia di abbassare temporaneamente il volume dell'impianto audio durante l'avvio.
-# Questo è un problema conosciuto durante la fase di rilevamento hardware.
-silence_hardware_audio() {
-    log "🔇 SILENCING HARDWARE: Reset e Mute totale per test..."
-    # Trova la scheda USB
-    local uac_card=$(aplay -l | grep -i "USB" | grep -E "card [0-9]+:" | head -n1 | cut -d' ' -f2 | tr -d ':')
-    
-    if [ -n "$uac_card" ]; then
-        # 1. Forza il reset dei parametri del driver alsa
-        alsactl init "$uac_card" >/dev/null 2>&1 || true
-        
-        # 2. Mute totale (Switch)
-        amixer -c "$uac_card" sset Master mute >/dev/null 2>&1 || true
-        amixer -c "$uac_card" sset PCM mute >/dev/null 2>&1 || true
-        
-        # 3. Porta TUTTI i numid di tipo 'Volume' a zero
-        amixer -c "$uac_card" controls | grep "Volume" | while read -r line; do
-            local numid=$(echo "$line" | grep -o "numid=[0-9]*" | cut -d'=' -f2)
-            amixer -c "$uac_card" cset numid="$numid" 0 >/dev/null 2>&1 || true
-        done
-        log "✅ Hardware silenziato."
-    fi
-}
 
 # Funzione principale per la configurazione universale dei volumi hardware
 fix_hardware_volumes() {
@@ -487,6 +462,12 @@ fix_hardware_volumes() {
     
     log "Configurazione volumi per scheda UAC: card $uac_card"
     
+    # Aggiungiamo un controllo di disponibilità prima di procedere
+    if ! amixer -c "$uac_card" info >/dev/null 2>&1; then
+        log "⚠️ Scheda rilevata ma non ancora pronta per ALSA. Attendo..."
+        sleep 2
+    fi
+    
     # Rileva i controlli di volume disponibili
     local volume_controls=($(detect_volume_controls "$uac_card"))
     
@@ -510,9 +491,6 @@ fix_hardware_volumes() {
 # Funzione principale
 main() {
     prepare_system
-    
-    # Silenzio hardware prima dei test critici
-    silence_hardware_audio
     
     log "=== FASE 2: OTTIMIZZAZIONE HARDWARE ==="
     info "Core audio dedicato: $AUDIO_CORE (maschera: $CPU_MASK_CORE_1)"

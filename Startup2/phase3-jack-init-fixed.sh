@@ -49,6 +49,9 @@ BIT_DEPTH_CONFIGS=(
     "32"   # Fallback: 32-bit (per efficienza CPU su hardware USB)
 )
 
+# Buffer "sicuro" per la Fase 1 (rilevamento bit-depth)
+SAFE_BUFFER="256:3"
+
 SAMPLE_RATE=48000
 
 # Enhanced cleanup with better USB device handling
@@ -92,7 +95,7 @@ nuclear_cleanup() {
 
 # Enhanced socket permission and symlink management
 setup_socket_permissions() {
-    log "Creazione link di compatibilità per il server 'olms'..."
+    log "🔧 FASE FINALE: Creazione link di compatibilità per il server 'olms'..."
     sleep 3 # Diamo tempo a JACK di creare i file
 
     # Verifichiamo che i file socket di JACK siano stati creati correttamente
@@ -115,20 +118,25 @@ setup_socket_permissions() {
     done
     
     # JACK2 spesso cerca in /dev/shm/jack-$UID/
-    log "Creazione directory e link simbolico per compatibilità JACK2..."
+    log "🔧 FASE FINALE: Creazione directory e link simbolico per compatibilità JACK2..."
     mkdir -p /dev/shm/jack-1000
     ln -sf /dev/shm/jack_olms_0 /dev/shm/jack-1000/olms
     chmod 777 /dev/shm/jack-1000/olms
     
+    # Permessi finali per garantire che Ardour possa connettersi
+    log "🔧 FASE FINALE: Permessi finali per compatibilità Ardour..."
+    chmod -R 777 /dev/shm/jack* 2>/dev/null || true
+    chmod 666 /dev/shm/jack-shm-registry 2>/dev/null || true
+    
     if [ "$all_found" = true ]; then
-        log "Tutti i file socket di JACK sono stati trovati e configurati correttamente"
+        log "✅ TUTTI I FILE SOCKET DI JACK SONO STATI TROVATI E CONFIGURATI CORRETTAMENTE"
         
         # Il registro SHM è fondamentale per la memoria condivisa
         [ -e /dev/shm/jack-shm-registry ] && chmod 666 /dev/shm/jack-shm-registry
         
         return 0
     else
-        error "Alcuni file socket di JACK non sono stati trovati. Ardour potrebbe fallire."
+        error "❌ Alcuni file socket di JACK non sono stati trovati. Ardour potrebbe fallire."
         return 1
     fi
 }
@@ -140,141 +148,288 @@ SYSTEM_CORE="0"
 IRQ_CORE="1"
 AUDIO_CORES="2-$LAST_CORE"
 
-# --- VERSIONE SEVERA: VALIDATORE ZOMBIE MODE (FIXED & ROBUST) ---
-start_jack_severe_mode() {
-    log "Universal USB Audio Device Detection - UAC Class Compliant Compatible"
+# --- FASE 1: TROVARE IL BIT-DEPTH (Il "Soffitto" Hardware) ---
+find_bit_depth() {
+    log "🔍 FASE 1: Rilevamento Bit-Depth con buffer sicuro (${SAFE_BUFFER})"
     
-    # --- RILEVAMENTO HARDWARE ---
+    # --- RILEVAMENTO HARDWARE DINAMICO ---
     local TARGET_ALSA_DEVICE=""
-    # Fallback rapido per evitare errori se non copi la parte sopra
-    if [ -z "${TARGET_ALSA_DEVICE:-}" ]; then
-         for card_dir in /sys/class/sound/card*; do
-            if [ -d "$card_dir" ]; then
-                if readlink "$card_dir/device/driver" 2>/dev/null | grep -q "snd-usb-audio"; then
-                    TARGET_ALSA_DEVICE="hw:$(basename "$card_dir" | sed 's/card//')"
+    for card_dir in /sys/class/sound/card*; do
+        if [ -d "$card_dir" ]; then
+            if readlink "$card_dir/device/driver" 2>/dev/null | grep -q "snd-usb-audio"; then
+                TARGET_ALSA_DEVICE="hw:$(basename "$card_dir" | sed 's/card//')"
+                break
+            fi
+        fi
+    done
+    
+    if [ -z "${TARGET_ALSA_DEVICE:-}" ]; then 
+        log "⚠️ Nessun dispositivo USB audio trovato, fallback a dummy"
+        TARGET_ALSA_DEVICE="dummy"
+    fi
+    
+    log "Dispositivo audio rilevato: $TARGET_ALSA_DEVICE"
+    
+    # Estrai buffer_size e periods dal buffer sicuro
+    local buffer_size="${SAFE_BUFFER%:*}"
+    local periods="${SAFE_BUFFER#*:}"
+    
+    local jack_pid=""
+    local bit_depth_found=""
+    
+    for bit_depth in "${BIT_DEPTH_CONFIGS[@]}"; do
+        log "🔍 TEST BIT-DEPTH: ${bit_depth}-bit (Buffer: ${SAFE_BUFFER})"
+        
+        # --- PULIZIA AGGRESSIVA TRA I TEST ---
+        pkill -9 jackd 2>/dev/null || true
+        sleep 0.5
+        
+        # RESET FISICO DELLA SCHEDA TRA UN TEST E L'ALTRO
+        if [[ "$TARGET_ALSA_DEVICE" == "hw:"* ]]; then
+            timeout 0.2 aplay -D "$TARGET_ALSA_DEVICE" -f S16_LE -r 48000 -c 2 /dev/zero >/dev/null 2>&1 || true
+            # Reset volume via amixer se disponibile
+            local card_num=$(echo "$TARGET_ALSA_DEVICE" | sed 's/hw://')
+            amixer -c "$card_num" cset numid=4 0 >/dev/null 2>&1 || true 
+        fi
+        
+        # Pulizia socket
+        sudo rm -rf /dev/shm/jack* /tmp/jack* 2>/dev/null || true
+        
+        # Preparazione SHM
+        sudo mkdir -p /dev/shm/jack-1000
+        sudo chown francesco_ssh:francesco /dev/shm/jack-1000
+        sudo chmod 777 /dev/shm/jack-1000
+
+        # LANCIO DI JACK per testare il bit-depth
+        sudo -u francesco_ssh env -i \
+            HOME=/home/francesco_ssh \
+            PATH=/usr/bin:/bin \
+            XDG_RUNTIME_DIR=/run/user/1000 \
+            JACK_NO_AUDIO_RESERVATION=1 \
+            JACK_PROMISCUOUS_SERVER=1 \
+            JACK_DEFAULT_SERVER=olms \
+            taskset -c "$AUDIO_CORES" chrt -f 80 \
+            /usr/bin/jackd -R -P 80 -n olms -d alsa -d "$TARGET_ALSA_DEVICE" -r "$SAMPLE_RATE" -p "$buffer_size" -n "$periods" -S "$bit_depth" > /tmp/jack_startup.log 2>&1 &
+        
+        jack_pid=$!
+        echo "$jack_pid" > /tmp/jack.pid
+        
+        log "JACK lanciato (PID: $jack_pid). Attesa sincronizzazione (8s)..."
+        sleep 8
+
+        # FIX PERMESSI PRE-VALIDAZIONE
+        log "🔧 FIX: Apertura permessi socket per validatore..."
+        sudo chmod -R 777 /dev/shm/jack* 2>/dev/null || true
+        sudo chmod 777 /dev/shm/jack-shm-registry 2>/dev/null || true
+
+        # VALIDATORE (Check Processo)
+        if ! ps -p "$jack_pid" > /dev/null; then
+            log "❌ FALLITO: Processo morto per ${bit_depth}-bit."
+            continue
+        fi
+
+        # VALIDATORE (Check Reattività)
+        log "🔍 VALIDATION: Testing server reactivity for ${bit_depth}-bit..."
+        if sudo -u francesco_ssh env \
+            XDG_RUNTIME_DIR=/run/user/1000 \
+            JACK_DEFAULT_SERVER=olms \
+            JACK_PROMISCUOUS_SERVER=1 \
+            jack_wait -s olms -c -t 5 -w | grep -q "available"; then
+            
+            log "✅ Server 'olms' RISPONDE per ${bit_depth}-bit. Controllo porte audio..."
+            
+            # VALIDATORE (Check Porte Audio con Retry)
+            local ports_found=false
+            local port_count=0
+            
+            for retry in {1..3}; do
+                local raw_output=$(sudo -u francesco_ssh env JACK_DEFAULT_SERVER=olms JACK_PROMISCUOUS_SERVER=1 jack_lsp 2>/dev/null || echo "")
+                port_count=$(echo "$raw_output" | grep -E "system:capture|physical" | wc -l)
+                
+                if [ "$port_count" -gt 0 ]; then
+                    ports_found=true
                     break
                 fi
+                log "⏳ Porte non ancora visibili (Tentativo $retry/3)..."
+                sleep 2
+            done
+            
+            if [ "$ports_found" = true ]; then
+                log "✅ BIT-DEPTH VALIDO: ${bit_depth}-bit OK ($port_count porte)."
+                bit_depth_found="$bit_depth"
+                break
+            else
+                log "❌ ZOMBIE: Server risponde ma 0 porte audio dopo 3 tentativi per ${bit_depth}-bit."
+                pkill -9 jackd 2>/dev/null || true
+                continue
             fi
-        done
+        else
+            log "❌ WRONG DOOR: Il server non risponde a 'olms' per ${bit_depth}-bit."
+            pkill -9 jackd 2>/dev/null || true
+            continue
+        fi
+    done
+    
+    if [ -z "$bit_depth_found" ]; then
+        log "⚠️ Nessun bit-depth valido trovato, fallback a dummy"
+        sudo -u francesco_ssh env -i XDG_RUNTIME_DIR=/run/user/1000 /usr/bin/jackd -n olms -d dummy -r 48000 -p 1024 > /dev/null 2>&1 &
+        echo $! > /tmp/jack.pid
+        return 1
     fi
-    if [ -z "${TARGET_ALSA_DEVICE:-}" ]; then TARGET_ALSA_DEVICE="dummy"; fi
+    
+    log "🎯 FASE 1 COMPLETATA: Bit-depth stabile trovato: ${bit_depth_found}-bit"
+    echo "$bit_depth_found" > /tmp/bit_depth_found
+    return 0
+}
 
-    log "Starting JACK on device: $TARGET_ALSA_DEVICE"
+# --- FASE 2: TROVARE IL BUFFER (Latenza Minima) ---
+find_buffer() {
+    local bit_depth=$(cat /tmp/bit_depth_found 2>/dev/null || echo "16")
+    
+    if [ "$bit_depth" = "dummy" ]; then
+        log "⚠️ FASE 2 SKIPPED: Using dummy backend"
+        return 0
+    fi
+    
+    log "🔍 FASE 2: Rilevamento Buffer con bit-depth fisso (${bit_depth}-bit)"
+    
+    # --- RILEVAMENTO HARDWARE DINAMICO ---
+    local TARGET_ALSA_DEVICE=""
+    for card_dir in /sys/class/sound/card*; do
+        if [ -d "$card_dir" ]; then
+            if readlink "$card_dir/device/driver" 2>/dev/null | grep -q "snd-usb-audio"; then
+                TARGET_ALSA_DEVICE="hw:$(basename "$card_dir" | sed 's/card//')"
+                break
+            fi
+        fi
+    done
+    
+    if [ -z "${TARGET_ALSA_DEVICE:-}" ]; then 
+        log "⚠️ Nessun dispositivo USB audio trovato, fallback a dummy"
+        TARGET_ALSA_DEVICE="dummy"
+    fi
     
     local jack_pid=""
     local config_success=false
     
-    for bit_depth in "${BIT_DEPTH_CONFIGS[@]}"; do
-        for config in "${BUFFER_CONFIGS[@]}"; do
-            local buffer_size="${config%:*}"
-            local periods="${config#*:}"
+    for config in "${BUFFER_CONFIGS[@]}"; do
+        local buffer_size="${config%:*}"
+        local periods="${config#*:}"
+        
+        log "🔍 TEST BUFFER: ${buffer_size}:${periods} (Bit-depth: ${bit_depth}-bit)"
+        
+        # --- PULIZIA AGGRESSIVA TRA I TEST ---
+        pkill -9 jackd 2>/dev/null || true
+        sleep 0.5
+        
+        # RESET FISICO DELLA SCHEDA TRA UN TEST E L'ALTRO
+        if [[ "$TARGET_ALSA_DEVICE" == "hw:"* ]]; then
+            timeout 0.2 aplay -D "$TARGET_ALSA_DEVICE" -f S16_LE -r 48000 -c 2 /dev/zero >/dev/null 2>&1 || true
+            local card_num=$(echo "$TARGET_ALSA_DEVICE" | sed 's/hw://')
+            amixer -c "$card_num" cset numid=4 0 >/dev/null 2>&1 || true 
+        fi
+        
+        # Pulizia socket
+        sudo rm -rf /dev/shm/jack* /tmp/jack* 2>/dev/null || true
+        
+        # Preparazione SHM
+        sudo mkdir -p /dev/shm/jack-1000
+        sudo chown francesco_ssh:francesco /dev/shm/jack-1000
+        sudo chmod 777 /dev/shm/jack-1000
+
+        # LANCIO DI JACK per testare il buffer
+        sudo -u francesco_ssh env -i \
+            HOME=/home/francesco_ssh \
+            PATH=/usr/bin:/bin \
+            XDG_RUNTIME_DIR=/run/user/1000 \
+            JACK_NO_AUDIO_RESERVATION=1 \
+            JACK_PROMISCUOUS_SERVER=1 \
+            JACK_DEFAULT_SERVER=olms \
+            taskset -c "$AUDIO_CORES" chrt -f 80 \
+            /usr/bin/jackd -R -P 80 -n olms -d alsa -d "$TARGET_ALSA_DEVICE" -r "$SAMPLE_RATE" -p "$buffer_size" -n "$periods" -S "$bit_depth" > /tmp/jack_startup.log 2>&1 &
+        
+        jack_pid=$!
+        echo "$jack_pid" > /tmp/jack.pid
+        
+        log "JACK lanciato (PID: $jack_pid). Attesa sincronizzazione (8s)..."
+        sleep 8
+
+        # FIX PERMESSI PRE-VALIDAZIONE
+        log "🔧 FIX: Apertura permessi socket per validatore..."
+        sudo chmod -R 777 /dev/shm/jack* 2>/dev/null || true
+        sudo chmod 777 /dev/shm/jack-shm-registry 2>/dev/null || true
+
+        # VALIDATORE (Check Processo)
+        if ! ps -p "$jack_pid" > /dev/null; then
+            log "❌ FALLITO: Processo morto per buffer ${buffer_size}:${periods}."
+            continue
+        fi
+
+        # VALIDATORE (Check Reattività)
+        log "🔍 VALIDATION: Testing server reactivity for buffer ${buffer_size}:${periods}..."
+        if sudo -u francesco_ssh env \
+            XDG_RUNTIME_DIR=/run/user/1000 \
+            JACK_DEFAULT_SERVER=olms \
+            JACK_PROMISCUOUS_SERVER=1 \
+            jack_wait -s olms -c -t 5 -w | grep -q "available"; then
             
-            log "🔍 SEVERE TEST: Buffer=${buffer_size}, Periods=${periods}, Bit-depth=${bit_depth}"
+            log "✅ Server 'olms' RISPONDE per buffer ${buffer_size}:${periods}. Controllo porte audio..."
             
-            # --- NUOVA SEZIONE DI PULIZIA AGGRESSIVA ---
-            pkill -9 jackd 2>/dev/null || true
-            sleep 0.5
-
-            # RESET FISICO DELLA SCHEDA TRA UN TEST E L'ALTRO
-            # Questo svuota i buffer DMA rimasti appesi che causano il rumore
-            if [[ "$TARGET_ALSA_DEVICE" == "hw:1" ]]; then
-                # 'aplay -D hw:1 /dev/zero' per un millisecondo forza il kernel a pulire il buffer
-                timeout 0.2 aplay -D hw:1 -f S16_LE -r 48000 -c 2 /dev/zero >/dev/null 2>&1 || true
-                # Azzeriamo di nuovo via amixer per sicurezza
-                amixer -c 1 cset numid=4 0 >/dev/null 2>&1 || true 
-            fi
-
-            sudo rm -rf /dev/shm/jack* /tmp/jack* 2>/dev/null || true
-            # -------------------------------------------
+            # VALIDATORE (Check Porte Audio con Retry)
+            local ports_found=false
+            local port_count=0
             
-            # Preparazione SHM
-            sudo mkdir -p /dev/shm/jack-1000
-            sudo chown francesco_ssh:francesco /dev/shm/jack-1000
-            sudo chmod 777 /dev/shm/jack-1000
-
-            # B. LANCIO DI JACK
-            sudo -u francesco_ssh env -i \
-                HOME=/home/francesco_ssh \
-                PATH=/usr/bin:/bin \
-                XDG_RUNTIME_DIR=/run/user/1000 \
-                JACK_NO_AUDIO_RESERVATION=1 \
-                JACK_PROMISCUOUS_SERVER=1 \
-                JACK_DEFAULT_SERVER=olms \
-                taskset -c "$AUDIO_CORES" chrt -f 80 \
-                /usr/bin/jackd -R -P 80 -n olms -d alsa -d "$TARGET_ALSA_DEVICE" -r "$SAMPLE_RATE" -p "$buffer_size" -n "$periods" -S "$bit_depth" > /tmp/jack_startup.log 2>&1 &
-            
-            jack_pid=$!
-            echo "$jack_pid" > /tmp/jack.pid
-            
-            log "JACK lanciato (PID: $jack_pid). Attesa sincronizzazione (8s)..."
-            sleep 8
-
-            # C. FIX PERMESSI PRE-VALIDAZIONE
-            log "🔧 FIX: Apertura permessi socket per validatore..."
-            sudo chmod -R 777 /dev/shm/jack* 2>/dev/null || true
-            sudo chmod 777 /dev/shm/jack-shm-registry 2>/dev/null || true
-
-            # D. VALIDATORE (Check Processo)
-            if ! ps -p "$jack_pid" > /dev/null; then
-                 log "❌ FALLITO: Processo morto."
-                 continue
-            fi
-
-            # E. VALIDATORE (Check Reattività)
-            log "🔍 SEVERE VALIDATION: Testing server reactivity..."
-            if sudo -u francesco_ssh env \
-                XDG_RUNTIME_DIR=/run/user/1000 \
-                JACK_DEFAULT_SERVER=olms \
-                JACK_PROMISCUOUS_SERVER=1 \
-                jack_wait -s olms -c -t 5 -w | grep -q "available"; then
+            for retry in {1..3}; do
+                local raw_output=$(sudo -u francesco_ssh env JACK_DEFAULT_SERVER=olms JACK_PROMISCUOUS_SERVER=1 jack_lsp 2>/dev/null || echo "")
+                port_count=$(echo "$raw_output" | grep -E "system:capture|physical" | wc -l)
                 
-                log "✅ Server 'olms' RISPONDE. Controllo porte audio..."
-                
-                # F. VALIDATORE (Check Porte Audio con Retry)
-                # Qui c'era l'errore. Aggiungiamo i flag mancanti e un ciclo di retry.
-                local ports_found=false
-                local port_count=0
-                
-                for retry in {1..3}; do
-                    # NOTA: Aggiunto JACK_PROMISCUOUS_SERVER=1 anche qui!
-                    local raw_output=$(sudo -u francesco_ssh env JACK_DEFAULT_SERVER=olms JACK_PROMISCUOUS_SERVER=1 jack_lsp 2>/dev/null || echo "")
-                    
-                    # Contiamo le righe che contengono "capture" o "physical"
-                    port_count=$(echo "$raw_output" | grep -E "system:capture|physical" | wc -l)
-                    
-                    if [ "$port_count" -gt 0 ]; then
-                        ports_found=true
-                        break
-                    fi
-                    log "⏳ Porte non ancora visibili (Tentativo $retry/3)..."
-                    sleep 2
-                done
-                
-                if [ "$ports_found" = true ]; then
-                    log "✅ CONFIGURAZIONE VALIDA: ${buffer_size}:${periods} OK ($port_count porte)."
-                    config_success=true
-                    break 2
-                else
-                    log "❌ ZOMBIE: Server risponde ma 0 porte audio dopo 3 tentativi."
-                    pkill -9 jackd 2>/dev/null || true
-                    continue
+                if [ "$port_count" -gt 0 ]; then
+                    ports_found=true
+                    break
                 fi
+                log "⏳ Porte non ancora visibili (Tentativo $retry/3)..."
+                sleep 2
+            done
+            
+            if [ "$ports_found" = true ]; then
+                log "✅ CONFIGURAZIONE VALIDA: ${buffer_size}:${periods} OK ($port_count porte)."
+                config_success=true
+                break
             else
-                log "❌ WRONG DOOR: Il server non risponde a 'olms'."
+                log "❌ ZOMBIE: Server risponde ma 0 porte audio dopo 3 tentativi per buffer ${buffer_size}:${periods}."
                 pkill -9 jackd 2>/dev/null || true
                 continue
             fi
-        done
+        else
+            log "❌ WRONG DOOR: Il server non risponde a 'olms' per buffer ${buffer_size}:${periods}."
+            pkill -9 jackd 2>/dev/null || true
+            continue
+        fi
     done
     
     if [ "$config_success" = false ]; then
-        log "⚠️ Fallback a Dummy..."
+        log "⚠️ Nessun buffer valido trovato, fallback a dummy"
         sudo -u francesco_ssh env -i XDG_RUNTIME_DIR=/run/user/1000 /usr/bin/jackd -n olms -d dummy -r 48000 -p 1024 > /dev/null 2>&1 &
         echo $! > /tmp/jack.pid
     fi
 
     # Fix finale
     sudo chmod -R 777 /dev/shm/jack* 2>/dev/null || true
+    return 0
+}
+
+# --- VERSIONE SEVERA: VALIDATORE ZOMBIE MODE (FIXED & ROBUST) ---
+start_jack_severe_mode() {
+    log "🚨 JACK SEVERE VALIDATION: Two-Phase Strategy"
+    
+    # FASE 1: Trovare il Bit-Depth
+    if ! find_bit_depth; then
+        log "⚠️ FASE 1 fallita, procediamo con dummy backend"
+    fi
+    
+    # FASE 2: Trovare il Buffer
+    find_buffer
+    
     return 0
 }
 
@@ -448,9 +603,6 @@ main() {
         log "PID: $jack_pid"
         log "Socket directory: $(find /dev/shm -name "jack-olms-*" -type d 2>/dev/null | head -1 || echo "Not found")"
         
-        # Riattiva volume ALSA dopo test completati
-        log "Riattivazione volume ALSA per uso normale..."
-        amixer -c 1 cset numid=4 128  # PCM Playback Volume al massimo
         
         # Test finale di connettività
         log "Verifica compatibilità Ardour..."
