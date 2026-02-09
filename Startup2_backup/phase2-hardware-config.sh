@@ -13,8 +13,8 @@ AUDIO_CORE=1  # Core dedicato per IRQ audio
 CPU_MASK_CORE_1="0x2"  # Maschera hex per core 1
 
 # Variabili d'ambiente per l'approccio "tutto come stesso utente"
-export TARGET_USER="$(whoami)"
-export DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$(id -u)/bus"
+export TARGET_USER="francesco_ssh"
+export DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/1000/bus"
 
 # Colori
 RED='\033[0;31m'
@@ -59,7 +59,7 @@ detect_audio_hardware() {
         warn "Troppi dispositivi USB rilevati sullo stesso bus ($usb_results dispositivi)"
         warn "Questo può causare blocchi durante l'IRQ pinning"
         warn "SUGGERIMENTO: Scollegare HD esterni o altri dispositivi USB non essenziali"
-        warn "ESEGUIRE: sudo /home/$(whoami)/Progetti/OLMS-Core/Startup2/olms-orchestrator.sh dopo aver scollegato i dispositivi"
+        warn "ESEGUIRE: sudo /home/francesco_ssh/Progetti/OLMS-Core/Startup2/olms-orchestrator.sh dopo aver scollegato i dispositivi"
         exit 1
     fi
     

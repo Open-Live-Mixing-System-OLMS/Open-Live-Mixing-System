@@ -6,8 +6,8 @@
 set -euo pipefail
 
 # Configurazione
-TARGET_USER="${TARGET_USER:-$(whoami)}"
-TARGET_UID=$(id -u "$TARGET_USER" 2>/dev/null || echo "$(id -u)")
+TARGET_USER="${TARGET_USER:-francesco_ssh}"
+TARGET_UID=$(id -u "$TARGET_USER" 2>/dev/null || echo "1000")
 ACTUAL_SOCKET="/dev/shm/jack-olms-0"
 
 # Colori

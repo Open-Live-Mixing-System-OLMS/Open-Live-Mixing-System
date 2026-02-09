@@ -8,8 +8,8 @@ set -euo pipefail
 
 # Configurazione
 LOG_FILE="/tmp/olms-audio-diagnostic.log"
-ARD_SESSION_PATH="/home/$(whoami)/Progetti/OLMS-Core/engine/session-template/OLMS-POC/OLMS-POC.ardour"
-ARD_USER="$(whoami)"
+ARD_SESSION_PATH="/home/francesco_ssh/Progetti/OLMS-Core/engine/session-template/OLMS-POC/OLMS-POC.ardour"
+ARD_USER="francesco_ssh"
 
 # Colori
 RED='\033[0;31m'

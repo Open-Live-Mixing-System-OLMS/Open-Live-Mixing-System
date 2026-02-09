@@ -9,11 +9,11 @@ export JACK_DEFAULT_SERVER=olms
 export JACK_PROMISCUOUS_SERVER=1
 
 # Variabili d'ambiente per l'approccio "tutto come stesso utente"
-export TARGET_USER="$(whoami)"
-export DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$(id -u)/bus"
-export XDG_RUNTIME_DIR="/run/user/$(id -u)"
+export TARGET_USER="francesco_ssh"
+export DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/1000/bus"
+export XDG_RUNTIME_DIR="/run/user/1000"
 export DISPLAY=":0"
-export XAUTHORITY="/home/$(whoami)/.Xauthority"
+export XAUTHORITY="/home/francesco_ssh/.Xauthority"
 
 # Funzioni di logging
 log() { echo -e "\e[32m[$(date '+%H:%M:%S')]\e[0m $1"; }
@@ -119,9 +119,9 @@ setup_socket_permissions() {
     
     # JACK2 spesso cerca in /dev/shm/jack-$UID/
     log "🔧 FASE FINALE: Creazione directory e link simbolico per compatibilità JACK2..."
-    mkdir -p /dev/shm/jack-$(id -u)
-    ln -sf /dev/shm/jack_olms_0 /dev/shm/jack-$(id -u)/olms
-    chmod 777 /dev/shm/jack-$(id -u)/olms
+    mkdir -p /dev/shm/jack-1000
+    ln -sf /dev/shm/jack_olms_0 /dev/shm/jack-1000/olms
+    chmod 777 /dev/shm/jack-1000/olms
     
     # Permessi finali per garantire che Ardour possa connettersi
     log "🔧 FASE FINALE: Permessi finali per compatibilità Ardour..."
@@ -196,15 +196,15 @@ find_bit_depth() {
         sudo rm -rf /dev/shm/jack* /tmp/jack* 2>/dev/null || true
         
         # Preparazione SHM
-        sudo mkdir -p /dev/shm/jack-$(id -u)
-        sudo chown $(whoami):francesco /dev/shm/jack-$(id -u)
-        sudo chmod 777 /dev/shm/jack-$(id -u)
+        sudo mkdir -p /dev/shm/jack-1000
+        sudo chown francesco_ssh:francesco /dev/shm/jack-1000
+        sudo chmod 777 /dev/shm/jack-1000
 
         # LANCIO DI JACK per testare il bit-depth
-        sudo -u $(whoami) env -i \
-            HOME=/home/$(whoami) \
+        sudo -u francesco_ssh env -i \
+            HOME=/home/francesco_ssh \
             PATH=/usr/bin:/bin \
-            XDG_RUNTIME_DIR=/run/user/$(id -u) \
+            XDG_RUNTIME_DIR=/run/user/1000 \
             JACK_NO_AUDIO_RESERVATION=1 \
             JACK_PROMISCUOUS_SERVER=1 \
             JACK_DEFAULT_SERVER=olms \
@@ -230,8 +230,8 @@ find_bit_depth() {
 
         # VALIDATORE (Check Reattività)
         log "🔍 VALIDATION: Testing server reactivity for ${bit_depth}-bit..."
-        if sudo -u $(whoami) env \
-            XDG_RUNTIME_DIR=/run/user/$(id -u) \
+        if sudo -u francesco_ssh env \
+            XDG_RUNTIME_DIR=/run/user/1000 \
             JACK_DEFAULT_SERVER=olms \
             JACK_PROMISCUOUS_SERVER=1 \
             jack_wait -s olms -c -t 5 -w | grep -q "available"; then
@@ -243,7 +243,7 @@ find_bit_depth() {
             local port_count=0
             
             for retry in {1..3}; do
-                local raw_output=$(sudo -u $(whoami) env JACK_DEFAULT_SERVER=olms JACK_PROMISCUOUS_SERVER=1 jack_lsp 2>/dev/null || echo "")
+                local raw_output=$(sudo -u francesco_ssh env JACK_DEFAULT_SERVER=olms JACK_PROMISCUOUS_SERVER=1 jack_lsp 2>/dev/null || echo "")
                 port_count=$(echo "$raw_output" | grep -E "system:capture|physical" | wc -l)
                 
                 if [ "$port_count" -gt 0 ]; then
@@ -272,7 +272,7 @@ find_bit_depth() {
     
     if [ -z "$bit_depth_found" ]; then
         log "⚠️ Nessun bit-depth valido trovato, fallback a dummy"
-        sudo -u $(whoami) env -i XDG_RUNTIME_DIR=/run/user/$(id -u) /usr/bin/jackd -n olms -d dummy -r 48000 -p 1024 > /dev/null 2>&1 &
+        sudo -u francesco_ssh env -i XDG_RUNTIME_DIR=/run/user/1000 /usr/bin/jackd -n olms -d dummy -r 48000 -p 1024 > /dev/null 2>&1 &
         echo $! > /tmp/jack.pid
         return 1
     fi
@@ -333,15 +333,15 @@ find_buffer() {
         sudo rm -rf /dev/shm/jack* /tmp/jack* 2>/dev/null || true
         
         # Preparazione SHM
-        sudo mkdir -p /dev/shm/jack-$(id -u)
-        sudo chown $(whoami):francesco /dev/shm/jack-$(id -u)
-        sudo chmod 777 /dev/shm/jack-$(id -u)
+        sudo mkdir -p /dev/shm/jack-1000
+        sudo chown francesco_ssh:francesco /dev/shm/jack-1000
+        sudo chmod 777 /dev/shm/jack-1000
 
         # LANCIO DI JACK per testare il buffer
-        sudo -u $(whoami) env -i \
-            HOME=/home/$(whoami) \
+        sudo -u francesco_ssh env -i \
+            HOME=/home/francesco_ssh \
             PATH=/usr/bin:/bin \
-            XDG_RUNTIME_DIR=/run/user/$(id -u) \
+            XDG_RUNTIME_DIR=/run/user/1000 \
             JACK_NO_AUDIO_RESERVATION=1 \
             JACK_PROMISCUOUS_SERVER=1 \
             JACK_DEFAULT_SERVER=olms \
@@ -367,8 +367,8 @@ find_buffer() {
 
         # VALIDATORE (Check Reattività)
         log "🔍 VALIDATION: Testing server reactivity for buffer ${buffer_size}:${periods}..."
-        if sudo -u $(whoami) env \
-            XDG_RUNTIME_DIR=/run/user/$(id -u) \
+        if sudo -u francesco_ssh env \
+            XDG_RUNTIME_DIR=/run/user/1000 \
             JACK_DEFAULT_SERVER=olms \
             JACK_PROMISCUOUS_SERVER=1 \
             jack_wait -s olms -c -t 5 -w | grep -q "available"; then
@@ -380,7 +380,7 @@ find_buffer() {
             local port_count=0
             
             for retry in {1..3}; do
-                local raw_output=$(sudo -u $(whoami) env JACK_DEFAULT_SERVER=olms JACK_PROMISCUOUS_SERVER=1 jack_lsp 2>/dev/null || echo "")
+                local raw_output=$(sudo -u francesco_ssh env JACK_DEFAULT_SERVER=olms JACK_PROMISCUOUS_SERVER=1 jack_lsp 2>/dev/null || echo "")
                 port_count=$(echo "$raw_output" | grep -E "system:capture|physical" | wc -l)
                 
                 if [ "$port_count" -gt 0 ]; then
@@ -409,7 +409,7 @@ find_buffer() {
     
     if [ "$config_success" = false ]; then
         log "⚠️ Nessun buffer valido trovato, fallback a dummy"
-        sudo -u $(whoami) env -i XDG_RUNTIME_DIR=/run/user/$(id -u) /usr/bin/jackd -n olms -d dummy -r 48000 -p 1024 > /dev/null 2>&1 &
+        sudo -u francesco_ssh env -i XDG_RUNTIME_DIR=/run/user/1000 /usr/bin/jackd -n olms -d dummy -r 48000 -p 1024 > /dev/null 2>&1 &
         echo $! > /tmp/jack.pid
     fi
 
@@ -510,13 +510,13 @@ verify_long_term_stability_severe() {
         # Test 2: Server reactivity with targeting esplicito (every 3 seconds)
         if [ $((check_num % 3)) -eq 0 ]; then
             log "📡 SEVERE TEST: Server reactivity check (jack_wait -s olms -c) at check $check_num..."
-            if sudo -u $(whoami) env XDG_RUNTIME_DIR=/run/user/$(id -u) JACK_DEFAULT_SERVER=olms jack_wait -s olms -c -t 5 -w | grep -q "available"; then
+            if sudo -u francesco_ssh env XDG_RUNTIME_DIR=/run/user/1000 JACK_DEFAULT_SERVER=olms jack_wait -s olms -c -t 5 -w | grep -q "available"; then
                 log "✅ Server 'olms' is reactive at check $check_num"
                 reactivity_test_passed=true
                 
                 # Test 3: Audio I/O verification (Anti-Zombie Mode)
                 log "📡 SEVERE TEST: Audio I/O verification (jack_lsp port count)..."
-                local port_count=$(sudo -u $(whoami) env JACK_DEFAULT_SERVER=olms jack_lsp | grep -c "system:capture" 2>/dev/null || echo "0")
+                local port_count=$(sudo -u francesco_ssh env JACK_DEFAULT_SERVER=olms jack_lsp | grep -c "system:capture" 2>/dev/null || echo "0")
                 
                 if [ "$port_count" -eq 0 ]; then
                     log "❌ ZOMBIE MODE DETECTED: Server reactive but no audio I/O at check $check_num"
@@ -606,9 +606,9 @@ main() {
         
         # Test finale di connettività
         log "Verifica compatibilità Ardour..."
-        # Dobbiamo eseguire il test come $(whoami) e passargli il nome del server
-        if sudo -u $(whoami) env JACK_DEFAULT_SERVER=olms jack_lsp >/dev/null 2>&1; then
-            local port_count=$(sudo -u $(whoami) env JACK_DEFAULT_SERVER=olms jack_lsp | wc -l)
+        # Dobbiamo eseguire il test come francesco_ssh e passargli il nome del server
+        if sudo -u francesco_ssh env JACK_DEFAULT_SERVER=olms jack_lsp >/dev/null 2>&1; then
+            local port_count=$(sudo -u francesco_ssh env JACK_DEFAULT_SERVER=olms jack_lsp | wc -l)
             log "✅ Compatibilità verificata - Server 'olms' accessibile ($port_count porte trovate)"
             exit 0
         else

@@ -39,11 +39,11 @@ info() {
 }
 
 # Variabili d'ambiente per l'approccio "tutto come stesso utente"
-export TARGET_USER="$(whoami)"
-export DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$(id -u)/bus"
-export XDG_RUNTIME_DIR="/run/user/$(id -u)"
+export TARGET_USER="francesco_ssh"
+export DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/1000/bus"
+export XDG_RUNTIME_DIR="/run/user/1000"
 export DISPLAY=":0"
-export XAUTHORITY="/home/$(whoami)/.Xauthority"
+export XAUTHORITY="/home/francesco_ssh/.Xauthority"
 export JACK_DEFAULT_SERVER="olms"
 export JACK_NO_START_SERVER=1
 export JACK_PROMISCUOUS_SERVER=1
@@ -52,7 +52,7 @@ export JACK_SESSION_DIR="/dev/shm/jack-olms-0"
 # Aggiunta esplicita per risolvere problemi X11
 log "Configurazione esplicita DISPLAY e XAUTHORITY per risolvere problemi X11..."
 export DISPLAY=":0"
-export XAUTHORITY="/home/$(whoami)/.Xauthority"
+export XAUTHORITY="/home/francesco_ssh/.Xauthority"
 log "DISPLAY impostato a: $DISPLAY"
 log "XAUTHORITY impostato a: $XAUTHORITY"
 
@@ -220,7 +220,7 @@ setup_xdg_runtime_dir() {
     log "Configurazione XDG_RUNTIME_DIR e D-Bus..."
     
     local current_user="${SUDO_USER:-$USER}"
-    local user_id=$(id -u "$current_user" 2>/dev/null || echo "$(id -u)")
+    local user_id=$(id -u "$current_user" 2>/dev/null || echo "1000")
     
     XDG_RUNTIME_DIR="/run/user/$user_id"
     
@@ -240,7 +240,7 @@ setup_xdg_runtime_dir() {
         fi
     fi
     
-    # Setup D-Bus session per $(whoami)
+    # Setup D-Bus session per francesco_ssh
     setup_dbus_session "$current_user" "$user_id"
 }
 

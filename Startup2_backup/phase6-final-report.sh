@@ -4,11 +4,11 @@
 # Versione: 1.0
 
 # Variabili d'ambiente per l'approccio "tutto come stesso utente"
-export TARGET_USER="$(whoami)"
-export DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$(id -u)/bus"
-export XDG_RUNTIME_DIR="/run/user/$(id -u)"
+export TARGET_USER="francesco_ssh"
+export DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/1000/bus"
+export XDG_RUNTIME_DIR="/run/user/1000"
 export DISPLAY=":0"
-export XAUTHORITY="/home/$(whoami)/.Xauthority"
+export XAUTHORITY="/home/francesco_ssh/.Xauthority"
 export JACK_DEFAULT_SERVER="olms"
 export JACK_NO_START_SERVER=1
 export JACK_PROMISCUOUS_SERVER=1
@@ -76,7 +76,7 @@ get_realtime_audio_data() {
         # Calcola latenza effettiva
         local latency_ms=0
         if [[ -n "$buffer_size" && -n "$periods" && -n "$sample_rate" ]]; then
-            latency_ms=$(( (buffer_size * periods * $(id -u)) / sample_rate ))
+            latency_ms=$(( (buffer_size * periods * 1000) / sample_rate ))
         fi
         
         # Estrae informazioni sul dispositivo ALSA

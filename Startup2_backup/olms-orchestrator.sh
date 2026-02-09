@@ -8,56 +8,32 @@ set -euo pipefail
 
 # Configurazione base
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-
-# Gestione intelligente del percorso home e log file per gestire anche l'esecuzione con sudo
-if [[ "$EUID" -eq 0 ]]; then
-    # Se siamo root, dobbiamo determinare l'utente effettivo
-    if [[ -n "${SUDO_USER:-}" ]]; then
-        # Eseguito con sudo, usa l'utente originale
-        ACTUAL_USER="$SUDO_USER"
-        ACTUAL_HOME=$(eval echo ~$SUDO_USER)
-    elif [[ -n "${USER:-}" ]] && [[ "$USER" != "root" ]]; then
-        # Eseguito come root ma USER è impostato a un utente non root
-        ACTUAL_USER="$USER"
-        ACTUAL_HOME=$(eval echo ~$USER)
-    else
-        # Eseguito direttamente come root
-        ACTUAL_USER="root"
-        ACTUAL_HOME="/root"
-    fi
-else
-    # Eseguito come utente normale
-    ACTUAL_USER="$(whoami)"
-    ACTUAL_HOME="$HOME"
-fi
-
-OLMS_HOME="$ACTUAL_HOME/.olms"
+OLMS_HOME="$HOME/.olms"
 mkdir -p "$OLMS_HOME"
-
-# Gestione intelligente del file di log
 LOG_FILE="$OLMS_HOME/olms-orchestrator.log"
+LOCK_FILE="$OLMS_HOME/olms-startup.lock"
+PID_FILE="$OLMS_HOME/olms-startup.pid"
 
-# Se il file in /tmp esiste ed è di un altro utente, usiamo un nome univoco
+# Aggiornamento Log File in Orchestrator - Versione "aggressiva"
 if [[ -f "/tmp/olms-orchestrator.log" ]]; then
-    LOG_FILE="/tmp/olms-orchestrator-${ACTUAL_USER}-$(date +%s).log"
+    # Se il file in /tmp esiste ed è di un altro utente, lo ignoriamo del tutto
+    # o usiamo un nome univoco per evitare il 'Permission denied'
+    LOG_FILE="/tmp/olms-orchestrator-${USER}-$(date +%s).log"
 fi
 
-# Assicurati che il file di log sia scrivibile
+# Assicurati che il file di log sia scrivibile dall'utente corrente
 if [[ ! -f "$LOG_FILE" ]]; then
     # Crea il file di log se non esiste
     touch "$LOG_FILE" 2>/dev/null || {
         # Se non possiamo creare il file nella home, usiamo un percorso alternativo
-        LOG_FILE="/tmp/olms-orchestrator-${ACTUAL_USER}-$(date +%s).log"
+        LOG_FILE="/tmp/olms-orchestrator-${USER}-$(date +%s).log"
         warn "Impossibile creare il file di log nella home directory, uso: $LOG_FILE"
     }
 elif [[ ! -w "$LOG_FILE" ]]; then
     # Se il file esiste ma non è scrivibile, creane uno nuovo con timestamp univoco
-    LOG_FILE="/tmp/olms-orchestrator-${ACTUAL_USER}-$(date +%s).log"
+    LOG_FILE="/tmp/olms-orchestrator-${USER}-$(date +%s).log"
     warn "Il file di log esistente non è scrivibile, uso: $LOG_FILE"
 fi
-
-LOCK_FILE="$OLMS_HOME/olms-startup.lock"
-PID_FILE="$OLMS_HOME/olms-startup.pid"
 
 # Parsing argomenti
 MODE="headless"  # default
@@ -67,13 +43,11 @@ if [[ "${1:-}" == "--test" ]]; then
 fi
 
 # Variabili d'ambiente per l'approccio "tutto come stesso utente"
-# Usiamo ACTUAL_USER e ACTUAL_HOME per gestire correttamente l'esecuzione con sudo
-export TARGET_USER="$ACTUAL_USER"
-export TARGET_UID=$(id -u "$ACTUAL_USER" 2>/dev/null || echo "$(id -u)")
-export DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$TARGET_UID/bus"
-export XDG_RUNTIME_DIR="/run/user/$TARGET_UID"
+export TARGET_USER="francesco_ssh"
+export DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/1000/bus"
+export XDG_RUNTIME_DIR="/run/user/1000"
 export DISPLAY=":0"
-export XAUTHORITY="$ACTUAL_HOME/.Xauthority"
+export XAUTHORITY="/home/francesco_ssh/.Xauthority"
 
 # Variabili JACK per coerenza tra tutti gli script
 export JACK_DEFAULT_SERVER="olms"
@@ -263,7 +237,7 @@ phase5_ardour_startup() {
     
     if [[ -f "$SCRIPT_DIR/phase5-ardour-startup.sh" ]]; then
         log "Avvio script phase5-ardour-startup.sh..."
-        log "Questo script eseguirà la transizione utente a $(whoami) per avviare Ardour"
+        log "Questo script eseguirà la transizione utente a francesco_ssh per avviare Ardour"
         bash "$SCRIPT_DIR/phase5-ardour-startup.sh"
         log "Script phase5-ardour-startup.sh completato"
     else

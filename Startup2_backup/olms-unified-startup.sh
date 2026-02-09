@@ -2,10 +2,10 @@
 # OLMS-Core: Unified JACK 'olms' & Ardour Startup
 set -e
 
-USER="$(whoami)"
-UID_USER=$(id -u)
+USER="francesco_ssh"
+UID_USER=1000
 SERVER_NAME="olms"
-SESSION_PATH="/home/$(whoami)/Progetti/OLMS-Core/engine/session-template/OLMS-POC/OLMS-POC.ardour"
+SESSION_PATH="/home/francesco_ssh/Progetti/OLMS-Core/engine/session-template/OLMS-POC/OLMS-POC.ardour"
 
 echo "=== [1] PULIZIA AGGRESSIVA SHM E PROCESSI ==="
 sudo pkill -9 jackdbus || true
@@ -29,7 +29,7 @@ sudo -u $USER env -i \
 
 sleep 3 # Tempo per l'inizializzazione hardware
 
-echo "=== [4] FIX SYMLINK CRITICI (Pattern rilevato: _$(id -u)_0) ==="
+echo "=== [4] FIX SYMLINK CRITICI (Pattern rilevato: _1000_0) ==="
 # Usiamo il pattern corretto emerso dai log precedenti
 REAL_SOCKET="/dev/shm/jack_olms_${UID_USER}_0"
 

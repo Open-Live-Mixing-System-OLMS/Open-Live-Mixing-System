@@ -6,29 +6,7 @@
 set -euo pipefail
 
 # Configurazione
-# Gestione intelligente del percorso home per gestire anche l'esecuzione con sudo
-if [[ "$EUID" -eq 0 ]]; then
-    # Se siamo root, dobbiamo determinare l'utente effettivo
-    if [[ -n "${SUDO_USER:-}" ]]; then
-        # Eseguito con sudo, usa l'utente originale
-        ACTUAL_USER="$SUDO_USER"
-        ACTUAL_HOME=$(eval echo ~$SUDO_USER)
-    elif [[ -n "${USER:-}" ]] && [[ "$USER" != "root" ]]; then
-        # Eseguito come root ma USER è impostato a un utente non root
-        ACTUAL_USER="$USER"
-        ACTUAL_HOME=$(eval echo ~$USER)
-    else
-        # Eseguito direttamente come root
-        ACTUAL_USER="root"
-        ACTUAL_HOME="/root"
-    fi
-else
-    # Eseguito come utente normale
-    ACTUAL_USER="$(whoami)"
-    ACTUAL_HOME="$HOME"
-fi
-
-LOG_FILE="$ACTUAL_HOME/olms-orchestrator.log"
+LOG_FILE="/home/francesco_ssh/olms-orchestrator.log"
 TEMP_DIR="/tmp"
 
 # Colori
@@ -78,14 +56,10 @@ kill_audio_processes() {
             done
             sleep 1
             
-            # Fase 2: SIGKILL con sudo per processi root
+            # Fase 2: SIGKILL
             local remaining=$(pgrep -f "$process" 2>/dev/null || true)
             for pid in $remaining; do
-                # Prova prima senza sudo, poi con sudo se necessario
-                if ! kill -KILL "$pid" 2>/dev/null; then
-                    log "Tentativo di terminazione forzata con sudo per PID $pid"
-                    sudo kill -9 "$pid" 2>/dev/null || warn "Impossibile terminare PID $pid anche con sudo"
-                fi
+                kill -KILL "$pid" 2>/dev/null || true
             done
             sleep 1
         fi
@@ -145,7 +119,7 @@ remove_socket_files() {
             if ls $pattern 1> /dev/null 2>&1; then
                 log "Rimozione socket JACK: $pattern"
                 # Rimuovi TUTTI i file socket JACK, indipendentemente dal proprietario
-                # Usa sudo per rimuovere anche i file di proprietà dell'utente $(whoami)
+                # Usa sudo per rimuovere anche i file di proprietà dell'utente francesco_ssh
                 for file in $pattern; do
                     if [[ -e "$file" ]]; then
                         log "Rimozione forzata socket JACK: $file"
@@ -339,7 +313,7 @@ cleanup_temp_directories() {
         if ls $dir_pattern 1> /dev/null 2>&1; then
             log "Pulizia directory: $dir_pattern"
             # Rimuovi TUTTI i file socket JACK, indipendentemente dal proprietario
-            # Usa sudo per rimuovere anche i file di proprietà dell'utente $(whoami)
+            # Usa sudo per rimuovere anche i file di proprietà dell'utente francesco_ssh
             for file in $dir_pattern; do
                 if [[ -e "$file" ]]; then
                     log "Rimozione forzata directory temporanea: $file"
@@ -361,7 +335,7 @@ verify_cleanup() {
     if [[ $usb_count -gt 3 ]]; then
         warn "Troppi dispositivi USB rilevati ($usb_count). Possibile blocco durante cleanup."
         warn "SUGGERIMENTO: Scollegare HD esterni o dispositivi non essenziali prima dell'avvio audio."
-        warn "ESEGUIRE: sudo /home/$ACTUAL_USER/Progetti/OLMS-Core/Startup2/olms-orchestrator.sh dopo aver scollegato i dispositivi"
+        warn "ESEGUIRE: sudo /home/francesco_ssh/Progetti/OLMS-Core/Startup2/olms-orchestrator.sh dopo aver scollegato i dispositivi"
         exit 1
     fi
     

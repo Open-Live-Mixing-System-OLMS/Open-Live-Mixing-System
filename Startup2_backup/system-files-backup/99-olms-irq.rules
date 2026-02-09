@@ -1,0 +1,1 @@
+ACTION=="add", SUBSYSTEM=="pci", ATTR{irq}=="*", RUN+="/bin/sh -c 'chmod 666 /proc/irq/$attr{irq}/smp_affinity*'"

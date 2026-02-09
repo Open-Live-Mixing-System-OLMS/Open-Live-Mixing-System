@@ -19,17 +19,17 @@ AUDIO_CORES="2-$LAST_CORE"
 JACK_SERVER_NAME="olms"
 JACK_SESSION_DIR="/dev/shm/jack_olms_0"
 JACK_SOCKET_DIR="/dev/shm/jack_olms_0"
-DBUS_SOCKET_ABSTRACT="olms_bus_$(id -u)"
-XAUTHORITY_PATH="/home/$(whoami)/.Xauthority"
+DBUS_SOCKET_ABSTRACT="olms_bus_1000"
+XAUTHORITY_PATH="/home/francesco_ssh/.Xauthority"
 DISPLAY=":0"
 CPU_CORES="$AUDIO_CORES"
 RT_PRIORITY=70
 
 # Variabili di configurazione
-ARD_SESSION_PATH="/home/$(whoami)/Progetti/OLMS-Core/engine/session-template/OLMS-POC/OLMS-POC.ardour"
-ARD_SESSION_DIR="/home/$(whoami)/Progetti/OLMS-Core/engine/session-template/OLMS-POC"
-ARD_USER="$(whoami)"
-ARD_UID=$(id -u)
+ARD_SESSION_PATH="/home/francesco_ssh/Progetti/OLMS-Core/engine/session-template/OLMS-POC/OLMS-POC.ardour"
+ARD_SESSION_DIR="/home/francesco_ssh/Progetti/OLMS-Core/engine/session-template/OLMS-POC"
+ARD_USER="francesco_ssh"
+ARD_UID=1000
 
 # Variabili per l'adattamento sessione
 JACK_SERVER_NAME="olms"
@@ -81,7 +81,7 @@ backup_session() {
     log "📁 Creazione backup sessione Ardour..."
     
     if [ -f "$ARD_SESSION_PATH" ]; then
-        sudo -u $(whoami) cp "$ARD_SESSION_PATH" "$SESSION_BACKUP_PATH"
+        sudo -u francesco_ssh cp "$ARD_SESSION_PATH" "$SESSION_BACKUP_PATH"
         if [ $? -eq 0 ]; then
             log "✅ Backup sessione creato: $SESSION_BACKUP_PATH"
             return 0
@@ -134,14 +134,14 @@ adapt_session_to_ports() {
     log "  Playback 1: system:playback_1 → $playback_port_1"
     log "  Playback 2: system:playback_2 → $playback_port_2"
     
-    # Crea il file temporaneo con le sostituzioni come utente $(whoami)
-    sudo -u $(whoami) cp "$ARD_SESSION_PATH" "$SESSION_TEMP_PATH"
+    # Crea il file temporaneo con le sostituzioni come utente francesco_ssh
+    sudo -u francesco_ssh cp "$ARD_SESSION_PATH" "$SESSION_TEMP_PATH"
     
-    # Sostituzione delle connessioni JACK nel file XML come utente $(whoami)
+    # Sostituzione delle connessioni JACK nel file XML come utente francesco_ssh
     # Usiamo sed per sostituire i pattern specifici
-    sudo -u $(whoami) sed -i "s/other=\"system:capture_1\"/other=\"$capture_port\"/g" "$SESSION_TEMP_PATH"
-    sudo -u $(whoami) sed -i "s/other=\"system:playback_1\"/other=\"$playback_port_1\"/g" "$SESSION_TEMP_PATH"
-    sudo -u $(whoami) sed -i "s/other=\"system:playback_2\"/other=\"$playback_port_2\"/g" "$SESSION_TEMP_PATH"
+    sudo -u francesco_ssh sed -i "s/other=\"system:capture_1\"/other=\"$capture_port\"/g" "$SESSION_TEMP_PATH"
+    sudo -u francesco_ssh sed -i "s/other=\"system:playback_1\"/other=\"$playback_port_1\"/g" "$SESSION_TEMP_PATH"
+    sudo -u francesco_ssh sed -i "s/other=\"system:playback_2\"/other=\"$playback_port_2\"/g" "$SESSION_TEMP_PATH"
     
     # Verifica che le sostituzioni siano avvenute correttamente
     local capture_subs=$(grep -c "$capture_port" "$SESSION_TEMP_PATH")
@@ -191,17 +191,17 @@ reload_ardour_session() {
         sleep 1
     fi
     
-    # Sposta il file temporaneo al posto di quello originale come utente $(whoami)
-    sudo -u $(whoami) mv "$SESSION_TEMP_PATH" "$ARD_SESSION_PATH"
+    # Sposta il file temporaneo al posto di quello originale come utente francesco_ssh
+    sudo -u francesco_ssh mv "$SESSION_TEMP_PATH" "$ARD_SESSION_PATH"
     
     # Riavvia Ardour con la sessione aggiornata
     log "Riavvio Ardour con sessione adattata..."
     
     sudo -u "$ARD_USER" env \
-        HOME=/home/$(whoami) \
+        HOME=/home/francesco_ssh \
         DISPLAY=:0 \
-        XAUTHORITY=/home/$(whoami)/.Xauthority \
-        XDG_RUNTIME_DIR=/run/user/$(id -u) \
+        XAUTHORITY=/home/francesco_ssh/.Xauthority \
+        XDG_RUNTIME_DIR=/run/user/1000 \
         JACK_DEFAULT_SERVER="olms" \
         JACK_PROMISCUOUS_SERVER=1 \
         JACK_NO_START_SERVER=1 \
@@ -242,10 +242,10 @@ if [[ "${OLMS_MODE:-}" == "headless" ]]; then
     log "Avvio Ardour su DISPLAY=:99 (Headless)"
     
     exec sudo -u "$ARD_USER" env \
-        HOME=/home/$(whoami) \
+        HOME=/home/francesco_ssh \
         DISPLAY=:99 \
-        XAUTHORITY=/home/$(whoami)/.Xauthority \
-        XDG_RUNTIME_DIR=/run/user/$(id -u) \
+        XAUTHORITY=/home/francesco_ssh/.Xauthority \
+        XDG_RUNTIME_DIR=/run/user/1000 \
         JACK_DEFAULT_SERVER="olms" \
         JACK_PROMISCUOUS_SERVER=1 \
         JACK_NO_START_SERVER=1 \
@@ -356,10 +356,10 @@ main() {
             
             # Launch JACK with conservative parameters (256:3)
             log "🚀 Avvio JACK con parametri conservativi: Buffer=256, Periods=3"
-            sudo -u $(whoami) env -i \
-                HOME=/home/$(whoami) \
+            sudo -u francesco_ssh env -i \
+                HOME=/home/francesco_ssh \
                 PATH=/usr/bin:/bin \
-                XDG_RUNTIME_DIR=/run/user/$(id -u) \
+                XDG_RUNTIME_DIR=/run/user/1000 \
                 JACK_NO_AUDIO_RESERVATION=1 \
                 JACK_PROMISCUOUS_SERVER=1 \
                 taskset -c "$AUDIO_CORES" chrt -f 80 \
@@ -420,13 +420,13 @@ main() {
     # 4. Lancio di Ardour con sessione già adattata
     log "Avvio Ardour con sessione già adattata..."
     
-    # Prepariamo l'ambiente esatto per $(whoami)
+    # Prepariamo l'ambiente esatto per francesco_ssh
     log "Transizione utente: sudo -u $ARD_USER (UID: $ARD_UID)"
     log "Ambiente impostato per utente $ARD_USER:"
-    log "  HOME=/home/$(whoami)"
+    log "  HOME=/home/francesco_ssh"
     log "  DISPLAY=:0"
-    log "  XAUTHORITY=/home/$(whoami)/.Xauthority"
-    log "  XDG_RUNTIME_DIR=/run/user/$(id -u)"
+    log "  XAUTHORITY=/home/francesco_ssh/.Xauthority"
+    log "  XDG_RUNTIME_DIR=/run/user/1000"
     log "  JACK_DEFAULT_SERVER=olms"
     log "  JACK_PROMISCUOUS_SERVER=1"
     log "  JACK_NO_START_SERVER=1"
@@ -436,10 +436,10 @@ main() {
     
     # Avvio Ardour in background per permettere al processo di continuare (usando exec per evitare shell shim)
     exec sudo -u "$ARD_USER" env \
-        HOME=/home/$(whoami) \
+        HOME=/home/francesco_ssh \
         DISPLAY=:0 \
-        XAUTHORITY=/home/$(whoami)/.Xauthority \
-        XDG_RUNTIME_DIR=/run/user/$(id -u) \
+        XAUTHORITY=/home/francesco_ssh/.Xauthority \
+        XDG_RUNTIME_DIR=/run/user/1000 \
         JACK_DEFAULT_SERVER="olms" \
         JACK_PROMISCUOUS_SERVER=1 \
         JACK_NO_START_SERVER=1 \

@@ -14,8 +14,8 @@ LIMITS_FILE="/etc/security/limits.d/99-realtime.conf"
 MODE="${OLMS_RT_MODE:-prod}"  # prod, test, light
 
 # Variabili d'ambiente per l'approccio "tutto come stesso utente"
-export TARGET_USER="$(whoami)"
-export DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$(id -u)/bus"
+export TARGET_USER="francesco_ssh"
+export DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/1000/bus"
 
 # Colori
 RED='\033[0;31m'
@@ -88,28 +88,18 @@ configure_kernel_parameters() {
 kernel.sched_rt_runtime_us = $rt_runtime
 kernel.sched_rt_period_us = $rt_period
 kernel.sched_migration_cost_ns = 500000
-kernel.sched_wakeup_granularity_ns = $(id -u)000"
+kernel.sched_wakeup_granularity_ns = 1000000"
         
         safe_write_file "$config_content" "$RT_CONFIG_FILE"
     fi
     
     # Applica la configurazione se il file esiste
     if [[ -f "$RT_CONFIG_FILE" ]]; then
-        log "DEBUG: Applicazione configurazione kernel parameters RT..."
-        # Applica i parametri kernel, ignorando gli errori per parametri opzionali
-        sudo sysctl -p "$RT_CONFIG_FILE" 2>/dev/null || true
-        
-        # Verifica che i parametri principali siano stati applicati correttamente
-        local current_runtime=$(sysctl -n kernel.sched_rt_runtime_us 2>/dev/null || echo "0")
-        local current_period=$(sysctl -n kernel.sched_rt_period_us 2>/dev/null || echo "0")
-        log "DEBUG: current_runtime=$current_runtime, current_period=$current_period"
-        log "DEBUG: rt_runtime=$rt_runtime, rt_period=$rt_period"
-        
-        if [[ "$current_runtime" == "$rt_runtime" ]] && [[ "$current_period" == "$rt_period" ]]; then
+        if sysctl -p "$RT_CONFIG_FILE" &>/dev/null; then
             log "Kernel parameters RT applicati con successo"
         else
             warn "Impossibile applicare kernel parameters RT"
-            warn "Verifica che i parametri siano già applicati o esegui: sudo sysctl -p $RT_CONFIG_FILE"
+            warn "Verifica che i parametri siano già applicati o esegui: sysctl -p $RT_CONFIG_FILE"
         fi
     else
         warn "File di configurazione RT non trovato, impossibile applicare parametri"
@@ -118,8 +108,6 @@ kernel.sched_wakeup_granularity_ns = $(id -u)000"
     # Verifica applicazione
     local current_runtime=$(sysctl -n kernel.sched_rt_runtime_us 2>/dev/null || echo "0")
     local current_period=$(sysctl -n kernel.sched_rt_period_us 2>/dev/null || echo "0")
-    log "DEBUG: Verifica finale - current_runtime=$current_runtime, current_period=$current_period"
-    log "DEBUG: Verifica finale - rt_runtime=$rt_runtime, rt_period=$rt_period"
     
     if [[ "$current_runtime" == "$rt_runtime" ]] && [[ "$current_period" == "$rt_period" ]]; then
         log "Kernel parameters verificati: runtime=$current_runtime, period=$current_period"
@@ -135,11 +123,7 @@ configure_cpu_governor() {
     local num_cores=$(nproc)
     log "Numero core rilevati: $num_cores"
     
-    # 1. Prima di tutto, assicuriamoci che i permessi sysfs siano corretti
-    log "Verifica e applicazione permessi sysfs..."
-    ensure_sysfs_permissions
-    
-    # 2. Tenta di disabilitare il risparmio energetico hardware Intel se presente
+    # 1. Tenta di disabilitare il risparmio energetico hardware Intel se presente
     if [ -f /sys/devices/system/cpu/intel_pstate/no_turbo ]; then
         if echo "0" > /sys/devices/system/cpu/intel_pstate/no_turbo 2>/dev/null; then
             log "Turbo Boost disabilitato con successo"
@@ -148,7 +132,7 @@ configure_cpu_governor() {
         fi
     fi
 
-    # 3. Applica 'performance' a ogni core disponibile
+    # 2. Applica 'performance' a ogni core disponibile
     # Usiamo un approccio che bypassa potenziali errori di scrittura individuali
     local success_count=0
     local total_count=0
@@ -159,24 +143,19 @@ configure_cpu_governor() {
         if [[ -f "$governor_file" ]]; then
             total_count=$((total_count + 1))
             
-            # Verifica se il file è scrivibile
-            if [[ -w "$governor_file" ]]; then
-                # Prova a scrivere performance
-                if echo "performance" > "$governor_file"; then
-                    log "CPU $i: governor impostato a 'performance'"
-                    success_count=$((success_count + 1))
-                else
-                    warn "Impossibile scrivere su $governor_file"
-                fi
+            # Prova a scrivere performance
+            if echo "performance" > "$governor_file"; then
+                log "CPU $i: governor impostato a 'performance'"
+                success_count=$((success_count + 1))
             else
-                warn "CPU $i: governor file non scrivibile (permessi: $(stat -c '%a' "$governor_file" 2>/dev/null || echo 'N/A'))"
+                warn "Impossibile scrivere su $governor_file"
             fi
         else
             warn "Governor file non trovato per CPU $i"
         fi
     done
     
-    # 4. Forza la frequenza minima al massimo possibile (per driver intel_pstate)
+    # 3. Forza la frequenza minima al massimo possibile (per driver intel_pstate)
     for i in $(seq 0 $((num_cores - 1))); do
         local min_freq="/sys/devices/system/cpu/cpu${i}/cpufreq/scaling_min_freq"
         local max_freq="/sys/devices/system/cpu/cpu${i}/cpufreq/scaling_max_freq"
@@ -264,111 +243,6 @@ disable_cstates() {
         log "C-states disabilitati con successo: $disabled_states stati"
     else
         warn "Nessun C-state disabilitato (potrebbe essere già configurato o mancanza permessi)"
-    fi
-}
-
-# Assicura che i permessi sysfs siano corretti
-ensure_sysfs_permissions() {
-    log "Assicurazione permessi sysfs corretti..."
-    
-    # Ottieni il gruppo primario dell'utente
-    local user_group=$(id -gn "$(whoami)")
-    
-    # File sysfs per CPU governor e frequenze
-    local cpu_files=(
-        "/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor"
-        "/sys/devices/system/cpu/cpu1/cpufreq/scaling_governor"
-        "/sys/devices/system/cpu/cpu2/cpufreq/scaling_governor"
-        "/sys/devices/system/cpu/cpu3/cpufreq/scaling_governor"
-        "/sys/devices/system/cpu/cpu0/cpufreq/scaling_min_freq"
-        "/sys/devices/system/cpu/cpu1/cpufreq/scaling_min_freq"
-        "/sys/devices/system/cpu/cpu2/cpufreq/scaling_min_freq"
-        "/sys/devices/system/cpu/cpu3/cpufreq/scaling_min_freq"
-        "/sys/devices/system/cpu/cpu0/cpufreq/scaling_max_freq"
-        "/sys/devices/system/cpu/cpu1/cpufreq/scaling_max_freq"
-        "/sys/devices/system/cpu/cpu2/cpufreq/scaling_max_freq"
-        "/sys/devices/system/cpu/cpu3/cpufreq/scaling_max_freq"
-        "/sys/devices/system/cpu/cpu0/cpufreq/scaling_setspeed"
-        "/sys/devices/system/cpu/cpu1/cpufreq/scaling_setspeed"
-        "/sys/devices/system/cpu/cpu2/cpufreq/scaling_setspeed"
-        "/sys/devices/system/cpu/cpu3/cpufreq/scaling_setspeed"
-        "/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq"
-        "/sys/devices/system/cpu/cpu1/cpufreq/scaling_cur_freq"
-        "/sys/devices/system/cpu/cpu2/cpufreq/scaling_cur_freq"
-        "/sys/devices/system/cpu/cpu3/cpufreq/scaling_cur_freq"
-        "/sys/devices/system/cpu/intel_pstate/no_turbo"
-    )
-    
-    # File sysfs per C-states
-    local cstate_files=(
-        "/sys/devices/system/cpu/cpu0/cpuidle/state3/disable"
-        "/sys/devices/system/cpu/cpu0/cpuidle/state4/disable"
-        "/sys/devices/system/cpu/cpu1/cpuidle/state3/disable"
-        "/sys/devices/system/cpu/cpu1/cpuidle/state4/disable"
-        "/sys/devices/system/cpu/cpu2/cpuidle/state3/disable"
-        "/sys/devices/system/cpu/cpu2/cpuidle/state4/disable"
-        "/sys/devices/system/cpu/cpu3/cpuidle/state3/disable"
-        "/sys/devices/system/cpu/cpu3/cpuidle/state4/disable"
-    )
-    
-    local applied_count=0
-    local total_count=0
-    
-    # Applica permessi ai file CPU
-    for file in "${cpu_files[@]}"; do
-        if [[ -f "$file" ]]; then
-            total_count=$((total_count + 1))
-            local current_perms=$(stat -c "%a" "$file" 2>/dev/null || echo "0")
-            local current_owner=$(stat -c "%U:%G" "$file" 2>/dev/null || echo "unknown:unknown")
-            
-            # Se i permessi non sono corretti, applicali
-            if [[ "$current_perms" != "666" ]] || [[ "$current_owner" != "$(whoami):$user_group" ]]; then
-                if chmod 666 "$file" 2>/dev/null && chown "$(whoami):$user_group" "$file" 2>/dev/null; then
-                    log "Permessi applicati a $file (666, $(whoami):$user_group)"
-                    applied_count=$((applied_count + 1))
-                else
-                    warn "Impossibile applicare permessi a $file (permessi: $current_perms, owner: $current_owner)"
-                fi
-            else
-                log "Permessi già corretti per $file"
-                applied_count=$((applied_count + 1))
-            fi
-        fi
-    done
-    
-    # Applica permessi ai file C-states
-    for file in "${cstate_files[@]}"; do
-        if [[ -f "$file" ]]; then
-            total_count=$((total_count + 1))
-            local current_perms=$(stat -c "%a" "$file" 2>/dev/null || echo "0")
-            local current_owner=$(stat -c "%U:%G" "$file" 2>/dev/null || echo "unknown:unknown")
-            
-            # Se i permessi non sono corretti, applicali
-            if [[ "$current_perms" != "666" ]] || [[ "$current_owner" != "$(whoami):$user_group" ]]; then
-                if chmod 666 "$file" 2>/dev/null && chown "$(whoami):$user_group" "$file" 2>/dev/null; then
-                    log "Permessi applicati a $file (666, $(whoami):$user_group)"
-                    applied_count=$((applied_count + 1))
-                else
-                    warn "Impossibile applicare permessi a $file (permessi: $current_perms, owner: $current_owner)"
-                fi
-            else
-                log "Permessi già corretti per $file"
-                applied_count=$((applied_count + 1))
-            fi
-        fi
-    done
-    
-    log "Permessi sysfs verificati/applicati: $applied_count/$total_count"
-    
-    # Se non tutti i permessi sono stati applicati, prova ad eseguire il Runtime Permission Manager
-    if [[ $applied_count -lt $total_count ]]; then
-        log "Alcuni permessi non sono stati applicati, tentativo con Runtime Permission Manager..."
-        if [[ -x "/usr/local/bin/olms-runtime-permissions" ]]; then
-            sudo /usr/local/bin/olms-runtime-permissions
-            log "Runtime Permission Manager eseguito"
-        else
-            warn "Runtime Permission Manager non trovato o non eseguibile"
-        fi
     fi
 }
 

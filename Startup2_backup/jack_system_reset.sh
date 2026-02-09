@@ -7,8 +7,8 @@
 set -euo pipefail
 
 # Configurazione
-TARGET_USER="${TARGET_USER:-$(whoami)}"
-TARGET_UID=$(id -u "$TARGET_USER" 2>/dev/null || echo "$(id -u)")
+TARGET_USER="${TARGET_USER:-francesco_ssh}"
+TARGET_UID=$(id -u "$TARGET_USER" 2>/dev/null || echo "1000")
 ACTUAL_SOCKET="/dev/shm/jack_olms_0"
 
 # Colori
@@ -57,7 +57,7 @@ cleanup_jack_files() {
     log "Pulizia socket e link JACK..."
     
     # Rimuovi link corrotti
-    sudo rm -f /tmp/jack-default_$(id -u)_0 /tmp/jack-olms-$(id -u) 2>/dev/null || true
+    sudo rm -f /tmp/jack-default_1000_0 /tmp/jack-olms-1000 2>/dev/null || true
     sudo rm -rf /dev/shm/jack-0 /tmp/jack-0 /dev/shm/jack_db-0 2>/dev/null || true
     
     # Rimuovi file di log temporanei

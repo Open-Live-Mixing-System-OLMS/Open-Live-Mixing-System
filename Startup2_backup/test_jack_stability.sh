@@ -60,7 +60,7 @@ test_socket_permissions() {
     done
     
     # Verifica symbolic links
-    local user_uid=$(id -u "${TARGET_USER:-$(whoami)}" 2>/dev/null || echo "$(id -u)")
+    local user_uid=$(id -u "${TARGET_USER:-francesco_ssh}" 2>/dev/null || echo "1000")
     local user_socket="/dev/shm/jack-olms-${user_uid}"
     local default_socket="/dev/shm/jack-0/default"
     
@@ -92,7 +92,7 @@ test_jack_connectivity() {
     fi
     
     # Test con utente specifico
-    local target_user="${TARGET_USER:-$(whoami)}"
+    local target_user="${TARGET_USER:-francesco_ssh}"
     if sudo -u "$target_user" -E JACK_DEFAULT_SERVER=olms jack_lsp >/dev/null 2>&1; then
         log "✅ JACK connectivity user test passed for $target_user"
     else
@@ -245,7 +245,7 @@ run_all_tests() {
 main() {
     # Imposta variabili ambiente
     export JACK_DEFAULT_SERVER="olms"
-    export TARGET_USER="${TARGET_USER:-$(whoami)}"
+    export TARGET_USER="${TARGET_USER:-francesco_ssh}"
     
     # Esegui test
     run_all_tests

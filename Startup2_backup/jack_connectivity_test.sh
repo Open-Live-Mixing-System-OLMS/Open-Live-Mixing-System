@@ -7,8 +7,8 @@ set -euo pipefail
 
 # Configurazione
 LOG_FILE="/tmp/jack_connectivity_test.log"
-TARGET_USER="${TARGET_USER:-$(whoami)}"
-TARGET_UID=$(id -u "$TARGET_USER" 2>/dev/null || echo "$(id -u)")
+TARGET_USER="${TARGET_USER:-francesco_ssh}"
+TARGET_UID=$(id -u "$TARGET_USER" 2>/dev/null || echo "1000")
 
 # Colori
 RED='\033[0;31m'

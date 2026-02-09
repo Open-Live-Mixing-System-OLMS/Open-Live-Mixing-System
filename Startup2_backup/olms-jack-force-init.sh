@@ -2,8 +2,8 @@
 # Forza l'ambiente JACK per l'identità 'olms'
 set -e
 
-USER="$(whoami)"
-UID_USER=$(id -u)
+USER="francesco_ssh"
+UID_USER=1000
 SERVER_NAME="olms"
 
 echo "=== [1] PULIZIA AGGRESSIVA SHM E PROCESSI ==="
@@ -33,7 +33,7 @@ sleep 2
 
 echo "=== [4] FIX SYMLINK CRITICI ==="
 # JACK2 con -n olms crea /dev/shm/jack_olms_0
-# Ma il client lo cerca in /dev/shm/jack-$(id -u)/olms
+# Ma il client lo cerca in /dev/shm/jack-1000/olms
 if [ -S /dev/shm/jack_olms_0 ]; then
     sudo ln -sf /dev/shm/jack_olms_0 /dev/shm/jack-$UID_USER/$SERVER_NAME
     sudo ln -sf /dev/shm/jack_olms_0 /dev/shm/jack-$UID_USER/default
