@@ -70,6 +70,7 @@ fi
 # Usiamo ACTUAL_USER e ACTUAL_HOME per gestire correttamente l'esecuzione con sudo
 export TARGET_USER="$ACTUAL_USER"
 export TARGET_UID=$(id -u "$ACTUAL_USER" 2>/dev/null || echo "$(id -u)")
+export ACTUAL_UID="$TARGET_UID"
 export DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$TARGET_UID/bus"
 export XDG_RUNTIME_DIR="/run/user/$TARGET_UID"
 export DISPLAY=":0"
@@ -79,6 +80,7 @@ export XAUTHORITY="$ACTUAL_HOME/.Xauthority"
 export JACK_DEFAULT_SERVER="olms"
 export JACK_NO_AUDIO_RESERVATION=1
 export JACK_PROMISCUOUS_SERVER=1
+export JACK_NO_START_SERVER=1
 
 # Colori per output
 RED='\033[0;31m'
@@ -261,9 +263,23 @@ phase4_x11_setup() {
 phase5_ardour_startup() {
     log "=== FASE 5: ARDOUR DAW STARTUP ==="
     
+    # Assicuriamo che le variabili d'ambiente siano passate correttamente
+    export JACK_DEFAULT_SERVER="olms"
+    export JACK_PROMISCUOUS_SERVER=1
+    export JACK_NO_START_SERVER=1
+    export TARGET_USER="$ACTUAL_USER"
+    export TARGET_UID="$ACTUAL_UID"
+    export DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$ACTUAL_UID/bus"
+    export XDG_RUNTIME_DIR="/run/user/$ACTUAL_UID"
+    export DISPLAY=":0"
+    export XAUTHORITY="$ACTUAL_HOME/.Xauthority"
+    
     if [[ -f "$SCRIPT_DIR/phase5-ardour-startup.sh" ]]; then
         log "Avvio script phase5-ardour-startup.sh..."
-        log "Questo script eseguirà la transizione utente a $(whoami) per avviare Ardour"
+        log "Variabili d'ambiente impostate per transizione utente: $ACTUAL_USER"
+        log "JACK_DEFAULT_SERVER=$JACK_DEFAULT_SERVER"
+        log "TARGET_USER=$TARGET_USER"
+        log "TARGET_UID=$TARGET_UID"
         bash "$SCRIPT_DIR/phase5-ardour-startup.sh"
         log "Script phase5-ardour-startup.sh completato"
     else

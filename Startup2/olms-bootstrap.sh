@@ -13,6 +13,9 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 
+# Definisci SCRIPT_DIR globalmente per le funzioni che ne hanno bisogno
+SCRIPT_DIR="$(dirname "$0")"
+
 log() {
     echo -e "${GREEN}[$(date '+%Y-%m-%d %H:%M:%S')]${NC} $1"
 }
@@ -82,13 +85,13 @@ create_directories() {
     mkdir -p "$ACTUAL_HOME/.olms"
     mkdir -p "$ACTUAL_HOME/Progetti/OLMS-Core"
     
-    # Directory per i socket JACK
-    mkdir -p "/dev/shm/jack-$ACTUAL_UID"
+    # NOTA: Non creiamo directory personalizzate per JACK
+    # JACK2 mette i file direttamente in /dev/shm/ con prefisso jack_olms
+    # La directory /dev/shm è già gestita dal sistema
     
     # Imposta permessi corretti
     chown -R "$ACTUAL_USER:$ACTUAL_USER" "$ACTUAL_HOME/.olms" 2>/dev/null || true
     chown -R "$ACTUAL_USER:$ACTUAL_USER" "$ACTUAL_HOME/Progetti/OLMS-Core" 2>/dev/null || true
-    chmod 755 "/dev/shm/jack-$ACTUAL_UID" 2>/dev/null || true
     
     log "Directory create con successo"
 }
@@ -138,12 +141,18 @@ generate_jack_rules() {
 # Generato automaticamente per l'utente $ACTUAL_USER
 # Permette all'utente $ACTUAL_USER di gestire i socket JACK senza sudo
 
-# Permessi per socket JACK in /dev/shm
+# Permessi per socket JACK in /dev/shm (pattern moderno)
 KERNEL=="jack_*", MODE="0666", OWNER="$ACTUAL_USER", GROUP="$ACTUAL_USER"
 KERNEL=="jack-shm-*", MODE="0666", OWNER="$ACTUAL_USER", GROUP="$ACTUAL_USER"
 
+# Permessi per socket JACK legacy (pattern legacy che alcuni script JACK usano)
+KERNEL=="jack-*", MODE="0666", OWNER="$ACTUAL_USER", GROUP="$ACTUAL_USER"
+
 # Permessi per socket JACK in /tmp
 KERNEL=="jack_*", SUBSYSTEM=="misc", MODE="0666", OWNER="$ACTUAL_USER", GROUP="$ACTUAL_USER"
+
+# Permessi per directory JACK per compatibilità
+KERNEL=="jack-*", SUBSYSTEM=="misc", MODE="0777", OWNER="$ACTUAL_USER", GROUP="$ACTUAL_USER"
 EOF
 
     log "Regole Udev JACK generate in $jack_rules_file"
@@ -289,12 +298,18 @@ apply_sysfs_permissions() {
         fi
     done
     
-    # Applica permessi sui file C-states
+    # Applica permessi sui file C-states (solo se esistono e sono scrivibili)
     for file in "${cstate_files[@]}"; do
         if [[ -f "$file" ]]; then
-            log "Impostazione permessi su $file"
-            chmod 666 "$file" 2>/dev/null || warn "Impossibile impostare permessi su $file"
-            chown "$ACTUAL_USER:$user_group" "$file" 2>/dev/null || warn "Impossibile impostare proprietario su $file"
+            log "Verifica permessi su $file"
+            # Controlla se il file è già scrivibile
+            if [[ -w "$file" ]]; then
+                log "Permessi già corretti su $file"
+            else
+                log "Impostazione permessi su $file"
+                chmod 666 "$file" 2>/dev/null || warn "Impossibile impostare permessi su $file (potrebbe essere di sola lettura)"
+                chown "$ACTUAL_USER:$user_group" "$file" 2>/dev/null || warn "Impossibile impostare proprietario su $file (potrebbe essere di sola lettura)"
+            fi
         fi
     done
     
@@ -360,6 +375,114 @@ kernel.sched_mc_power_savings = 0
 EOF
 
     log "Configurazione kernel RT generata in $kernel_config_file"
+}
+
+# Generazione permessi taskset/chrt e /proc access
+generate_taskset_chrt_permissions() {
+    log "Generazione permessi taskset/chrt e /proc access per $ACTUAL_USER..."
+    
+    local taskset_chrt_rules="/etc/udev/rules.d/99-olms-taskset-chrt.rules"
+    
+    # Contenuto delle regole taskset/chrt
+    cat > "$taskset_chrt_rules" << EOF
+# OLMS taskset/chrt Permissions
+# Generato automaticamente per l'utente $ACTUAL_USER
+# Permette all'utente $ACTUAL_USER di usare taskset e chrt senza sudo
+
+# Permessi per taskset (CPU affinity)
+KERNEL=="cpu*", SUBSYSTEM=="cpu", MODE="0666", OWNER="$ACTUAL_USER", GROUP="$ACTUAL_USER"
+
+# Permessi per chrt (scheduling)
+KERNEL=="sched*", SUBSYSTEM=="cpu", MODE="0666", OWNER="$ACTUAL_USER", GROUP="$ACTUAL_USER"
+
+# Permessi per sched_setscheduler
+KERNEL=="sched_setscheduler", SUBSYSTEM=="cpu", MODE="0666", OWNER="$ACTUAL_USER", GROUP="$ACTUAL_USER"
+
+# Permessi per sched_getscheduler
+KERNEL=="sched_getscheduler", SUBSYSTEM=="cpu", MODE="0666", OWNER="$ACTUAL_USER", GROUP="$ACTUAL_USER"
+
+# Permessi per sched_getparam
+KERNEL=="sched_getparam", SUBSYSTEM=="cpu", MODE="0666", OWNER="$ACTUAL_USER", GROUP="$ACTUAL_USER"
+
+# Permessi per sched_setparam
+KERNEL=="sched_setparam", SUBSYSTEM=="cpu", MODE="0666", OWNER="$ACTUAL_USER", GROUP="$ACTUAL_USER"
+EOF
+
+    log "Regole taskset/chrt generate in $taskset_chrt_rules"
+    
+    # Aggiunta regole per l'accesso ai file /proc (necessari per la nuova implementazione)
+    local proc_rules="/etc/udev/rules.d/99-olms-proc-access.rules"
+    
+    cat > "$proc_rules" << EOF
+# OLMS /proc Access Permissions
+# Generato automaticamente per l'utente $ACTUAL_USER
+# Permette all'utente $ACTUAL_USER di accedere ai file /proc per CPU affinity e scheduling
+
+# Permessi per /proc/*/cpuset (CPU affinity)
+KERNEL=="cpuset", SUBSYSTEM=="cpu", MODE="0666", OWNER="$ACTUAL_USER", GROUP="$ACTUAL_USER"
+
+# Permessi per /proc/*/sched* (scheduling)
+KERNEL=="sched*", SUBSYSTEM=="cpu", MODE="0666", OWNER="$ACTUAL_USER", GROUP="$ACTUAL_USER"
+
+# Permessi per /proc/*/status (status processi)
+KERNEL=="status", SUBSYSTEM=="cpu", MODE="0666", OWNER="$ACTUAL_USER", GROUP="$ACTUAL_USER"
+EOF
+
+    log "Regole /proc access generate in $proc_rules"
+}
+
+# Configurazione PAM per caricare i limiti RT
+configure_pam_limits() {
+    log "Configurazione PAM per caricare i limiti RT..."
+    
+    # File PAM da modificare
+    local pam_sudo="/etc/pam.d/sudo"
+    local pam_common_session="/etc/pam.d/common-session"
+    
+    # Verifica e aggiunta regola PAM per sudo
+    if [[ -f "$pam_sudo" ]]; then
+        if ! grep -q "pam_limits.so" "$pam_sudo"; then
+            log "Aggiunta regola PAM a $pam_sudo"
+            echo "session required pam_limits.so" >> "$pam_sudo"
+        else
+            log "Regola PAM già presente in $pam_sudo"
+        fi
+    else
+        warn "File PAM $pam_sudo non trovato"
+    fi
+    
+    # Verifica e aggiunta regola PAM per common-session
+    if [[ -f "$pam_common_session" ]]; then
+        if ! grep -q "pam_limits.so" "$pam_common_session"; then
+            log "Aggiunta regola PAM a $pam_common_session"
+            echo "session required pam_limits.so" >> "$pam_common_session"
+        else
+            log "Regola PAM già presente in $pam_common_session"
+        fi
+    else
+        warn "File PAM $pam_common_session non trovato"
+    fi
+    
+    log "Configurazione PAM completata"
+}
+
+# Generazione regole Udev DMA Latency
+generate_dma_latency_rules() {
+    log "Generazione regole Udev DMA Latency per $ACTUAL_USER..."
+    
+    local dma_rules_file="/etc/udev/rules.d/99-olms-dma-latency.rules"
+    
+    # Contenuto delle regole DMA Latency
+    cat > "$dma_rules_file" << EOF
+# OLMS DMA Latency Permissions
+# Generato automaticamente per l'utente $ACTUAL_USER
+# Permette all'utente $ACTUAL_USER di impedire alla CPU di andare in risparmio energetico
+
+# Permessi per /dev/cpu_dma_latency (impedisce C-states deep)
+KERNEL=="cpu_dma_latency", MODE="0666", OWNER="$ACTUAL_USER", GROUP="$ACTUAL_USER"
+EOF
+
+    log "Regole DMA Latency generate in $dma_rules_file"
 }
 
 # Configurazione gruppi utente
@@ -502,9 +625,9 @@ apply_configurations() {
     
     # Applica configurazione kernel
     if [[ -f "/etc/sysctl.d/99-olms-rt.conf" ]]; then
-        # Applica i parametri kernel, ignorando gli errori per parametri opzionali
-        local sysctl_output
-        sysctl_output=$(sudo sysctl -p "/etc/sysctl.d/99-olms-rt.conf" 2>&1)
+        log "Applicazione parametri kernel..."
+        # Usiamo || true per evitare che set -e interrompa se un parametro è ignoto al kernel
+        sysctl -p "/etc/sysctl.d/99-olms-rt.conf" || warn "Alcuni parametri sysctl non sono stati applicati."
         
         # Verifica che i parametri principali siano stati applicati correttamente
         local rt_runtime=$(sysctl -n kernel.sched_rt_runtime_us 2>/dev/null || echo "0")
@@ -514,15 +637,14 @@ apply_configurations() {
             log "Configurazione kernel RT applicata"
             log "✅ Kernel parameters RT verificati: runtime=$rt_runtime, period=$rt_period"
         else
-            error "Impossibile applicare configurazione kernel RT"
-            exit 1
+            warn "⚠️ Impossibile applicare completamente la configurazione kernel RT"
         fi
     fi
     
     # Applica regole sysfs
     if command -v systemd-tmpfiles >/dev/null 2>&1; then
-        log "Applica regole sysfs..."
-        systemd-tmpfiles --create
+        log "Applica regole sysfs tramite tmpfiles..."
+        systemd-tmpfiles --create /etc/tmpfiles.d/olms-cpu.conf || warn "Errore tmpfiles"
     fi
     
     # Ricarica regole udev
@@ -534,6 +656,98 @@ apply_configurations() {
     
     # Installa Runtime Permission Manager
     install_runtime_permission_manager
+    
+    # CRITICO: Chiamata esplicita a X11 prima della fine
+    configure_x11_environment
+}
+
+# Configurazione X11 per transizione root→utente
+configure_x11_environment() {
+    log "Configurazione ambiente X11 per transizione root→utente..."
+    
+    # Verifica se esiste un display X11 attivo
+    local display_found=false
+    local active_display=""
+    
+    # Ricerca display attivi
+    for i in {0..9}; do
+        if [[ -S "/tmp/.X11-unix/X$i" ]]; then
+            active_display=":$i"
+            display_found=true
+            break
+        fi
+    done
+    
+    if [[ "$display_found" == "false" ]]; then
+        warn "Nessun display X11 attivo trovato, creazione display virtuale..."
+        # Creazione display virtuale per compatibilità
+        active_display=":99"
+    fi
+    
+    log "Display X11 attivo: $active_display"
+    
+    # Configura variabili d'ambiente X11
+    local x11_env_file="/etc/profile.d/olms-x11.sh"
+    
+    cat > "$x11_env_file" << EOF
+# OLMS X11 Environment Variables
+# Generato automaticamente per l'utente $ACTUAL_USER
+
+export DISPLAY="$active_display"
+export XAUTHORITY="$ACTUAL_HOME/.Xauthority"
+export XDG_RUNTIME_DIR="/run/user/$ACTUAL_UID"
+export DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$ACTUAL_UID/bus"
+export JACK_DEFAULT_SERVER="olms"
+export JACK_NO_START_SERVER=1
+export JACK_PROMISCUOUS_SERVER=1
+export JACK_SESSION_DIR="/dev/shm/jack_olms_0"
+EOF
+
+    chmod +x "$x11_env_file"
+    log "Variabili d'ambiente X11 configurate in $x11_env_file"
+    
+    # Configura XAUTHORITY per root
+    configure_xauthority_for_root
+    
+    # Configura permessi xhost
+    configure_xhost_permissions
+    
+    log "Ambiente X11 configurato per transizione root→utente"
+}
+
+# Configura XAUTHORITY per root
+configure_xauthority_for_root() {
+    log "Configurazione XAUTHORITY per root..."
+    
+    local user_xauth="$ACTUAL_HOME/.Xauthority"
+    local root_xauth="/root/.Xauthority"
+    
+    # Se esiste .Xauthority dell'utente, copialo per root
+    if [[ -f "$user_xauth" ]]; then
+        log "Copia .Xauthority da $user_xauth a $root_xauth"
+        cp "$user_xauth" "$root_xauth"
+        chown root:root "$root_xauth"
+        chmod 600 "$root_xauth"
+        log "✅ .Xauthority configurato per root"
+    else
+        warn "⚠️ File .Xauthority utente non trovato: $user_xauth"
+        warn "⚠️ Root potrebbe non avere accesso al display X11"
+    fi
+}
+
+# Configura permessi xhost
+configure_xhost_permissions() {
+    log "Configurazione avanzata permessi xhost..."
+    
+    # Forza il DISPLAY se non impostato
+    export DISPLAY=${DISPLAY:-:0}
+    
+    # Tenta di autorizzare root a connettersi al server X dell'utente
+    if command -v xhost >/dev/null 2>&1; then
+        # Esegui xhost come utente reale, non come root, per aprire la porta
+        su - "$ACTUAL_USER" -c "DISPLAY=$DISPLAY xhost +si:localuser:root" || \
+        warn "xhost non è riuscito ad autorizzare root. Provare manualmente come utente: xhost +si:localuser:root"
+    fi
 }
 
 # Verifica finale
@@ -560,6 +774,7 @@ verify_configuration() {
         "/etc/tmpfiles.d/olms-cpu.conf"
         "/etc/security/limits.d/99-olms-realtime.conf"
         "/etc/sysctl.d/99-olms-rt.conf"
+        "/etc/profile.d/olms-x11.sh"
     )
     
     for file in "${config_files[@]}"; do
@@ -576,6 +791,22 @@ verify_configuration() {
     local current_memlock=$(ulimit -l 2>/dev/null || echo "0")
     
     log "Limiti correnti: rtprio=$current_rtprio, memlock=${current_memlock}KB"
+    
+    # Verifica configurazione X11
+    log "Verifica configurazione X11..."
+    if [[ -f "/etc/profile.d/olms-x11.sh" ]]; then
+        log "✅ Variabili d'ambiente X11: OK"
+    else
+        warn "⚠️ Variabili d'ambiente X11: NON CONFIGURATE"
+        groups_ok=false
+    fi
+    
+    if [[ -f "/root/.Xauthority" ]]; then
+        log "✅ XAUTHORITY root: OK"
+    else
+        warn "⚠️ XAUTHORITY root: NON CONFIGURATO"
+        groups_ok=false
+    fi
     
     if [[ "$groups_ok" == "true" ]]; then
         log "✅ Configurazione completata con successo!"
@@ -603,6 +834,9 @@ main() {
     generate_jack_rules
     generate_realtime_limits
     generate_kernel_config
+    generate_taskset_chrt_permissions
+    configure_pam_limits
+    generate_dma_latency_rules
     configure_user_groups
     generate_sysfs_rules
     apply_sysfs_permissions

@@ -39,11 +39,13 @@ info() {
 }
 
 # Variabili d'ambiente per l'approccio "tutto come stesso utente"
-export TARGET_USER="$(whoami)"
-export DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$(id -u)/bus"
-export XDG_RUNTIME_DIR="/run/user/$(id -u)"
+# Usa le variabili impostate dall'orchestrator
+export TARGET_USER="${TARGET_USER:-$(whoami)}"
+export TARGET_UID="${TARGET_UID:-$(id -u)}"
+export DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$TARGET_UID/bus"
+export XDG_RUNTIME_DIR="/run/user/$TARGET_UID"
 export DISPLAY=":0"
-export XAUTHORITY="/home/$(whoami)/.Xauthority"
+export XAUTHORITY="${XAUTHORITY:-$HOME/.Xauthority}"
 export JACK_DEFAULT_SERVER="olms"
 export JACK_NO_START_SERVER=1
 export JACK_PROMISCUOUS_SERVER=1
@@ -52,7 +54,7 @@ export JACK_SESSION_DIR="/dev/shm/jack-olms-0"
 # Aggiunta esplicita per risolvere problemi X11
 log "Configurazione esplicita DISPLAY e XAUTHORITY per risolvere problemi X11..."
 export DISPLAY=":0"
-export XAUTHORITY="/home/$(whoami)/.Xauthority"
+export XAUTHORITY="${XAUTHORITY:-$HOME/.Xauthority}"
 log "DISPLAY impostato a: $DISPLAY"
 log "XAUTHORITY impostato a: $XAUTHORITY"
 
@@ -185,8 +187,8 @@ detect_display_from_processes() {
 setup_xauthority() {
     log "Configurazione XAUTHORITY..."
     
-    local current_user="${SUDO_USER:-$USER}"
-    local home_dir="/home/$current_user"
+    local current_user="${TARGET_USER:-$(whoami)}"
+    local home_dir="${HOME}"
     
     # Trova .Xauthority file
     if [[ -f "$home_dir/.Xauthority" ]]; then
@@ -200,9 +202,9 @@ setup_xauthority() {
         return 1
     fi
     
-    # Imposta variabile d'ambiente
-    export XAUTHORITY="$XAUTH_FILE"
-    log "XAUTHORITY impostato: $XAUTHORITY"
+    # NOTA: NON sovrascriviamo XAUTHORITY perché è già corretta dall'orchestrator
+    # La variabile XAUTHORITY è già stata impostata correttamente dall'orchestrator
+    log "XAUTHORITY già impostato correttamente dall'orchestrator: $XAUTHORITY"
     
     # Concedi accesso root a file utente (se necessario)
     if [[ "$EUID" -eq 0 ]] && [[ "$current_user" != "root" ]]; then
@@ -219,8 +221,8 @@ setup_xauthority() {
 setup_xdg_runtime_dir() {
     log "Configurazione XDG_RUNTIME_DIR e D-Bus..."
     
-    local current_user="${SUDO_USER:-$USER}"
-    local user_id=$(id -u "$current_user" 2>/dev/null || echo "$(id -u)")
+    local current_user="${TARGET_USER:-$(whoami)}"
+    local user_id="${TARGET_UID:-$(id -u)}"
     
     XDG_RUNTIME_DIR="/run/user/$user_id"
     
@@ -240,7 +242,7 @@ setup_xdg_runtime_dir() {
         fi
     fi
     
-    # Setup D-Bus session per $(whoami)
+    # Setup D-Bus session per utente target
     setup_dbus_session "$current_user" "$user_id"
 }
 
@@ -279,7 +281,7 @@ setup_dbus_session() {
 setup_x11_permissions() {
     log "Configurazione X11 permissions..."
     
-    local current_user="${SUDO_USER:-$USER}"
+    local current_user="${TARGET_USER:-$(whoami)}"
     
     # Root-to-user transition
     if [[ "$EUID" -eq 0 ]]; then
@@ -291,10 +293,25 @@ setup_x11_permissions() {
             log "DISPLAY preservato: $DISPLAY"
         fi
         
-        # Concedi accesso X11
-        if command -v xhost >/dev/null 2>&1; then
-            xhost +si:localuser:"$current_user" 2>/dev/null || warn "Impossibile concedere accesso X11 a $current_user"
+    # Gestione XAUTHORITY per root - NON sovrascriviamo la variabile corretta
+    if [[ -f "$HOME/.Xauthority" ]] && [[ "$EUID" -eq 0 ]]; then
+        # Copia .Xauthority dell'utente a root per consentire l'accesso
+        cp "$HOME/.Xauthority" "/root/.Xauthority" 2>/dev/null || true
+        chown root:root "/root/.Xauthority" 2>/dev/null || true
+        chmod 600 "/root/.Xauthority" 2>/dev/null || true
+        log "Copiato .Xauthority utente a root per accesso X11"
+        # NOTA: NON sovrascriviamo XAUTHORITY perché è già corretta dall'orchestrator
+    fi
+    
+    # Concedi accesso X11 a root (se possibile) - MA NON SOVRASCRIVERE XAUTHORITY
+    if command -v xhost >/dev/null 2>&1; then
+        # Prova a concedere accesso come utente normale, non come root
+        if [[ -n "${SUDO_USER:-}" ]]; then
+            su - "$SUDO_USER" -c "DISPLAY=$DISPLAY xhost +si:localuser:root" 2>/dev/null || warn "Impossibile concedere accesso X11 a root"
+        else
+            xhost +si:localuser:root 2>/dev/null || warn "Impossibile concedere accesso X11 a root"
         fi
+    fi
     fi
     
     # Verifica DISPLAY
