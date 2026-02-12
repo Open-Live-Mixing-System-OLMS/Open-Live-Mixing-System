@@ -24,6 +24,9 @@ SYSTEM_CORE="0"
 IRQ_CORE="1"
 AUDIO_CORES="2-$LAST_CORE"
 
+# Variabili per il pinning corretto
+RT_PRIORITY=70
+
 # Funzione per estrarre la maschera bitwise dell'affinità
 # Esempio: Core 0 = 1, Core 1 = 2, Core 2 = 4, Core 3 = 8
 get_affinity_mask() {
@@ -160,12 +163,16 @@ generate_final_report() {
     # --- 3. ARDOUR DAW (Core 2+) ---
     local ardour_pid=$(pgrep -u "$TARGET_USER" -f "ardour" | head -n 1 || echo "")
     if [[ -n "$ardour_pid" ]]; then
-        local affinity=$(taskset -cp "$ardour_pid" 2>/dev/null | awk -F': ' '{print $2}')
-        if [[ "$affinity" != *"0"* && "$affinity" != *"1"* ]]; then
-            log "✓ Ardour DAW:  Core $affinity (OK)"
-        else
-            log "⚠ Ardour DAW:  Core $affinity (CONFLITTO SISTEMA/IRQ)"
-        fi
+        log "🔧 Esecuzione Hard-Pinning One-Shot per Ardour (PID: $ardour_pid)..."
+        
+        # 1. Recupera TUTTI i thread ID del processo Ardour
+        # 2. Forza ognuno di essi sui core dedicati
+        # 3. Non lascia processi attivi in background
+        ls /proc/$ardour_pid/task | xargs -I {} taskset -pc "$AUDIO_CORES" {} >/dev/null 2>&1
+        
+        # Verifica finale
+        local final_aff=$(taskset -cp "$ardour_pid" 2>/dev/null | awk -F': ' '{print $2}')
+        log "✅ Ardour stabilizzato sui Core $final_aff. Nessun watchdog residuo."
     fi
 
     # --- 4. IRQ ANALYSIS (Core 1) ---

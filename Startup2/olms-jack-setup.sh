@@ -113,6 +113,13 @@ setup_jack() {
         log "   Dispositivo ALSA trovato all'indice: $codec_index"
         local codec_device="hw:$codec_index"
         
+        # FIX VOLUME AUDIO: Imposta volume al 100% prima del test JACK
+        log "   Impostazione volume audio al 100% per passaggio completo del segnale..."
+        amixer -c "$codec_index" set PCM 100% unmute >/dev/null 2>&1 || true
+        amixer -c "$codec_index" set Master 100% unmute >/dev/null 2>&1 || true
+        amixer -c "$codec_index" set Digital 100% unmute >/dev/null 2>&1 || true
+        log "   ✅ Volume audio impostato al 100% per passaggio completo del segnale"
+        
         # Test con ALSA come utente normale (SENZA sudo)
         taskset -c 2-3 chrt -f 80 jackd -R -P 80 -name olms -T -d alsa -d "$codec_device" -r 48000 -p 256 -n 3 >/dev/null 2>&1 &
         local alsa_pid=$!

@@ -17,7 +17,7 @@ if [[ "$EUID" -eq 0 ]] && [[ -n "${SUDO_USER:-}" ]]; then
 else
     # Eseguito come utente normale
     ACTUAL_USER="$(whoami)"
-    ACTUAL_UID=$ACTUAL_UID
+    ACTUAL_UID=$(id -u)
 fi
 
 export TARGET_USER="$ACTUAL_USER"
@@ -196,9 +196,6 @@ find_bit_depth() {
         # RESET FISICO DELLA SCHEDA TRA UN TEST E L'ALTRO
         if [[ "$TARGET_ALSA_DEVICE" == "hw:"* ]]; then
             timeout 0.2 aplay -D "$TARGET_ALSA_DEVICE" -f S16_LE -r 48000 -c 2 /dev/zero >/dev/null 2>&1 || true
-            # Reset volume via amixer se disponibile
-            local card_num=$(echo "$TARGET_ALSA_DEVICE" | sed 's/hw://')
-            amixer -c "$card_num" cset numid=4 0 >/dev/null 2>&1 || true 
         fi
         
         # Pulizia socket
@@ -214,6 +211,7 @@ find_bit_depth() {
             HOME=/home/$ACTUAL_USER \
             PATH=/usr/bin:/bin \
             XDG_RUNTIME_DIR=/run/user/$ACTUAL_UID \
+            DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$ACTUAL_UID/bus" \
             JACK_NO_AUDIO_RESERVATION=1 \
             JACK_PROMISCUOUS_SERVER=1 \
             JACK_DEFAULT_SERVER=olms \
@@ -226,10 +224,23 @@ find_bit_depth() {
         log "JACK lanciato (PID: $jack_pid). Attesa sincronizzazione (8s)..."
         sleep 8
 
-    # FIX PERMESSI PRE-VALIDAZIONE
+        # FIX PERMESSI PRE-VALIDAZIONE
     log "🔧 FIX: Apertura permessi socket per validatore..."
     sudo chmod -R 777 /dev/shm/jack* 2>/dev/null || true
     sudo chmod 666 /dev/shm/jack-shm-registry 2>/dev/null || true
+    
+        # FIX VOLUME AUDIO: Imposta volume al 100% per passaggio completo del segnale
+    log "🔧 FIX: Impostazione volume audio al 100% per passaggio completo del segnale..."
+    local card_num=$(echo "$TARGET_ALSA_DEVICE" | sed 's/hw://')
+    if [[ "$TARGET_ALSA_DEVICE" == "hw:"* ]] && [[ -n "$card_num" ]]; then
+        # Imposta volume PCM al 100% per passaggio completo del segnale
+        amixer -c "$card_num" set PCM 100% unmute >/dev/null 2>&1 || true
+        # Imposta volume Master al 100% per passaggio completo del segnale
+        amixer -c "$card_num" set Master 100% unmute >/dev/null 2>&1 || true
+        # Imposta volume digitale al 100% se disponibile
+        amixer -c "$card_num" set Digital 100% unmute >/dev/null 2>&1 || true
+        log "✅ Volume audio impostato al 100% per passaggio completo del segnale"
+    fi
 
         # VALIDATORE (Check Processo)
         if ! ps -p "$jack_pid" > /dev/null; then
@@ -334,8 +345,6 @@ find_buffer() {
         # RESET FISICO DELLA SCHEDA TRA UN TEST E L'ALTRO
         if [[ "$TARGET_ALSA_DEVICE" == "hw:"* ]]; then
             timeout 0.2 aplay -D "$TARGET_ALSA_DEVICE" -f S16_LE -r 48000 -c 2 /dev/zero >/dev/null 2>&1 || true
-            local card_num=$(echo "$TARGET_ALSA_DEVICE" | sed 's/hw://')
-            amixer -c "$card_num" cset numid=4 0 >/dev/null 2>&1 || true 
         fi
         
         # Pulizia socket
@@ -351,6 +360,7 @@ find_buffer() {
             HOME=/home/$ACTUAL_USER \
             PATH=/usr/bin:/bin \
             XDG_RUNTIME_DIR=/run/user/$ACTUAL_UID \
+            DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$ACTUAL_UID/bus" \
             JACK_NO_AUDIO_RESERVATION=1 \
             JACK_PROMISCUOUS_SERVER=1 \
             JACK_DEFAULT_SERVER=olms \

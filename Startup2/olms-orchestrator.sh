@@ -135,8 +135,19 @@ check_lock() {
     if [[ -f "$LOCK_FILE" ]]; then
         local lock_pid=$(cat "$LOCK_FILE" 2>/dev/null || echo "")
         if [[ -n "$lock_pid" ]] && kill -0 "$lock_pid" 2>/dev/null; then
-            error "Processo di startup già in esecuzione (PID: $lock_pid)"
-            exit 1
+            log "Processo di startup già in esecuzione (PID: $lock_pid), terminazione forzata in corso..."
+            # Termina il processo esistente
+            kill -TERM "$lock_pid" 2>/dev/null || true
+            sleep 2
+            # Se il processo è ancora attivo, forza la terminazione
+            if kill -0 "$lock_pid" 2>/dev/null; then
+                log "Processo ancora attivo, terminazione forzata con kill -9..."
+                kill -9 "$lock_pid" 2>/dev/null || true
+                sleep 1
+            fi
+            # Pulizia forzata dei file di lock
+            sudo rm -f "$LOCK_FILE" "$PID_FILE" 2>/dev/null || true
+            log "Processo di startup precedente terminato e lock file puliti"
         else
             log "Lock file trovato ma processo non attivo, pulizia automatica in corso..."
             # Pulizia automatica forzata

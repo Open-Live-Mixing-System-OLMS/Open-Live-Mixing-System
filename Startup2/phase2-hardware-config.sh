@@ -9,7 +9,17 @@ set -euo pipefail
 OLMS_HOME="$HOME/.olms"
 mkdir -p "$OLMS_HOME"
 LOG_FILE="$OLMS_HOME/olms-orchestrator.log"
-AUDIO_CORE=1  # Core dedicato per IRQ audio
+
+# Rilevamento dinamico dei core disponibili
+TOTAL_CORES=$(nproc)
+LAST_CORE=$((TOTAL_CORES - 1))
+
+# Assegnazione dinamica dei core
+SYSTEM_CORE=0
+IRQ_CORE=1
+AUDIO_CORES="2-$LAST_CORE"  # Range dinamico da 2 a n
+
+# Maschera CPU per IRQ (core 1)
 CPU_MASK_CORE_1="0x2"  # Maschera hex per core 1
 
 # Variabili d'ambiente per l'approccio "tutto come stesso utente"
@@ -122,17 +132,17 @@ configure_irq_affinity() {
             continue 
         fi
 
-        log "Tentativo pinning IRQ $irq sul core $AUDIO_CORE..."
+        log "Tentativo pinning IRQ $irq sul core $IRQ_CORE..."
         
         local success=false
         # Tentativo 1: Maschera esadecimale (0x2 per core 1)
         if { echo "0x2" > "$affinity_file"; } 2>/dev/null; then
-            log "IRQ $irq: OK (Core $AUDIO_CORE) - Maschera esadecimale"
-            success=true
-        # Tentativo 2: ID core numerico
-        elif { echo "$AUDIO_CORE" > "/proc/irq/$irq/smp_affinity_list"; } 2>/dev/null; then
-            log "IRQ $irq: OK (Core $AUDIO_CORE) - ID core numerico"
-            success=true
+        log "IRQ $irq: OK (Core $IRQ_CORE) - Maschera esadecimale"
+        success=true
+    # Tentativo 2: ID core numerico
+    elif { echo "$IRQ_CORE" > "/proc/irq/$irq/smp_affinity_list"; } 2>/dev/null; then
+        log "IRQ $irq: OK (Core $IRQ_CORE) - ID core numerico"
+        success=true
         fi
         
         if [[ "$success" == "false" ]]; then
@@ -493,7 +503,7 @@ main() {
     prepare_system
     
     log "=== FASE 2: OTTIMIZZAZIONE HARDWARE ==="
-    info "Core audio dedicato: $AUDIO_CORE (maschera: $CPU_MASK_CORE_1)"
+    info "Core audio dedicato: $IRQ_CORE (maschera: $CPU_MASK_CORE_1)"
     
     # Rilevamento hardware
     local audio_irqs=($(detect_audio_hardware))

@@ -175,7 +175,15 @@ KERNEL=="cpu*", SUBSYSTEM=="cpu", MODE="0666", OWNER="$ACTUAL_USER", GROUP="$ACT
 KERNEL=="scaling_governor", SUBSYSTEM=="cpu", MODE="0666", OWNER="$ACTUAL_USER", GROUP="$ACTUAL_USER"
 KERNEL=="scaling_min_freq", SUBSYSTEM=="cpu", MODE="0666", OWNER="$ACTUAL_USER", GROUP="$ACTUAL_USER"
 KERNEL=="scaling_max_freq", SUBSYSTEM=="cpu", MODE="0666", OWNER="$ACTUAL_USER", GROUP="$ACTUAL_USER"
+KERNEL=="scaling_setspeed", SUBSYSTEM=="cpu", MODE="0666", OWNER="$ACTUAL_USER", GROUP="$ACTUAL_USER"
+KERNEL=="scaling_cur_freq", SUBSYSTEM=="cpu", MODE="0666", OWNER="$ACTUAL_USER", GROUP="$ACTUAL_USER"
+
+# Permessi per Turbo Boost
 KERNEL=="no_turbo", SUBSYSTEM=="cpu", MODE="0666", OWNER="$ACTUAL_USER", GROUP="$ACTUAL_USER"
+
+# Permessi per CPU affinity
+KERNEL=="smp_affinity", SUBSYSTEM=="cpu", MODE="0666", OWNER="$ACTUAL_USER", GROUP="$ACTUAL_USER"
+KERNEL=="smp_affinity_list", SUBSYSTEM=="cpu", MODE="0666", OWNER="$ACTUAL_USER", GROUP="$ACTUAL_USER"
 
 # Permessi per C-states
 KERNEL=="state*", SUBSYSTEM=="cpuidle", MODE="0666", OWNER="$ACTUAL_USER", GROUP="$ACTUAL_USER"
@@ -508,6 +516,46 @@ configure_user_groups() {
     done
 }
 
+# Configurazione volume audio USB al 100% per passaggio completo del segnale
+configure_audio_volume() {
+    log "Configurazione volume audio USB al 100% per passaggio completo del segnale..."
+    
+    # Trova dispositivi audio USB disponibili
+    local usb_devices=$(aplay -l 2>/dev/null | grep -i "USB Audio" | grep -o "card [0-9]*" | cut -d' ' -f2)
+    
+    if [[ -z "$usb_devices" ]]; then
+        log "Nessun dispositivo audio USB trovato"
+        return 0
+    fi
+    
+    for card_num in $usb_devices; do
+        log "Configurazione volume per scheda audio USB: card $card_num"
+        
+        # Imposta volume PCM al 100% per passaggio completo del segnale
+        if amixer -c "$card_num" set PCM 100% unmute >/dev/null 2>&1; then
+            log "✅ Volume PCM impostato al 100% per card $card_num"
+        else
+            warn "⚠️ Impossibile impostare volume PCM per card $card_num"
+        fi
+        
+        # Imposta volume Master al 100% per passaggio completo del segnale
+        if amixer -c "$card_num" set Master 100% unmute >/dev/null 2>&1; then
+            log "✅ Volume Master impostato al 100% per card $card_num"
+        else
+            warn "⚠️ Impossibile impostare volume Master per card $card_num"
+        fi
+        
+        # Imposta volume digitale al 100% se disponibile
+        if amixer -c "$card_num" set Digital 100% unmute >/dev/null 2>&1; then
+            log "✅ Volume Digital impostato al 100% per card $card_num"
+        else
+            log "Volume Digital non disponibile per card $card_num (opzionale)"
+        fi
+    done
+    
+    log "Configurazione volume audio USB completata"
+}
+
 # Installazione Runtime Permission Manager
 install_runtime_permission_manager() {
     log "Installazione Runtime Permission Manager..."
@@ -653,6 +701,9 @@ apply_configurations() {
         udevadm control --reload-rules
         udevadm trigger
     fi
+    
+    # Configura volume audio USB al 100% per passaggio completo del segnale
+    configure_audio_volume
     
     # Installa Runtime Permission Manager
     install_runtime_permission_manager

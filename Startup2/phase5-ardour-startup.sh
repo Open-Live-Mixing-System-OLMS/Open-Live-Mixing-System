@@ -384,28 +384,61 @@ start_ardour_with_fallback() {
 
 # --- LIVELLO 1: PULIZIA RADICALE E RESET SHM ---
 fix_shm_permissions_radical() {
-    log "🧹 PULIZIA RADICALE: Reset totale SHM e Socket..."
-    pkill -9 -f "ardour8" 2>/dev/null || true
-    sleep 0.5
+    log "🧹 PULIZIA E FIX SHM: Analisi segmenti condivisi..."
 
-    # 1. Gestione directory socket JACK
-    # Se la directory jack_olms_0 esiste, dobbiamo assicurarci che sia dell'utente
-    if [ -d "/dev/shm/jack_olms_0" ]; then
-        log "🔧 Rettifica permessi directory socket JACK..."
-        chown -R "$ARD_USER":audio /dev/shm/jack_olms_0
-        chmod -R 777 /dev/shm/jack_olms_0
+    # 1. Identifica se c'è un server JACK attivo e di chi è
+    local jack_pid=$(pgrep -x "jackd" || echo "")
+    
+    if [[ -n "$jack_pid" ]]; then
+        local jack_user=$(ps -o user= -p "$jack_pid")
+        log "ℹ️ JACK Server attivo (PID: $jack_pid, User: $jack_user)"
+        
+        # Se JACK è root, dobbiamo aprire tutto
+        if [[ "$jack_user" == "root" ]]; then
+            warn "⚠️ JACK sta girando come ROOT. Applicazione patch permessi aggressiva..."
+        fi
+    else
+        warn "⚠️ Nessun processo JACK trovato. Ardour potrebbe non partire."
     fi
 
-    # 2. Fix dei semafori e registry (fondamentali per Connection Refused)
-    log "🔧 Sblocco semafori e registry JACK..."
-    for f in /dev/shm/jack_sem.olms_* /dev/shm/jack-shm-registry; do
-        if [ -e "$f" ]; then
-            chown "$ARD_USER":audio "$f"
-            chmod 666 "$f"
+    # 2. Fix permessi directory e file standard in /dev/shm
+    # Cerchiamo tutto ciò che assomiglia a JACK
+    log "🔧 Applicazione chmod 777 su /dev/shm/jack*..."
+    
+    # Questo sblocca le directory come /dev/shm/jack_olms_0
+    find /dev/shm -name "jack*" -exec chmod 777 {} \; 2>/dev/null || true
+    
+    # Fix specifico per i semafori (spesso causa di Permission Denied)
+    chmod 666 /dev/shm/sem.jack* 2>/dev/null || true
+    
+    # 3. FIX CRITICO PER POSIX SHM (/dev/shm/jack-*-*)
+    # Il kernel Linux mappa shm_open in /dev/shm.
+    # Se JACK è root (UID 0), crea /dev/shm/jack-0-*.
+    # Ardour (UID 1000) cerca di aprirli.
+    
+    log "🔧 Ricerca segmenti SHM orfani o bloccati..."
+    for seg in /dev/shm/jack-*-*; do
+        if [ -e "$seg" ]; then
+            # Controlla se è di proprietà di root
+            if [ "$(stat -c '%u' "$seg")" -eq 0 ]; then
+                log "🔓 Sblocco segmento ROOT: $seg"
+                chown "$ARD_USER":audio "$seg" 2>/dev/null || true # Tenta il cambio owner
+                chmod 777 "$seg" # Forza lettura/scrittura per tutti
+            else
+                chmod 777 "$seg"
+            fi
         fi
     done
 
-    log "✅ SHM e Socket rettificati per $ARD_USER"
+    # 4. Assicuriamoci che la directory del registry esista e sia accessibile
+    if [ ! -f "/dev/shm/jack-shm-registry" ]; then
+        # A volte JACK crea pipe invece di file, o usa directory diverse
+        warn "File registry non trovato standard, controllo directory alternative..."
+    else
+        chmod 666 "/dev/shm/jack-shm-registry"
+    fi
+
+    log "✅ Fix permessi completato."
 }
 
 # --- LIVELLO 2: WRAPPER NELLA HOME UTENTE (Fix Permission Denied) ---
@@ -413,30 +446,36 @@ create_ardour_wrapper() {
     local wrapper_path="$EFFECTIVE_HOME/.olms_ardour_launcher.sh"
     mkdir -p "$(dirname "$wrapper_path")"
     
-    log "🏗️ Creazione wrapper script in $wrapper_path..." >&2
+    log "🏗️ Creazione wrapper script (NO-START MODE) in $wrapper_path..." >&2
     
-    # Usiamo un single-quote 'EOF' per evitare l'espansione immediata delle variabili interne
-    # Ma dobbiamo passare ARD_SESSION_PATH, CPU_CORES e RT_PRIORITY dall'esterno.
     cat << EOF > "$wrapper_path"
 #!/bin/bash
-# OLMS Ardour Launcher Wrapper
-export JACK_DEFAULT_SERVER="olms"
+# OLMS Ardour Launcher - Forced Connection Mode
+
+# 1. Variabili d'ambiente per forzare le librerie JACK a non avviare un server
+export JACK_DEFAULT_SERVER="$JACK_SERVER_NAME"
 export JACK_NO_START_SERVER=1
 export JACK_PROMISCUOUS_SERVER=1
+export JACK_SESSION_DIR="/dev/shm/jack_olms_0"
+
+# 2. Variabili Grafiche
 export DISPLAY=:0
 export XAUTHORITY=$EFFECTIVE_HOME/.Xauthority
 
-# Forziamo il path del socket se necessario
-export JACK_SESSION_DIR="/dev/shm/jack_olms_0"
+# 3. Verifica esistenza Socket prima di partire
+if [ ! -S "/dev/shm/jack_olms_0" ]; then
+    echo "ERROR: JACK socket not found. Server '$JACK_SERVER_NAME' is not running."
+    exit 1
+fi
 
+# 4. Limiti RT
 ulimit -r 99
 ulimit -l unlimited
 
-# Attendiamo un istante che il socket sia visibile nel namespace utente
-sleep 1
-
-# Lancio ATOMICO - Usiamo --jack-server per dire ad Ardour esplicitamente quale server usare
-exec taskset -c $CPU_CORES chrt -f $RT_PRIORITY /usr/bin/ardour8 --no-splash --jack-server olms "$ARD_SESSION_PATH"
+# 5. Lancio ATOMICO
+exec taskset -c $CPU_CORES chrt -f $RT_PRIORITY /usr/bin/ardour8 \\
+    --no-splash \\
+    "$ARD_SESSION_PATH"
 EOF
 
     chown "$ARD_USER":"$(id -gn "$ARD_USER")" "$wrapper_path"
@@ -444,24 +483,21 @@ EOF
     echo "$wrapper_path"
 }
 
-# --- LIVELLO 3: MONITORAGGIO THREAD AGGRESSIVO ---
-monitor_anti_migration() {
+# --- LIVELLO 3: MONITORAGGIO THREAD BREVE ---
+monitor_anti_migration_brief() {
     local target_pid=$1
-    local target_mask="0x$(printf '%x' $(( (1 << 2) | (1 << 3) )))" # Forza 0xc (core 2-3)
-
-    log "🛰️ Avvio monitoraggio thread-pinning per PID $target_pid..."
+    log "🛰️ Monitoraggio breve thread Ardour sui Core $AUDIO_CORES (PID: $target_pid)"
     
+    # Monitoraggio breve per 10 secondi durante l'avvio critico
     (
-        for i in {1..20}; do
-            # Applica a TUTTI i thread (LWP) del processo
-            # Fondamentale perché Ardour migra i thread della GUI e dell'Audio separatamente
+        for i in {1..10}; do
+            # Applica pinning a TUTTI i thread correnti
             if [ -d "/proc/$target_pid/task" ]; then
-                ls "/proc/$target_pid/task" | xargs -I {} taskset -pc "$CPU_CORES" {} >/dev/null 2>&1
-                chrt -fp "$RT_PRIORITY" "$target_pid" >/dev/null 2>&1
+                ls "/proc/$target_pid/task" 2>/dev/null | xargs -I {} taskset -pc "$AUDIO_CORES" {} >/dev/null 2>&1
             fi
-            sleep 0.5
+            sleep 1
         done
-        log "✅ Monitoraggio migrazione completato."
+        log "✅ Monitoraggio breve completato."
     ) &
 }
 
@@ -502,8 +538,8 @@ main() {
         exit 1
     fi
     
-    # 4. Monitoraggio immediato
-    monitor_anti_migration "$ARD_PID"
+    # 4. Monitoraggio immediato (Breve)
+    monitor_anti_migration_brief "$ARD_PID"
 
     # 5. Verifica Kernel
     sleep 3
