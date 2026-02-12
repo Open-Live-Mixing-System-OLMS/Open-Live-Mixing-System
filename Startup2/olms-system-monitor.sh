@@ -1,25 +1,25 @@
 #!/bin/bash
 
 # OLMS System Monitor
-# Monitoraggio continuo e ripristino automatico dei permessi sysfs
-# Versione: 1.0
+# Continuous monitoring and automatic restoration of sysfs permissions
+# Version: 1.0
 
 set -euo pipefail
 
-# Configurazione
+# Configuration
 OLMS_HOME="$HOME/.olms"
 mkdir -p "$OLMS_HOME"
 LOG_FILE="$OLMS_HOME/olms-system-monitor.log"
-MONITOR_INTERVAL=30  # Secondi tra i controlli
-MAX_RETRIES=3        # Tentativi massimi per ripristino
+MONITOR_INTERVAL=30  # Seconds between checks
+MAX_RETRIES=3        # Maximum retry attempts for restoration
 
-# Variabili d'ambiente per l'approccio "tutto come stesso utente"
+# Environment variables for the "all as same user" approach
 export TARGET_USER="$(whoami)"
 export TARGET_UID=$(id -u "$(whoami)" 2>/dev/null || echo "$(id -u)")
 export DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$TARGET_UID/bus"
 export XDG_RUNTIME_DIR="/run/user/$TARGET_UID"
 
-# Colori
+# Colors
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -42,26 +42,26 @@ info() {
     echo -e "${BLUE}[$(date '+%Y-%m-%d %H:%M:%S')] INFO:${NC} $1" | tee -a "$LOG_FILE"
 }
 
-# Rilevamento utente e sistema
+# User and system detection
 detect_user_environment() {
-    # Gestione intelligente del percorso home per gestire anche l'esecuzione con sudo
+    # Intelligent home path management to handle sudo execution
     if [[ "$EUID" -eq 0 ]]; then
-        # Se siamo root, dobbiamo determinare l'utente effettivo
+        # If we are root, we need to determine the actual user
         if [[ -n "${SUDO_USER:-}" ]]; then
-            # Eseguito con sudo, usa l'utente originale
+            # Executed with sudo, use original user
             ACTUAL_USER="$SUDO_USER"
             ACTUAL_HOME=$(eval echo ~$SUDO_USER)
         elif [[ -n "${USER:-}" ]] && [[ "$USER" != "root" ]]; then
-            # Eseguito come root ma USER è impostato a un utente non root
+            # Executed as root but USER is set to a non-root user
             ACTUAL_USER="$USER"
             ACTUAL_HOME=$(eval echo ~$USER)
         else
-            # Eseguito direttamente come root
+            # Executed directly as root
             ACTUAL_USER="root"
             ACTUAL_HOME="/root"
         fi
     else
-        # Eseguito come utente normale
+        # Executed as normal user
         ACTUAL_USER="$(whoami)"
         ACTUAL_HOME="$HOME"
     fi
@@ -69,13 +69,13 @@ detect_user_environment() {
     ACTUAL_UID=$(id -u "$ACTUAL_USER")
     ACTUAL_GID=$(id -g "$ACTUAL_USER")
     
-    # Ottieni il gruppo primario dell'utente
+    # Get user's primary group
     USER_GROUP=$(id -gn "$ACTUAL_USER")
     
-    log "Ambiente utente rilevato: $ACTUAL_USER (UID: $ACTUAL_UID, GID: $ACTUAL_GID, Gruppo: $USER_GROUP)"
+    log "User environment detected: $ACTUAL_USER (UID: $ACTUAL_UID, GID: $ACTUAL_GID, Group: $USER_GROUP)"
 }
 
-# Verifica permessi CPU
+# Check CPU permissions
 check_cpu_permissions() {
     local num_cores=$(nproc 2>/dev/null || echo "4")
     local failed_count=0
@@ -91,21 +91,21 @@ check_cpu_permissions() {
             
             if [[ "$perms" != "666" ]] || [[ "$owner" != "$ACTUAL_USER:$USER_GROUP" ]]; then
                 failed_count=$((failed_count + 1))
-                warn "CPU $i: permessi non corretti (perms=$perms, owner=$owner)"
+                warn "CPU $i: incorrect permissions (perms=$perms, owner=$owner)"
             fi
         fi
     done
     
     if [[ $failed_count -gt 0 ]]; then
-        warn "Permessi CPU non corretti: $failed_count/$total_count"
+        warn "Incorrect CPU permissions: $failed_count/$total_count"
         return 1
     else
-        log "Permessi CPU verificati: $total_count corretti"
+        log "CPU permissions verified: $total_count correct"
         return 0
     fi
 }
 
-# Verifica permessi C-states
+# Check C-states permissions
 check_cstate_permissions() {
     local num_cores=$(nproc 2>/dev/null || echo "4")
     local failed_count=0
@@ -125,7 +125,7 @@ check_cstate_permissions() {
                     
                     if [[ "$perms" != "666" ]] || [[ "$owner" != "$ACTUAL_USER:$USER_GROUP" ]]; then
                         failed_count=$((failed_count + 1))
-                        warn "CPU $i $state: permessi non corretti (perms=$perms, owner=$owner)"
+                        warn "CPU $i $state: incorrect permissions (perms=$perms, owner=$owner)"
                     fi
                 fi
             done
@@ -133,15 +133,15 @@ check_cstate_permissions() {
     done
     
     if [[ $failed_count -gt 0 ]]; then
-        warn "Permessi C-states non corretti: $failed_count/$total_count"
+        warn "Incorrect C-states permissions: $failed_count/$total_count"
         return 1
     else
-        log "Permessi C-states verificati: $total_count corretti"
+        log "C-states permissions verified: $total_count correct"
         return 0
     fi
 }
 
-# Verifica permessi IRQ
+# Check IRQ permissions
 check_irq_permissions() {
     local failed_count=0
     local total_count=0
@@ -159,7 +159,7 @@ check_irq_permissions() {
                     
                     if [[ "$perms" != "666" ]] || [[ "$owner" != "$ACTUAL_USER:$USER_GROUP" ]]; then
                         failed_count=$((failed_count + 1))
-                        warn "IRQ $irq_num: permessi non corretti (perms=$perms, owner=$owner)"
+                        warn "IRQ $irq_num: incorrect permissions (perms=$perms, owner=$owner)"
                     fi
                 fi
             fi
@@ -167,15 +167,15 @@ check_irq_permissions() {
     fi
     
     if [[ $failed_count -gt 0 ]]; then
-        warn "Permessi IRQ non corretti: $failed_count/$total_count"
+        warn "Incorrect IRQ permissions: $failed_count/$total_count"
         return 1
     else
-        log "Permessi IRQ verificati: $total_count corretti"
+        log "IRQ permissions verified: $total_count correct"
         return 0
     fi
 }
 
-# Verifica stato governor
+# Check governor status
 check_governor_status() {
     local num_cores=$(nproc 2>/dev/null || echo "4")
     local failed_count=0
@@ -190,21 +190,21 @@ check_governor_status() {
             
             if [[ "$gov" != "performance" ]]; then
                 failed_count=$((failed_count + 1))
-                warn "CPU $i: governor=$gov (performance atteso)"
+                warn "CPU $i: governor=$gov (expected performance)"
             fi
         fi
     done
     
     if [[ $failed_count -gt 0 ]]; then
-        warn "Governor non corretti: $failed_count/$total_count"
+        warn "Incorrect governors: $failed_count/$total_count"
         return 1
     else
-        log "Governor verificati: $total_count in performance"
+        log "Governors verified: $total_count in performance"
         return 0
     fi
 }
 
-# Verifica stato C-states
+# Check C-states status
 check_cstate_status() {
     local num_cores=$(nproc 2>/dev/null || echo "4")
     local disabled_count=0
@@ -224,7 +224,7 @@ check_cstate_status() {
                     if [[ "$disabled" == "1" ]]; then
                         disabled_count=$((disabled_count + 1))
                     else
-                        warn "CPU $i $state: C-state non disabilitato (disabled=$disabled)"
+                        warn "CPU $i $state: C-state not disabled (disabled=$disabled)"
                     fi
                 fi
             done
@@ -232,17 +232,17 @@ check_cstate_status() {
     done
     
     if [[ $disabled_count -eq $total_count ]] && [[ $total_count -gt 0 ]]; then
-        log "C-states verificati: $total_count disabilitati"
+        log "C-states verified: $total_count disabled"
         return 0
     else
-        warn "C-states non correttamente disabilitati: $disabled_count/$total_count"
+        warn "C-states not correctly disabled: $disabled_count/$total_count"
         return 1
     fi
 }
 
-# Ripristino permessi CPU
+# Restore CPU permissions
 restore_cpu_permissions() {
-    log "Ripristino permessi CPU..."
+    log "Restoring CPU permissions..."
     
     local num_cores=$(nproc 2>/dev/null || echo "4")
     local restored_count=0
@@ -252,7 +252,7 @@ restore_cpu_permissions() {
         local cpu_path="/sys/devices/system/cpu/cpu${i}/cpufreq"
         
         if [[ -d "$cpu_path" ]]; then
-            # File sysfs per CPU governor e frequenze
+            # Sysfs files for CPU governor and frequencies
             local cpu_files=(
                 "scaling_governor"
                 "scaling_min_freq"
@@ -266,17 +266,17 @@ restore_cpu_permissions() {
                 if [[ -f "$target_file" ]]; then
                     total_count=$((total_count + 1))
                     if chmod 666 "$target_file" 2>/dev/null && chown "$ACTUAL_USER:$USER_GROUP" "$target_file" 2>/dev/null; then
-                        log "CPU $i: permessi ripristinati per $file"
+                        log "CPU $i: permissions restored for $file"
                         restored_count=$((restored_count + 1))
                     else
-                        warn "CPU $i: impossibile ripristinare permessi per $file"
+                        warn "CPU $i: unable to restore permissions for $file"
                     fi
                 fi
             done
         fi
     done
     
-    # Ripristino permessi Turbo Boost
+    # Restore Turbo Boost permissions
     local turbo_files=(
         "no_turbo"
     )
@@ -286,21 +286,21 @@ restore_cpu_permissions() {
         if [[ -f "$target_file" ]]; then
             total_count=$((total_count + 1))
             if chmod 666 "$target_file" 2>/dev/null && chown "$ACTUAL_USER:$USER_GROUP" "$target_file" 2>/dev/null; then
-                log "Turbo Boost: permessi ripristinati per $file"
+                log "Turbo Boost: permissions restored for $file"
                 restored_count=$((restored_count + 1))
             else
-                warn "Turbo Boost: impossibile ripristinare permessi per $file"
+                warn "Turbo Boost: unable to restore permissions for $file"
             fi
         fi
     done
     
-    log "Ripristino permessi CPU completato: $restored_count/$total_count"
+    log "CPU permissions restoration completed: $restored_count/$total_count"
     return $((total_count - restored_count))
 }
 
-# Ripristino permessi C-states
+# Restore C-states permissions
 restore_cstate_permissions() {
-    log "Ripristino permessi C-states..."
+    log "Restoring C-states permissions..."
     
     local num_cores=$(nproc 2>/dev/null || echo "4")
     local restored_count=0
@@ -310,7 +310,7 @@ restore_cstate_permissions() {
         local cpu_path="/sys/devices/system/cpu/cpu${i}/cpuidle"
         
         if [[ -d "$cpu_path" ]]; then
-            # Stati C da disabilitare (C3, C6 sono i più problematici per latenza)
+            # C-states to disable (C3, C6 are most problematic for latency)
             local cstates=("state3" "state4")
             
             for cstate in "${cstates[@]}"; do
@@ -320,33 +320,33 @@ restore_cstate_permissions() {
                 if [[ -f "$disable_file" ]]; then
                     total_count=$((total_count + 1))
                     if chmod 666 "$disable_file" 2>/dev/null && chown "$ACTUAL_USER:$USER_GROUP" "$disable_file" 2>/dev/null; then
-                        log "CPU $i: permessi ripristinati per $cstate/disable"
+                        log "CPU $i: permissions restored for $cstate/disable"
                         restored_count=$((restored_count + 1))
                     else
-                        warn "CPU $i: impossibile ripristinare permessi per $cstate/disable"
+                        warn "CPU $i: unable to restore permissions for $cstate/disable"
                     fi
                 fi
                 
                 if [[ -f "$name_file" ]]; then
                     total_count=$((total_count + 1))
                     if chmod 666 "$name_file" 2>/dev/null && chown "$ACTUAL_USER:$USER_GROUP" "$name_file" 2>/dev/null; then
-                        log "CPU $i: permessi ripristinati per $cstate/name"
+                        log "CPU $i: permissions restored for $cstate/name"
                         restored_count=$((restored_count + 1))
                     else
-                        warn "CPU $i: impossibile ripristinare permessi per $cstate/name"
+                        warn "CPU $i: unable to restore permissions for $cstate/name"
                     fi
                 fi
             done
         fi
     done
     
-    log "Ripristino permessi C-states completato: $restored_count/$total_count"
+    log "C-states permissions restoration completed: $restored_count/$total_count"
     return $((total_count - restored_count))
 }
 
-# Ripristino permessi IRQ
+# Restore IRQ permissions
 restore_irq_permissions() {
-    log "Ripristino permessi IRQ..."
+    log "Restoring IRQ permissions..."
     
     local restored_count=0
     local total_count=0
@@ -356,7 +356,7 @@ restore_irq_permissions() {
             if [[ -d "$irq_dir" ]]; then
                 local irq_num=$(basename "$irq_dir")
                 
-                # File sysfs per IRQ
+                # Sysfs files for IRQ
                 local irq_files=(
                     "smp_affinity"
                     "smp_affinity_list"
@@ -368,10 +368,10 @@ restore_irq_permissions() {
                     if [[ -f "$target_file" ]]; then
                         total_count=$((total_count + 1))
                         if chmod 666 "$target_file" 2>/dev/null && chown "$ACTUAL_USER:$USER_GROUP" "$target_file" 2>/dev/null; then
-                            log "IRQ $irq_num: permessi ripristinati per $file"
+                            log "IRQ $irq_num: permissions restored for $file"
                             restored_count=$((restored_count + 1))
                         else
-                            warn "IRQ $irq_num: impossibile ripristinare permessi per $file"
+                            warn "IRQ $irq_num: unable to restore permissions for $file"
                         fi
                     fi
                 done
@@ -379,13 +379,13 @@ restore_irq_permissions() {
         done
     fi
     
-    log "Ripristino permessi IRQ completato: $restored_count/$total_count"
+    log "IRQ permissions restoration completed: $restored_count/$total_count"
     return $((total_count - restored_count))
 }
 
-# Ripristino governor a performance
+# Restore governor to performance
 restore_governor_performance() {
-    log "Ripristino governor a performance..."
+    log "Restoring governor to performance..."
     
     local num_cores=$(nproc 2>/dev/null || echo "4")
     local restored_count=0
@@ -394,27 +394,27 @@ restore_governor_performance() {
         local governor_file="/sys/devices/system/cpu/cpu${i}/cpufreq/scaling_governor"
         
         if [[ -f "$governor_file" ]]; then
-            # Verifica se il file è scrivibile
+            # Verify if file is writable
             if [[ -w "$governor_file" ]]; then
                 if echo "performance" > "$governor_file" 2>/dev/null; then
-                    log "CPU $i: governor ripristinato a performance"
+                    log "CPU $i: governor restored to performance"
                     restored_count=$((restored_count + 1))
                 else
-                    warn "CPU $i: impossibile ripristinare governor a performance"
+                    warn "CPU $i: unable to restore governor to performance"
                 fi
             else
-                warn "CPU $i: governor file non scrivibile"
+                warn "CPU $i: governor file not writable"
             fi
         fi
     done
     
-    log "Ripristino governor completato: $restored_count core"
+    log "Governor restoration completed: $restored_count cores"
     return $((num_cores - restored_count))
 }
 
-# Ripristino C-states disabilitati
+# Restore C-states disabled
 restore_cstates_disabled() {
-    log "Ripristino C-states disabilitati..."
+    log "Restoring C-states disabled..."
     
     local num_cores=$(nproc 2>/dev/null || echo "4")
     local disabled_count=0
@@ -423,123 +423,123 @@ restore_cstates_disabled() {
         local cpu_path="/sys/devices/system/cpu/cpu${i}/cpuidle"
         
         if [[ -d "$cpu_path" ]]; then
-            # Disabilita C3 state (se presente)
+            # Disable C3 state (if present)
             if [[ -f "${cpu_path}/state3/disable" ]]; then
                 if [[ -w "${cpu_path}/state3/disable" ]]; then
                     if echo 1 > "${cpu_path}/state3/disable" 2>/dev/null; then
-                        log "CPU $i: C3 state ripristinato disabilitato"
+                        log "CPU $i: C3 state restored disabled"
                         disabled_count=$((disabled_count + 1))
                     else
-                        warn "CPU $i: impossibile ripristinare C3 state disabilitato"
+                        warn "CPU $i: unable to restore C3 state disabled"
                     fi
                 else
-                    warn "CPU $i: C3 state file non scrivibile"
+                    warn "CPU $i: C3 state file not writable"
                 fi
             fi
             
-            # Disabilita C6 state (se presente)
+            # Disable C6 state (if present)
             if [[ -f "${cpu_path}/state4/disable" ]]; then
                 if [[ -w "${cpu_path}/state4/disable" ]]; then
                     if echo 1 > "${cpu_path}/state4/disable" 2>/dev/null; then
-                        log "CPU $i: C6 state ripristinato disabilitato"
+                        log "CPU $i: C6 state restored disabled"
                         disabled_count=$((disabled_count + 1))
                     else
-                        warn "CPU $i: impossibile ripristinare C6 state disabilitato"
+                        warn "CPU $i: unable to restore C6 state disabled"
                     fi
                 else
-                    warn "CPU $i: C6 state file non scrivibile"
+                    warn "CPU $i: C6 state file not writable"
                 fi
             fi
         fi
     done
     
-    log "Ripristino C-states completato: $disabled_count stati"
+    log "C-states restoration completed: $disabled_count states"
     return 0
 }
 
-# Ripristino completo tramite Runtime Permission Manager
+# Complete restoration via Runtime Permission Manager
 restore_via_runtime_manager() {
-    log "Ripristino completo tramite Runtime Permission Manager..."
+    log "Complete restoration via Runtime Permission Manager..."
     
     if [[ -x "/usr/local/bin/olms-runtime-permissions" ]]; then
         sudo /usr/local/bin/olms-runtime-permissions
-        log "Runtime Permission Manager eseguito per ripristino completo"
+        log "Runtime Permission Manager executed for complete restoration"
         return 0
     else
-        warn "Runtime Permission Manager non trovato o non eseguibile"
+        warn "Runtime Permission Manager not found or not executable"
         return 1
     fi
 }
 
-# Monitoraggio continuo
+# Continuous monitoring
 monitor_system() {
     log "=== OLMS SYSTEM MONITOR ==="
-    log "Monitoraggio continuo dei permessi sysfs e stato RT"
-    log "Intervallo di controllo: ${MONITOR_INTERVAL} secondi"
+    log "Continuous monitoring of sysfs permissions and RT status"
+    log "Check interval: ${MONITOR_INTERVAL} seconds"
     
     local check_count=0
     
     while true; do
         check_count=$((check_count + 1))
-        log "Controllo #$check_count"
+        log "Check #$check_count"
         
-        # Verifica permessi
+        # Check permissions
         local cpu_ok=true
         local cstate_ok=true
         local irq_ok=true
         local governor_ok=true
         local cstate_status_ok=true
         
-        # Verifica permessi CPU
+        # Check CPU permissions
         if ! check_cpu_permissions; then
             cpu_ok=false
         fi
         
-        # Verifica permessi C-states
+        # Check C-states permissions
         if ! check_cstate_permissions; then
             cstate_ok=false
         fi
         
-        # Verifica permessi IRQ
+        # Check IRQ permissions
         if ! check_irq_permissions; then
             irq_ok=false
         fi
         
-        # Verifica stato governor
+        # Check governor status
         if ! check_governor_status; then
             governor_ok=false
         fi
         
-        # Verifica stato C-states
+        # Check C-states status
         if ! check_cstate_status; then
             cstate_status_ok=false
         fi
         
-        # Ripristino se necessario
+        # Restoration if needed
         local restore_needed=false
         
         if [[ "$cpu_ok" == "false" ]] || [[ "$cstate_ok" == "false" ]] || [[ "$irq_ok" == "false" ]]; then
-            warn "Permessi sysfs non corretti, tentativo di ripristino..."
+            warn "Incorrect sysfs permissions, attempting restoration..."
             restore_via_runtime_manager
             restore_needed=true
         fi
         
         if [[ "$governor_ok" == "false" ]]; then
-            warn "Governor non corretti, tentativo di ripristino..."
+            warn "Incorrect governors, attempting restoration..."
             restore_governor_performance
             restore_needed=true
         fi
         
         if [[ "$cstate_status_ok" == "false" ]]; then
-            warn "C-states non correttamente disabilitati, tentativo di ripristino..."
+            warn "C-states not correctly disabled, attempting restoration..."
             restore_cstates_disabled
             restore_needed=true
         fi
         
         if [[ "$restore_needed" == "true" ]]; then
-            log "Ripristino completato, nuova verifica in corso..."
+            log "Restoration completed, new verification in progress..."
             
-            # Nuova verifica dopo ripristino
+            # New verification after restoration
             sleep 2
             
             local retry_count=0
@@ -547,7 +547,7 @@ monitor_system() {
             
             while [[ $retry_count -lt $MAX_RETRIES ]] && [[ "$all_ok" == "false" ]]; do
                 retry_count=$((retry_count + 1))
-                log "Verifica post-ripristino (tentativo $retry_count/$MAX_RETRIES)"
+                log "Post-restoration verification (attempt $retry_count/$MAX_RETRIES)"
                 
                 cpu_ok=true
                 cstate_ok=true
@@ -563,9 +563,9 @@ monitor_system() {
                 
                 if [[ "$cpu_ok" == "true" ]] && [[ "$cstate_ok" == "true" ]] && [[ "$irq_ok" == "true" ]] && [[ "$governor_ok" == "true" ]] && [[ "$cstate_status_ok" == "true" ]]; then
                     all_ok=true
-                    log "Verifica post-ripristino: OK"
+                    log "Post-restoration verification: OK"
                 else
-                    warn "Verifica post-ripristino: FALLITA, nuovo tentativo..."
+                    warn "Post-restoration verification: FAILED, new attempt..."
                     restore_via_runtime_manager
                     restore_governor_performance
                     restore_cstates_disabled
@@ -574,28 +574,28 @@ monitor_system() {
             done
             
             if [[ "$all_ok" == "false" ]]; then
-                error "Verifica post-ripristino: FALLITA dopo $MAX_RETRIES tentativi"
-                error "Controllare manualmente i permessi sysfs"
+                error "Post-restoration verification: FAILED after $MAX_RETRIES attempts"
+                error "Manually check sysfs permissions"
             fi
         else
-            log "Tutto OK, nessun ripristino necessario"
+            log "All OK, no restoration needed"
         fi
         
-        log "Controllo #$check_count completato"
-        log "Prossimo controllo tra ${MONITOR_INTERVAL} secondi..."
+        log "Check #$check_count completed"
+        log "Next check in ${MONITOR_INTERVAL} seconds..."
         sleep "$MONITOR_INTERVAL"
     done
 }
 
-# Funzione principale
+# Main function
 main() {
     log "=== OLMS SYSTEM MONITOR ==="
-    log "Monitoraggio continuo e ripristino automatico dei permessi sysfs"
+    log "Continuous monitoring and automatic restoration of sysfs permissions"
     
-    # Verifica che lo script sia eseguito come root (necessario per modifiche sysfs)
+    # Verify that the script is executed as root (required for sysfs modifications)
     if [[ "$EUID" -ne 0 ]]; then
-        error "Questo script deve essere eseguito come root per modificare i file sysfs"
-        error "Esegui: sudo $0"
+        error "This script must be executed as root to modify sysfs files"
+        error "Run: sudo $0"
         exit 1
     fi
     
@@ -603,7 +603,7 @@ main() {
     monitor_system
 }
 
-# Esegui se chiamato direttamente
+# Execute if called directly
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     main "$@"
 fi
