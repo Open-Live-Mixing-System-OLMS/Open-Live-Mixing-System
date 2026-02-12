@@ -1,17 +1,17 @@
 #!/bin/bash
 
 # Audio Output Diagnostic Script
-# Diagnostica per problemi di output audio su scheda USB
-# Versione: 1.0
+# Diagnostics for audio output issues on USB card
+# Version: 1.0
 
 set -euo pipefail
 
-# Configurazione
+# Configuration
 LOG_FILE="/tmp/olms-audio-diagnostic.log"
 ARD_SESSION_PATH="/home/$(whoami)/Progetti/OLMS-Core/engine/session-template/OLMS-POC/OLMS-POC.ardour"
 ARD_USER="$(whoami)"
 
-# Colori
+# Colors
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
