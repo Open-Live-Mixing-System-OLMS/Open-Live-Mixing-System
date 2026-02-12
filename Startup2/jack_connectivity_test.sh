@@ -1,16 +1,16 @@
 #!/bin/bash
 
 # JACK Connectivity Diagnostic Script
-# Versione: 1.0
+# Version: 1.0
 
 set -euo pipefail
 
-# Configurazione
+# Configuration
 LOG_FILE="/tmp/jack_connectivity_test.log"
 TARGET_USER="${TARGET_USER:-$(whoami)}"
 TARGET_UID=$(id -u "$TARGET_USER" 2>/dev/null || echo "$(id -u)")
 
-# Colori
+# Colors
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -33,32 +33,32 @@ info() {
     echo -e "${BLUE}[$(date '+%Y-%m-%d %H:%M:%S')] INFO:${NC} $1" | tee -a "$LOG_FILE"
 }
 
-# Test 1: Verifica processi JACK
+# Test 1: Verify JACK processes
 test_jack_processes() {
-    log "=== TEST 1: Verifica processi JACK ==="
+    log "=== TEST 1: Verify JACK processes ==="
     
     local jack_pids=$(pgrep -f "jackd" 2>/dev/null || true)
     if [[ -n "$jack_pids" ]]; then
-        log "Processi JACK trovati: $jack_pids"
+        log "JACK processes found: $jack_pids"
         for pid in $jack_pids; do
             if kill -0 "$pid" 2>/dev/null; then
-                log "PID $pid: attivo"
+                log "PID $pid: active"
                 local cmd=$(ps -p "$pid" -o cmd --no-headers 2>/dev/null || echo "unknown")
-                log "  Comando: $cmd"
+                log "  Command: $cmd"
             else
-                warn "PID $pid: non attivo"
+                warn "PID $pid: not active"
             fi
         done
         return 0
     else
-        warn "Nessun processo JACK trovato"
+        warn "No JACK processes found"
         return 1
     fi
 }
 
-# Test 2: Verifica socket JACK
+# Test 2: Verify JACK sockets
 test_jack_sockets() {
-    log "=== TEST 2: Verifica socket JACK ==="
+    log "=== TEST 2: Verify JACK sockets ==="
     
     local socket_found=false
     local socket_dirs=(
@@ -71,33 +71,33 @@ test_jack_sockets() {
     for socket_pattern in "${socket_dirs[@]}"; do
         for socket_dir in $socket_pattern; do
             if [[ -d "$socket_dir" ]]; then
-                log "Socket JACK trovato: $socket_dir"
+                log "JACK socket found: $socket_dir"
                 socket_found=true
                 
-                # Verifica permessi
+                # Verify permissions
                 local perms=$(ls -ld "$socket_dir" | awk '{print $1}')
-                log "  Permessi: $perms"
+                log "  Permissions: $perms"
                 
-                # Verifica contenuto
+                # Verify content
                 if [[ -d "$socket_dir" ]]; then
-                    local contents=$(ls -la "$socket_dir" 2>/dev/null || echo "vuoto")
-                    log "  Contenuto: $contents"
+                    local contents=$(ls -la "$socket_dir" 2>/dev/null || echo "empty")
+                    log "  Content: $contents"
                 fi
             fi
         done
     done
     
     if [[ "$socket_found" == "false" ]]; then
-        warn "Nessun socket JACK trovato"
+        warn "No JACK socket found"
         return 1
     fi
     
     return 0
 }
 
-# Test 3: Verifica link simbolici
+# Test 3: Verify socket symbolic links
 test_socket_links() {
-    log "=== TEST 3: Verifica link simbolici socket ==="
+    log "=== TEST 3: Verify socket symbolic links ==="
     
     local link_paths=(
         "/dev/shm/jack-olms-${TARGET_UID}"
@@ -118,14 +118,14 @@ test_socket_links() {
                 log "Link OK: $link_path -> $target"
                 links_working=$((links_working + 1))
             else
-                warn "Link rotto: $link_path -> $target"
+                warn "Broken link: $link_path -> $target"
             fi
         else
-            warn "Link non esistente: $link_path"
+            warn "Link does not exist: $link_path"
         fi
     done
     
-    log "Link simbolici: $links_working/$total_links funzionanti"
+    log "Symbolic links: $links_working/$total_links working"
     
     if [[ $links_working -gt 0 ]]; then
         return 0
@@ -134,29 +134,29 @@ test_socket_links() {
     fi
 }
 
-# Test 4: Test connettività JACK
+# Test 4: Test JACK connectivity
 test_jack_connectivity() {
-    log "=== TEST 4: Test connettività JACK ==="
+    log "=== TEST 4: Test JACK connectivity ==="
     
-    # Test con jack_lsp
+    # Test with jack_lsp
     if command -v jack_lsp >/dev/null 2>&1; then
-        log "Test connettività con jack_lsp..."
+        log "Testing connectivity with jack_lsp..."
         
-        # Test come root
+        # Test as root
         if sudo -E JACK_DEFAULT_SERVER=olms JACK_SESSION_DIR="/dev/shm/jack-olms-0" jack_lsp >/dev/null 2>&1; then
-            log "✅ Connettività JACK come root: OK"
+            log "✅ JACK connectivity as root: OK"
         else
-            warn "❌ Connettività JACK come root: FALLITA"
+            warn "❌ JACK connectivity as root: FAILED"
         fi
         
-        # Test come utente target
+        # Test as target user
         if sudo -u "$TARGET_USER" -E JACK_DEFAULT_SERVER=olms JACK_SESSION_DIR="/dev/shm/jack-olms-0" jack_lsp >/dev/null 2>&1; then
-            log "✅ Connettività JACK come utente $TARGET_USER: OK"
+            log "✅ JACK connectivity as user $TARGET_USER: OK"
         else
-            warn "❌ Connettività JACK come utente $TARGET_USER: FALLITA"
+            warn "❌ JACK connectivity as user $TARGET_USER: FAILED"
         fi
         
-        # Test con diversi path di sessione
+        # Test with different session paths
         local test_paths=(
             "/dev/shm/jack-olms-0"
             "/dev/shm/jack-olms-${TARGET_UID}"
@@ -167,54 +167,54 @@ test_jack_connectivity() {
         for test_path in "${test_paths[@]}"; do
             if [[ -d "$test_path" ]]; then
                 if sudo -u "$TARGET_USER" -E JACK_DEFAULT_SERVER=olms JACK_SESSION_DIR="$test_path" jack_lsp >/dev/null 2>&1; then
-                    log "✅ Connettività JACK con path $test_path: OK"
+                    log "✅ JACK connectivity with path $test_path: OK"
                 else
-                    warn "❌ Connettività JACK con path $test_path: FALLITA"
+                    warn "❌ JACK connectivity with path $test_path: FAILED"
                 fi
             fi
         done
         
         return 0
     else
-        warn "jack_lsp non disponibile"
+        warn "jack_lsp not available"
         return 1
     fi
 }
 
-# Test 5: Test connettività Ardour
+# Test 5: Test Ardour connectivity
 test_ardour_connectivity() {
-    log "=== TEST 5: Test connettività Ardour ==="
+    log "=== TEST 5: Test Ardour connectivity ==="
     
-    # Verifica se Ardour è in esecuzione
+    # Verify if Ardour is running
     local ardour_pids=$(pgrep -f "ardour" 2>/dev/null || true)
     if [[ -n "$ardour_pids" ]]; then
-        log "Processi Ardour trovati: $ardour_pids"
+        log "Ardour processes found: $ardour_pids"
         
-        # Test porte Ardour
+        # Test Ardour ports
         if command -v jack_lsp >/dev/null 2>&1; then
             local ardour_ports=$(jack_lsp 2>/dev/null | grep -i ardour || true)
             if [[ -n "$ardour_ports" ]]; then
-                log "Porte Ardour trovate:"
+                log "Ardour ports found:"
                 echo "$ardour_ports" | while read -r port; do
                     log "  $port"
                 done
                 return 0
             else
-                warn "Nessuna porta Ardour trovata"
+                warn "No Ardour ports found"
                 return 1
             fi
         fi
     else
-        warn "Nessun processo Ardour in esecuzione"
+        warn "No Ardour processes running"
         return 1
     fi
 }
 
-# Test 6: Verifica permessi e accesso
+# Test 6: Verify permissions and access
 test_permissions() {
-    log "=== TEST 6: Verifica permessi e accesso ==="
+    log "=== TEST 6: Verify permissions and access ==="
     
-    # Verifica permessi socket
+    # Verify socket permissions
     local socket_dirs=(
         "/dev/shm/jack-*"
         "/tmp/jack-*"
@@ -224,28 +224,28 @@ test_permissions() {
         for socket_dir in $socket_pattern; do
             if [[ -d "$socket_dir" ]]; then
                 local perms=$(ls -ld "$socket_dir" | awk '{print $1}')
-                log "Socket $socket_dir: permessi $perms"
+                log "Socket $socket_dir: permissions $perms"
                 
-                # Verifica se l'utente può accedere
+                # Verify if user can access
                 if sudo -u "$TARGET_USER" ls "$socket_dir" >/dev/null 2>&1; then
-                    log "  Utente $TARGET_USER: accesso consentito"
+                    log "  User $TARGET_USER: access allowed"
                 else
-                    warn "  Utente $TARGET_USER: accesso negato"
+                    warn "  User $TARGET_USER: access denied"
                 fi
             fi
         done
     done
     
-    # Verifica jack-shm-registry
+    # Verify jack-shm-registry
     if [[ -f "/dev/shm/jack-shm-registry" ]]; then
         local perms=$(ls -l "/dev/shm/jack-shm-registry" | awk '{print $1}')
-        log "jack-shm-registry: permessi $perms"
+        log "jack-shm-registry: permissions $perms"
     fi
 }
 
-# Test 7: Verifica variabili d'ambiente
+# Test 7: Verify environment variables
 test_environment_variables() {
-    log "=== TEST 7: Verifica variabili d'ambiente ==="
+    log "=== TEST 7: Verify environment variables ==="
     
     local env_vars=(
         "JACK_DEFAULT_SERVER"
@@ -260,82 +260,82 @@ test_environment_variables() {
         log "$var: $value"
     done
     
-    # Verifica variabili per utente target
-    log "Variabili d'ambiente per utente $TARGET_USER:"
+    # Verify variables for target user
+    log "Environment variables for user $TARGET_USER:"
     sudo -u "$TARGET_USER" env | grep -E "^JACK_" | while read -r line; do
         log "  $line"
     done
 }
 
-# Test 8: Verifica X11 access
+# Test 8: Verify X11 access
 test_x11_access() {
-    log "=== TEST 8: Verifica X11 access ==="
+    log "=== TEST 8: Verify X11 access ==="
     
-    # Verifica DISPLAY
+    # Verify DISPLAY
     local display="${DISPLAY:-:0}"
     log "DISPLAY: $display"
     
-    # Verifica XAUTHORITY
+    # Verify XAUTHORITY
     local xauth_file="/home/${TARGET_USER}/.Xauthority"
     if [[ -f "$xauth_file" ]]; then
-        log "XAUTHORITY: $xauth_file (esiste)"
+        log "XAUTHORITY: $xauth_file (exists)"
         if [[ -r "$xauth_file" ]]; then
-            log "XAUTHORITY: leggibile"
+            log "XAUTHORITY: readable"
         else
-            warn "XAUTHORITY: non leggibile"
+            warn "XAUTHORITY: not readable"
         fi
     else
-        warn "XAUTHORITY: file non esistente"
+        warn "XAUTHORITY: file does not exist"
     fi
     
-    # Verifica X11 connection
+    # Verify X11 connection
     if command -v xdpyinfo >/dev/null 2>&1; then
         if xdpyinfo -display "$display" >/dev/null 2>&1; then
-            log "Connessione X11: OK"
+            log "X11 connection: OK"
         else
-            warn "Connessione X11: FALLITA"
+            warn "X11 connection: FAILED"
         fi
     fi
 }
 
-# Report finale
+# Final report
 generate_report() {
-    log "=== REPORT FINALE ==="
+    log "=== FINAL REPORT ==="
     
     local total_tests=8
     local passed_tests=0
     
-    # Conta test passati (basato sui log)
+    # Count passed tests (based on logs)
     local passed_count=$(grep -c "✅" "$LOG_FILE" 2>/dev/null || echo "0")
     local failed_count=$(grep -c "❌" "$LOG_FILE" 2>/dev/null || echo "0")
     local warning_count=$(grep -c "WARNING:" "$LOG_FILE" 2>/dev/null || echo "0")
     
-    log "Riepilogo test:"
-    log "  Test completati: $total_tests"
-    log "  Test passati: $passed_count"
-    log "  Test falliti: $failed_count"
-    log "  Warning: $warning_count"
+    log "Test summary:"
+    log "  Tests completed: $total_tests"
+    log "  Tests passed: $passed_count"
+    log "  Tests failed: $failed_count"
+    log "  Warnings: $warning_count"
     
     if [[ $failed_count -eq 0 ]]; then
-        log "✅ Tutti i test sono passati - JACK connectivity OK"
+        log "✅ All tests passed - JACK connectivity OK"
     else
-        warn "❌ Alcuni test sono falliti - Problemi di connettività JACK"
+        warn "❌ Some tests failed - JACK connectivity issues"
     fi
     
     if [[ $warning_count -gt 5 ]]; then
-        warn "⚠️  Numerosi warning rilevati - Controllare il log per dettagli"
+        warn "⚠️  Numerous warnings detected - Check log for details"
     fi
     
-    log "Log dettagliato: $LOG_FILE"
+    log "Detailed log: $LOG_FILE"
 }
 
-# Funzione principale
+# Main function
 main() {
     log "=== JACK CONNECTIVITY DIAGNOSTIC SCRIPT ==="
-    log "Utente target: $TARGET_USER (UID: $TARGET_UID)"
+    log "Target user: $TARGET_USER (UID: $TARGET_UID)"
     log "Timestamp: $(date)"
     
-    # Esegui tutti i test
+    # Run all tests
     test_jack_processes
     test_jack_sockets
     test_socket_links
@@ -345,13 +345,13 @@ main() {
     test_environment_variables
     test_x11_access
     
-    # Genera report
+    # Generate report
     generate_report
     
-    log "Diagnostic script completato"
+    log "Diagnostic script completed"
 }
 
-# Esegui se chiamato direttamente
+# Execute if called directly
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     main "$@"
 fi
