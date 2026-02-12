@@ -5,21 +5,21 @@
 # Usage: ./_olms-launcher-test.sh
 # This script clears the terminal and runs the orchestrator with sudo privileges in test mode
 
-# Gestione intelligente del percorso home per gestire anche l'esecuzione con sudo
+# Intelligent home path management to handle sudo execution
 if [[ "$EUID" -eq 0 ]]; then
-    # Se siamo root, dobbiamo determinare l'utente effettivo
+    # If we are root, we need to determine the actual user
     if [[ -n "${SUDO_USER:-}" ]]; then
-        # Eseguito con sudo, usa l'utente originale
+        # Executed with sudo, use original user
         ACTUAL_HOME=$(eval echo ~$SUDO_USER)
     elif [[ -n "${USER:-}" ]] && [[ "$USER" != "root" ]]; then
-        # Eseguito come root ma USER è impostato a un utente non root
+        # Executed as root but USER is set to a non-root user
         ACTUAL_HOME=$(eval echo ~$USER)
     else
-        # Eseguito direttamente come root
+        # Executed directly as root
         ACTUAL_HOME="/root"
     fi
 else
-    # Eseguito come utente normale
+    # Executed as normal user
     ACTUAL_HOME="$HOME"
 fi
 
