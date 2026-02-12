@@ -1,11 +1,27 @@
+# Copyright (C) 2024 Francesco Nano <tua@email.com>
+# 
+# This file is part of the Open Live Mixing System (OLMS).
+#
+# OLMS is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU General Public License for more details.
+#
+# Created with AI collaboration. Visit: https://openlivemixingsystem.org/
+
 #!/bin/bash
 
 # JACK Links Fix Script
-# Versione: 1.0
+# Version: 1.0
 
 set -euo pipefail
 
-# Configurazione
+# Configuration
 TARGET_USER="${TARGET_USER:-$(whoami)}"
 TARGET_UID=$(id -u "$TARGET_USER" 2>/dev/null || echo "$(id -u)")
 ACTUAL_SOCKET="/dev/shm/jack-olms-0"
@@ -28,18 +44,18 @@ error() {
     echo -e "${RED}[$(date '+%Y-%m-%d %H:%M:%S')] ERROR:${NC} $1"
 }
 
-# Crea tutti i link simbolici necessari
+# Create all necessary symbolic links
 create_jack_links() {
-    log "Creazione link simbolici JACK completi..."
+    log "Creating complete JACK symbolic links..."
     
-    # JACK usa effettivamente il socket: /dev/shm/jack_olms_0 (con underscore)
+    # JACK actually uses the socket: /dev/shm/jack_olms_0 (with underscore)
     local actual_jack_socket="/dev/shm/jack_olms_0"
     
-    # Crea la directory socket se non esiste
+    # Create socket directory if it doesn't exist
     sudo mkdir -p "$actual_jack_socket"
     sudo chmod -R 777 "$actual_jack_socket"
     
-    # Link da creare che puntano al socket reale di JACK
+    # Links to create that point to the real JACK socket
     local links_to_create=(
         "/dev/shm/jack-olms-0"
         "/dev/shm/jack-olms-${TARGET_UID}"
@@ -57,14 +73,14 @@ create_jack_links() {
         
         if [[ ! -L "$link_path" ]]; then
             sudo ln -sfn "$actual_jack_socket" "$link_path" 2>/dev/null || true
-            log "Creato link: $link_path -> $actual_jack_socket"
+            log "Created link: $link_path -> $actual_jack_socket"
         else
-            log "Link già esistente: $link_path"
+            log "Link already exists: $link_path"
         fi
     done
     
-    # Verifica tutti i link
-    log "Verifica link completi..."
+    # Verify all links
+    log "Verifying complete links..."
     local all_links=(
         "/dev/shm/jack-olms-0"
         "/dev/shm/jack-olms-${TARGET_UID}"
@@ -79,41 +95,41 @@ create_jack_links() {
     local working_links=0
     for link in "${all_links[@]}"; do
         if [[ -L "$link" ]] && [[ -S "$(readlink "$link" 2>/dev/null || echo "")" ]]; then
-            log "✓ Link funzionante: $link"
+            log "✓ Working link: $link"
             working_links=$((working_links + 1))
         else
-            warn "✗ Link non funzionante: $link"
+            warn "✗ Non-working link: $link"
         fi
     done
     
-    log "Link funzionanti: $working_links/${#all_links[@]}"
+    log "Working links: $working_links/${#all_links[@]}"
     
     if [[ $working_links -eq ${#all_links[@]} ]]; then
-        log "✅ Tutti i link JACK sono stati creati correttamente"
+        log "✅ All JACK links have been created correctly"
         return 0
     else
-        warn "⚠️  Alcuni link non sono funzionanti"
+        warn "⚠️  Some links are not working"
         return 1
     fi
 }
 
-# Imposta permessi corretti
+# Set correct permissions
 set_permissions() {
-    log "Impostazione permessi JACK..."
+    log "Setting JACK permissions..."
     
-    # Permessi per tutte le directory socket
+    # Permissions for all socket directories
     sudo chmod -R 777 /dev/shm/jack-* 2>/dev/null || true
     sudo chmod -R 777 /tmp/jack-* 2>/dev/null || true
     sudo chmod 777 /dev/shm/jack-shm-registry 2>/dev/null || true
     
-    log "Permessi impostati su tutte le directory socket"
+    log "Permissions set on all socket directories"
 }
 
-# Test connettività dopo il fix
+# Test connectivity after fix
 test_connectivity() {
-    log "Test connettività JACK dopo il fix..."
+    log "Testing JACK connectivity after fix..."
     
-    # Test con diversi path
+    # Test with different paths
     local test_paths=(
         "/dev/shm/jack-olms-0"
         "/dev/shm/jack-olms-${TARGET_UID}"
@@ -128,48 +144,48 @@ test_connectivity() {
     for test_path in "${test_paths[@]}"; do
         if [[ -d "$test_path" ]]; then
             if sudo -u "$TARGET_USER" -E JACK_DEFAULT_SERVER=olms JACK_SESSION_DIR="$test_path" jack_lsp >/dev/null 2>&1; then
-                log "✅ Connettività JACK OK con path: $test_path"
+                log "✅ JACK connectivity OK with path: $test_path"
                 connectivity_working=true
                 break
             else
-                warn "❌ Connettività JACK FALLITA con path: $test_path"
+                warn "❌ JACK connectivity FAILED with path: $test_path"
             fi
         fi
     done
     
     if [[ "$connectivity_working" == "true" ]]; then
-        log "✅ Connettività JACK ripristinata"
+        log "✅ JACK connectivity restored"
         return 0
     else
-        warn "❌ Connettività JACK ancora fallita"
+        warn "❌ JACK connectivity still failed"
         return 1
     fi
 }
 
-# Funzione principale
+# Main function
 main() {
     log "=== JACK LINKS FIX SCRIPT ==="
-    log "Utente target: $TARGET_USER (UID: $TARGET_UID)"
+    log "Target user: $TARGET_USER (UID: $TARGET_UID)"
     log "Socket directory: $ACTUAL_SOCKET"
     
-    # Crea link
+    # Create links
     if ! create_jack_links; then
-        error "Errore nella creazione dei link"
+        error "Error creating links"
         exit 1
     fi
     
-    # Imposta permessi
+    # Set permissions
     set_permissions
     
-    # Test connettività
+    # Test connectivity
     if test_connectivity; then
-        log "✅ Fix completato con successo"
+        log "✅ Fix completed successfully"
     else
-        warn "⚠️  Fix parziale - potrebbero essere necessarie ulteriori azioni"
+        warn "⚠️  Partial fix - further actions may be needed"
     fi
 }
 
-# Esegui se chiamato direttamente
+# Execute if called directly
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     main "$@"
 fi

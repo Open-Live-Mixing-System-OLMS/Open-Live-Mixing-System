@@ -1,6 +1,22 @@
+# Copyright (C) 2024 Francesco Nano <tua@email.com>
+# 
+# This file is part of the Open Live Mixing System (OLMS).
+#
+# OLMS is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU General Public License for more details.
+#
+# Created with AI collaboration. Visit: https://openlivemixingsystem.org/
+
 #!/bin/bash
 # Test script for JACK Fixed-Path Socket Strategy
-# Versione: 1.0
+# Version: 1.0
 
 set -euo pipefail
 
@@ -27,59 +43,59 @@ info() {
     echo -e "${BLUE}[$(date '+%H:%M:%S')] INFO:${NC} $1"
 }
 
-# Test 1: Verifica socket path e permessi
+# Test 1: Socket Path and Permissions
 test_socket_permissions() {
     log "=== TEST 1: Socket Path and Permissions ==="
     
-    # Trova il socket directory creato da JACK
+    # Find JACK socket directory created by JACK
     local socket_dirs=($(find /dev/shm -name "jack-*" -type d 2>/dev/null || true))
     
     if [ ${#socket_dirs[@]} -eq 0 ]; then
-        warn "Nessun socket directory JACK trovato"
+        warn "No JACK socket directory found"
         return 1
     fi
     
     for socket_dir in "${socket_dirs[@]}"; do
-        log "Verifica socket directory: $socket_dir"
+        log "Verifying socket directory: $socket_dir"
         
-        # Controlla permessi
+        # Check permissions
         local perms=$(stat -c "%a" "$socket_dir" 2>/dev/null || echo "unknown")
         if [ "$perms" = "777" ]; then
-            log "✅ Permessi corretti: $perms"
+            log "✅ Correct permissions: $perms"
         else
-            warn "Permessi non ottimali: $perms (atteso: 777)"
+            warn "Non-optimal permissions: $perms (expected: 777)"
         fi
         
-        # Controlla contenuto
+        # Check content
         local socket_files=$(find "$socket_dir" -type s 2>/dev/null | wc -l)
         if [ "$socket_files" -gt 0 ]; then
-            log "✅ Socket files trovati: $socket_files"
+            log "✅ Socket files found: $socket_files"
         else
-            warn "Nessun socket file trovato in $socket_dir"
+            warn "No socket file found in $socket_dir"
         fi
     done
     
-    # Verifica symbolic links
+    # Verify symbolic links
     local user_uid=$(id -u "${TARGET_USER:-$(whoami)}" 2>/dev/null || echo "$(id -u)")
     local user_socket="/dev/shm/jack-olms-${user_uid}"
     local default_socket="/dev/shm/jack-0/default"
     
     if [ -L "$user_socket" ]; then
-        log "✅ Symbolic link utente trovato: $user_socket"
+        log "✅ User symbolic link found: $user_socket"
     else
-        warn "Symbolic link utente mancante: $user_socket"
+        warn "User symbolic link missing: $user_socket"
     fi
     
     if [ -L "$default_socket" ]; then
-        log "✅ Symbolic link default trovato: $default_socket"
+        log "✅ Default symbolic link found: $default_socket"
     else
-        warn "Symbolic link default mancante: $default_socket"
+        warn "Default symbolic link missing: $default_socket"
     fi
     
     return 0
 }
 
-# Test 2: Verifica connettività JACK
+# Test 2: JACK Connectivity
 test_jack_connectivity() {
     log "=== TEST 2: JACK Connectivity ==="
     
@@ -91,7 +107,7 @@ test_jack_connectivity() {
         return 1
     fi
     
-    # Test con utente specifico
+    # Test with specific user
     local target_user="${TARGET_USER:-$(whoami)}"
     if sudo -u "$target_user" -E JACK_DEFAULT_SERVER=olms jack_lsp >/dev/null 2>&1; then
         log "✅ JACK connectivity user test passed for $target_user"
@@ -99,105 +115,105 @@ test_jack_connectivity() {
         warn "JACK connectivity user test failed for $target_user"
     fi
     
-    # Conta porte disponibili
+    # Count available ports
     local port_count=$(sudo -E JACK_DEFAULT_SERVER=olms jack_lsp 2>/dev/null | wc -l || echo "0")
     if [ "$port_count" -gt 0 ]; then
-        log "✅ Porte JACK disponibili: $port_count"
+        log "✅ Available JACK ports: $port_count"
     else
-        warn "Nessuna porta JACK disponibile"
+        warn "No JACK ports available"
     fi
     
     return 0
 }
 
-# Test 3: Verifica stabilità processo
+# Test 3: Process Stability
 test_process_stability() {
     log "=== TEST 3: Process Stability ==="
     
-    # Verifica PID JACK
+    # Verify JACK PID
     local jack_pid=$(cat /tmp/jack.pid 2>/dev/null || echo "")
     if [ -n "$jack_pid" ] && kill -0 "$jack_pid" 2>/dev/null; then
-        log "✅ JACK PID attivo: $jack_pid"
+        log "✅ Active JACK PID: $jack_pid"
         
-        # Controlla stato processo
+        # Check process status
         local proc_status=$(ps -p "$jack_pid" -o state --no-headers 2>/dev/null || echo "unknown")
         if [ "$proc_status" = "S" ] || [ "$proc_status" = "R" ]; then
-            log "✅ Stato processo JACK: $proc_status (running/sleeping)"
+            log "✅ JACK process status: $proc_status (running/sleeping)"
         else
-            warn "Stato processo JACK: $proc_status"
+            warn "JACK process status: $proc_status"
         fi
     else
-        warn "JACK PID non attivo o non trovato"
+        warn "JACK PID not active or not found"
         return 1
     fi
     
-    # Verifica assenza di segnali di terminazione
+    # Verify absence of termination signals
     local signal_count=$(grep -c "SIGINT\|SIGTERM\|killed" /tmp/jack_startup.log 2>/dev/null || echo "0")
     if [[ "$signal_count" == *"0"* ]]; then
-        log "✅ Nessun segnale di terminazione rilevato"
+        log "✅ No termination signals detected"
     else
-        warn "Rilevati $signal_count segnali di terminazione in /tmp/jack_startup.log"
+        warn "Detected $signal_count termination signals in /tmp/jack_startup.log"
     fi
     
     return 0
 }
 
-# Test 4: Verifica integrazione Ardour
+# Test 4: Ardour Integration
 test_ardour_integration() {
     log "=== TEST 4: Ardour Integration ==="
     
-    # Verifica PID Ardour
+    # Verify Ardour PID
     local ardour_pid=$(cat /tmp/ardour.pid 2>/dev/null || echo "")
     if [ -n "$ardour_pid" ] && kill -0 "$ardour_pid" 2>/dev/null; then
-        log "✅ Ardour PID attivo: $ardour_pid"
+        log "✅ Active Ardour PID: $ardour_pid"
     else
-        warn "Ardour PID non attivo o non trovato"
+        warn "Ardour PID not active or not found"
         return 1
     fi
     
-    # Verifica porte Ardour
+    # Verify Ardour ports
     local ardour_ports=$(sudo -E JACK_DEFAULT_SERVER=olms jack_lsp 2>/dev/null | grep -i ardour | wc -l 2>/dev/null || echo "0")
     if [ "$ardour_ports" -gt 0 ]; then
-        log "✅ Porte Ardour trovate: $ardour_ports"
+        log "✅ Found Ardour ports: $ardour_ports"
     else
-        warn "Nessuna porta Ardour trovata"
+        warn "No Ardour ports found"
     fi
     
-    # Verifica processi audio
+    # Verify audio processes
     local audio_processes=$(pgrep -f "ardour|jack" 2>/dev/null | wc -l 2>/dev/null || echo "0")
     if [ "$audio_processes" -gt 0 ]; then
-        log "✅ Processi audio attivi: $audio_processes"
+        log "✅ Active audio processes: $audio_processes"
     else
-        warn "Nessun processo audio attivo"
+        warn "No active audio processes"
     fi
     
     return 0
 }
 
-# Test 5: Verifica D-Bus isolation
+# Test 5: D-Bus Isolation
 test_dbus_isolation() {
     log "=== TEST 5: D-Bus Isolation ==="
     
-    # Controlla se dbus-run-session è in esecuzione
+    # Check if dbus-run-session is running
     local dbus_session=$(pgrep -f "dbus-run-session" 2>/dev/null | wc -l 2>/dev/null || echo "0")
     if [ "$dbus_session" -gt 0 ]; then
-        log "✅ D-Bus session isolation attiva: $dbus_session processi"
+        log "✅ D-Bus session isolation active: $dbus_session processes"
     else
-        warn "D-Bus session isolation non rilevata"
+        warn "D-Bus session isolation not detected"
     fi
     
-    # Verifica che JACK non sia collegato al D-Bus di sistema
+    # Verify that JACK is not connected to system D-Bus
     local jack_dbus=$(ps aux | grep jackd | grep -v grep | grep -c "dbus" 2>/dev/null || echo "0")
     if [ "$jack_dbus" -eq 0 ]; then
-        log "✅ JACK isolato dal D-Bus di sistema"
+        log "✅ JACK isolated from system D-Bus"
     else
-        warn "JACK potrebbe essere collegato al D-Bus di sistema"
+        warn "JACK might be connected to system D-Bus"
     fi
     
     return 0
 }
 
-# Test completo
+# Complete test
 run_all_tests() {
     log "=== JACK STABILITY TEST SUITE ==="
     log "Fixed-Path Socket Strategy Verification"
@@ -206,7 +222,7 @@ run_all_tests() {
     local tests_passed=0
     local total_tests=5
     
-    # Esegui tutti i test
+    # Run all tests
     if test_socket_permissions; then
         tests_passed=$((tests_passed + 1))
     fi
@@ -227,31 +243,31 @@ run_all_tests() {
         tests_passed=$((tests_passed + 1))
     fi
     
-    # Riassunto risultati
+    # Test summary
     log ""
-    log "=== RIEPILOGO TEST ==="
+    log "=== TEST SUMMARY ==="
     log "Test passed: $tests_passed/$total_tests"
     
     if [ $tests_passed -eq $total_tests ]; then
-        log "✅ TUTTI I TEST PASSATI - Sistema stabile"
+        log "✅ ALL TESTS PASSED - System stable"
         return 0
     else
-        warn "⚠️  ALCUNI TEST FALLITI - Verificare i problemi"
+        warn "⚠️  SOME TESTS FAILED - Check issues"
         return 1
     fi
 }
 
-# Funzione principale
+# Main function
 main() {
-    # Imposta variabili ambiente
+    # Set environment variables
     export JACK_DEFAULT_SERVER="olms"
     export TARGET_USER="${TARGET_USER:-$(whoami)}"
     
-    # Esegui test
+    # Run tests
     run_all_tests
 }
 
-# Esegui se chiamato direttamente
+# Execute if called directly
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     main "$@"
 fi

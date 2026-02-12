@@ -1,25 +1,41 @@
+# Copyright (C) 2024 Francesco Nano <tua@email.com>
+# 
+# This file is part of the Open Live Mixing System (OLMS).
+#
+# OLMS is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU General Public License for more details.
+#
+# Created with AI collaboration. Visit: https://openlivemixingsystem.org/
+
 # Udev rules for JACK Socket Permissions
-# Permette all'utente francesco_ssh di gestire i socket JACK senza sudo
-# Copia questo file in /etc/udev/rules.d/99-jack-sockets.rules
+# Allows user francesco_ssh to manage JACK sockets without sudo
+# Copy this file to /etc/udev/rules.d/99-jack-sockets.rules
 
-# Regole per i socket JACK in /dev/shm
+# Rules for JACK sockets in /dev/shm
 KERNEL=="jack*", SUBSYSTEM=="", ACTION=="add", GROUP="audio", MODE="0666"
 KERNEL=="jack*", SUBSYSTEM=="", ACTION=="remove", GROUP="audio", MODE="0666"
 
-# Regole per i socket JACK in /tmp (se gestiti da udev)
+# Rules for JACK sockets in /tmp (if managed by udev)
 KERNEL=="jack*", SUBSYSTEM=="", ACTION=="add", GROUP="audio", MODE="0666"
 KERNEL=="jack*", SUBSYSTEM=="", ACTION=="remove", GROUP="audio", MODE="0666"
 
-# Regole per il registro shared memory JACK
+# Rules for JACK shared memory registry
 KERNEL=="jack-shm-registry", SUBSYSTEM=="", ACTION=="add", GROUP="audio", MODE="0666"
 
-# Regole per i socket specifici JACK
+# Rules for specific JACK sockets
 KERNEL=="jack-olms-*", SUBSYSTEM=="", ACTION=="add", GROUP="audio", MODE="0666"
 KERNEL=="jack-default_*", SUBSYSTEM=="", ACTION=="add", GROUP="audio", MODE="0666"
 KERNEL=="jack_sem.*", SUBSYSTEM=="", ACTION=="add", GROUP="audio", MODE="0666"
 
-# Istruzioni per l'uso:
-# 1. Copia questo file in /etc/udev/rules.d/99-jack-sockets.rules
-# 2. Ricarica le regole udev: sudo udevadm control --reload-rules
-# 3. Riavvia i dispositivi: sudo udevadm trigger
-# 4. Riavvia il sistema o la sessione utente
+# Usage instructions:
+# 1. Copy this file to /etc/udev/rules.d/99-jack-sockets.rules
+# 2. Reload udev rules: sudo udevadm control --reload-rules
+# 3. Restart devices: sudo udevadm trigger
+# 4. Restart the system or user session

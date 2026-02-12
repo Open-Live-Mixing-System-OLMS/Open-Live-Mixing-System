@@ -1,11 +1,27 @@
+# Copyright (C) 2024 Francesco Nano <tua@email.com>
+# 
+# This file is part of the Open Live Mixing System (OLMS).
+#
+# OLMS is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU General Public License for more details.
+#
+# Created with AI collaboration. Visit: https://openlivemixingsystem.org/
+
 #!/bin/bash
 
-# Fase 1: System Real-Time Optimization
-# Versione: 2.0
+# Phase 1: System Real-Time Optimization
+# Version: 2.0
 
 set -euo pipefail
 
-# Configurazione
+# Configuration
 OLMS_HOME="$HOME/.olms"
 mkdir -p "$OLMS_HOME"
 LOG_FILE="$OLMS_HOME/olms-orchestrator.log"
@@ -13,11 +29,11 @@ RT_CONFIG_FILE="/etc/sysctl.d/99-olms-rt.conf"
 LIMITS_FILE="/etc/security/limits.d/99-realtime.conf"
 MODE="${OLMS_RT_MODE:-prod}"  # prod, test, light
 
-# Variabili d'ambiente per l'approccio "tutto come stesso utente"
+# Environment variables for the "all as same user" approach
 export TARGET_USER="$(whoami)"
 export DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$(id -u)/bus"
 
-# Colori
+# Colors
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -42,48 +58,48 @@ info() {
     echo -e "${BLUE}[$(date '+%Y-%m-%d %H:%M:%S')] INFO:${NC} $1" | tee -a "$LOG_FILE"
 }
 
-# Funzione per scrivere file di sistema con privilegi
+# Function to write system files with privileges
 safe_write_file() {
     local content="$1"
     local target="$2"
     echo "$content" > "$target"
 }
 
-# Configurazione kernel parameters
+# Configure kernel parameters
 configure_kernel_parameters() {
-    log "Configurazione kernel parameters RT..."
+    log "Configuring RT kernel parameters..."
     
-    # Determina i valori in base alla modalità
+    # Determine values based on mode
     local rt_runtime rt_period
     
     case "$MODE" in
         "prod")
-            rt_runtime=950000  # 95% CPU per RT
-            rt_period=1000000  # 1 secondo periodo
+            rt_runtime=950000  # 95% CPU for RT
+            rt_period=1000000  # 1 second period
             ;;
         "test")
-            rt_runtime=800000  # 80% CPU per RT (lascia 20% per GUI/debug)
+            rt_runtime=800000  # 80% CPU for RT (leaves 20% for GUI/debug)
             rt_period=1000000
             ;;
         "light")
-            rt_runtime=600000  # 60% CPU per RT (per ambienti debug pesanti)
+            rt_runtime=600000  # 60% CPU for RT (for heavy debug environments)
             rt_period=1000000
             ;;
         *)
             rt_runtime=950000
             rt_period=1000000
-            warn "Modalità sconosciuta: $MODE, uso default (prod)"
+            warn "Unknown mode: $MODE, using default (prod)"
             ;;
     esac
     
-    log "Modalità: $MODE - RT Runtime: ${rt_runtime}μs, RT Period: ${rt_period}μs"
+    log "Mode: $MODE - RT Runtime: ${rt_runtime}μs, RT Period: ${rt_period}μs"
     
-    # Verifica se il file di configurazione esiste già
+    # Verify if the configuration file already exists
     if [[ -f "$RT_CONFIG_FILE" ]]; then
-        log "File di configurazione RT già esistente: $RT_CONFIG_FILE"
-        log "Saltando creazione file (richiede privilegi root)"
+        log "RT configuration file already exists: $RT_CONFIG_FILE"
+        log "Skipping file creation (requires root privileges)"
     else
-        # Crea file di configurazione solo se non esiste
+        # Create configuration file only if it doesn't exist
         local config_content="# OLMS Real-Time Kernel Parameters
 kernel.sched_rt_runtime_us = $rt_runtime
 kernel.sched_rt_period_us = $rt_period
@@ -93,63 +109,63 @@ kernel.sched_wakeup_granularity_ns = $(id -u)000"
         safe_write_file "$config_content" "$RT_CONFIG_FILE"
     fi
     
-    # Applica la configurazione se il file esiste
+    # Apply configuration if file exists
     if [[ -f "$RT_CONFIG_FILE" ]]; then
-        log "DEBUG: Applicazione configurazione kernel parameters RT..."
-        # Applica i parametri kernel, ignorando gli errori per parametri opzionali
+        log "DEBUG: Applying RT kernel parameters configuration..."
+        # Apply kernel parameters, ignoring errors for optional parameters
         sudo sysctl -p "$RT_CONFIG_FILE" 2>/dev/null || true
         
-        # Verifica che i parametri principali siano stati applicati correttamente
+        # Verify that the main parameters have been applied correctly
         local current_runtime=$(sysctl -n kernel.sched_rt_runtime_us 2>/dev/null || echo "0")
         local current_period=$(sysctl -n kernel.sched_rt_period_us 2>/dev/null || echo "0")
         log "DEBUG: current_runtime=$current_runtime, current_period=$current_period"
         log "DEBUG: rt_runtime=$rt_runtime, rt_period=$rt_period"
         
         if [[ "$current_runtime" == "$rt_runtime" ]] && [[ "$current_period" == "$rt_period" ]]; then
-            log "Kernel parameters RT applicati con successo"
+            log "RT kernel parameters applied successfully"
         else
-            warn "Impossibile applicare kernel parameters RT"
-            warn "Verifica che i parametri siano già applicati o esegui: sudo sysctl -p $RT_CONFIG_FILE"
+            warn "Unable to apply RT kernel parameters"
+            warn "Verify that parameters are already applied or run: sudo sysctl -p $RT_CONFIG_FILE"
         fi
     else
-        warn "File di configurazione RT non trovato, impossibile applicare parametri"
+        warn "RT configuration file not found, unable to apply parameters"
     fi
     
-    # Verifica applicazione
+    # Verify application
     local current_runtime=$(sysctl -n kernel.sched_rt_runtime_us 2>/dev/null || echo "0")
     local current_period=$(sysctl -n kernel.sched_rt_period_us 2>/dev/null || echo "0")
-    log "DEBUG: Verifica finale - current_runtime=$current_runtime, current_period=$current_period"
-    log "DEBUG: Verifica finale - rt_runtime=$rt_runtime, rt_period=$rt_period"
+    log "DEBUG: Final verification - current_runtime=$current_runtime, current_period=$current_period"
+    log "DEBUG: Final verification - rt_runtime=$rt_runtime, rt_period=$rt_period"
     
     if [[ "$current_runtime" == "$rt_runtime" ]] && [[ "$current_period" == "$rt_period" ]]; then
-        log "Kernel parameters verificati: runtime=$current_runtime, period=$current_period"
+        log "Kernel parameters verified: runtime=$current_runtime, period=$current_period"
     else
-        warn "Kernel parameters non corrispondenti: runtime=$current_runtime, period=$current_period"
+        warn "Kernel parameters not matching: runtime=$current_runtime, period=$current_period"
     fi
 }
 
-# Configurazione CPU governor
+# Configure CPU governor
 configure_cpu_governor() {
-    log "Configurazione CPU governor per prestazioni (modalità forzata)..."
+    log "Configuring CPU governor for performance (forced mode)..."
     
     local num_cores=$(nproc)
-    log "Numero core rilevati: $num_cores"
+    log "Detected cores: $num_cores"
     
-    # 1. Prima di tutto, assicuriamoci che i permessi sysfs siano corretti
-    log "Verifica e applicazione permessi sysfs..."
+    # 1. First of all, let's make sure sysfs permissions are correct
+    log "Verifying and applying sysfs permissions..."
     ensure_sysfs_permissions
     
-    # 2. Tenta di disabilitare il risparmio energetico hardware Intel se presente
+    # 2. Try to disable Intel hardware power saving if present
     if [ -f /sys/devices/system/cpu/intel_pstate/no_turbo ]; then
         if echo "0" > /sys/devices/system/cpu/intel_pstate/no_turbo 2>/dev/null; then
-            log "Turbo Boost disabilitato con successo"
+            log "Turbo Boost disabled successfully"
         else
-            warn "Impossibile disabilitare Turbo Boost (permessi insufficienti)"
+            warn "Unable to disable Turbo Boost (insufficient permissions)"
         fi
     fi
 
-    # 3. Applica 'performance' a ogni core disponibile
-    # Usiamo un approccio che bypassa potenziali errori di scrittura individuali
+    # 3. Apply 'performance' to each available core
+    # We use an approach that bypasses potential individual write errors
     local success_count=0
     local total_count=0
     
@@ -159,24 +175,24 @@ configure_cpu_governor() {
         if [[ -f "$governor_file" ]]; then
             total_count=$((total_count + 1))
             
-            # Verifica se il file è scrivibile
+            # Verify if the file is writable
             if [[ -w "$governor_file" ]]; then
-                # Prova a scrivere performance
+                # Try to write performance
                 if echo "performance" > "$governor_file"; then
-                    log "CPU $i: governor impostato a 'performance'"
+                    log "CPU $i: governor set to 'performance'"
                     success_count=$((success_count + 1))
                 else
-                    warn "Impossibile scrivere su $governor_file"
+                    warn "Unable to write to $governor_file"
                 fi
             else
-                warn "CPU $i: governor file non scrivibile (permessi: $(stat -c '%a' "$governor_file" 2>/dev/null || echo 'N/A'))"
+                warn "CPU $i: governor file not writable (permissions: $(stat -c '%a' "$governor_file" 2>/dev/null || echo 'N/A'))"
             fi
         else
-            warn "Governor file non trovato per CPU $i"
+            warn "Governor file not found for CPU $i"
         fi
     done
     
-    # 4. Forza la frequenza minima al massimo possibile (per driver intel_pstate)
+    # 4. Force minimum frequency to maximum possible (for intel_pstate driver)
     for i in $(seq 0 $((num_cores - 1))); do
         local min_freq="/sys/devices/system/cpu/cpu${i}/cpufreq/scaling_min_freq"
         local max_freq="/sys/devices/system/cpu/cpu${i}/cpufreq/scaling_max_freq"
@@ -186,8 +202,8 @@ configure_cpu_governor() {
         fi
     done
     
-    # Verifica impostazione di tutti i governor
-    log "Verifica stato governor per tutte le CPU..."
+    # Verify setting of all governors
+    log "Verifying governor status for all CPUs..."
     local all_performance=true
     local failed_cpus=()
     
@@ -196,85 +212,85 @@ configure_cpu_governor() {
         if [[ "$gov" != "performance" ]]; then
             all_performance=false
             failed_cpus+=("$i:$gov")
-            warn "CPU $i: governor=$gov (performance atteso)"
+            warn "CPU $i: governor=$gov (expected performance)"
         fi
     done
     
     if [[ "$all_performance" == "true" ]]; then
-        log "Tutti i governor impostati correttamente su performance"
+        log "All governors set correctly to performance"
     else
-        warn "Alcuni governor non sono in performance mode"
-        warn "CPU con problemi: ${failed_cpus[*]}"
+        warn "Some governors are not in performance mode"
+        warn "Problem CPUs: ${failed_cpus[*]}"
     fi
     
-    log "CPU governor configuration: $success_count/$total_count core configurati"
+    log "CPU governor configuration: $success_count/$total_count cores configured"
 }
 
-# Configurazione power management
+# Configure power management
 configure_power_management() {
-    log "Configurazione power management..."
+    log "Configuring power management..."
     
-    # Verifica stato irqbalance (senza tentare di modificarlo)
-    log "Verifica stato irqbalance..."
+    # Verify irqbalance status (without attempting to modify it)
+    log "Verifying irqbalance status..."
     if systemctl is-active --quiet irqbalance 2>/dev/null; then
-        warn "irqbalance è attivo (potrebbe causare jitter audio)"
-        warn "Per disattivarlo: sudo systemctl stop irqbalance && sudo systemctl disable irqbalance"
+        warn "irqbalance is active (may cause audio jitter)"
+        warn "To disable it: sudo systemctl stop irqbalance && sudo systemctl disable irqbalance"
     else
-        log "irqbalance è disattivato (corretto per audio RT)"
+        log "irqbalance is disabled (correct for RT audio)"
     fi
     
-    # Configurazione C-states (disabilitazione via sysfs per sistemi senza GRUB)
-    log "Configurazione C-states via sysfs..."
+    # Configure C-states (disable via sysfs for systems without GRUB)
+    log "Configuring C-states via sysfs..."
     disable_cstates
 }
 
-# Funzione per disabilitare C-states problematici via sysfs
+# Function to disable problematic C-states via sysfs
 disable_cstates() {
-    log "Disabilitazione C-states problematici per audio real-time..."
+    log "Disabling problematic C-states for real-time audio..."
     
     local num_cores=$(nproc)
     local disabled_states=0
     
-    # Disabilita C3 e C6 per tutti i core (i più problematici per latenza)
+    # Disable C3 and C6 for all cores (most problematic for latency)
     for i in $(seq 0 $((num_cores - 1))); do
         local cpu_path="/sys/devices/system/cpu/cpu${i}/cpuidle"
         
-        # Disabilita C3 state (se presente)
+        # Disable C3 state (if present)
         if [[ -f "${cpu_path}/state3/disable" ]]; then
             if echo 1 > "${cpu_path}/state3/disable" 2>/dev/null; then
-                log "C3 state disabilitato per CPU $i"
+                log "C3 state disabled for CPU $i"
                 disabled_states=$((disabled_states + 1))
             else
-                warn "Impossibile disabilitare C3 state per CPU $i (permessi)"
+                warn "Unable to disable C3 state for CPU $i (permissions)"
             fi
         fi
         
-        # Disabilita C6 state (se presente)
+        # Disable C6 state (if present)
         if [[ -f "${cpu_path}/state4/disable" ]]; then
             if echo 1 > "${cpu_path}/state4/disable" 2>/dev/null; then
-                log "C6 state disabilitato per CPU $i"
+                log "C6 state disabled for CPU $i"
                 disabled_states=$((disabled_states + 1))
             else
-                warn "Impossibile disabilitare C6 state per CPU $i (permessi)"
+                warn "Unable to disable C6 state for CPU $i (permissions)"
             fi
         fi
     done
     
     if [[ $disabled_states -gt 0 ]]; then
-        log "C-states disabilitati con successo: $disabled_states stati"
+        log "C-states disabled successfully: $disabled_states states"
     else
-        warn "Nessun C-state disabilitato (potrebbe essere già configurato o mancanza permessi)"
+        warn "No C-states disabled (may already be configured or missing permissions)"
     fi
 }
 
-# Assicura che i permessi sysfs siano corretti
+# Ensure sysfs permissions are correct
 ensure_sysfs_permissions() {
-    log "Assicurazione permessi sysfs corretti..."
+    log "Ensuring correct sysfs permissions..."
     
-    # Ottieni il gruppo primario dell'utente
+    # Get the user's primary group
     local user_group=$(id -gn "$(whoami)")
     
-    # File sysfs per CPU governor e frequenze
+    # Sysfs files for CPU governor and frequencies
     local cpu_files=(
         "/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor"
         "/sys/devices/system/cpu/cpu1/cpufreq/scaling_governor"
@@ -299,7 +315,7 @@ ensure_sysfs_permissions() {
         "/sys/devices/system/cpu/intel_pstate/no_turbo"
     )
     
-    # File sysfs per C-states
+    # Sysfs files for C-states
     local cstate_files=(
         "/sys/devices/system/cpu/cpu0/cpuidle/state3/disable"
         "/sys/devices/system/cpu/cpu0/cpuidle/state4/disable"
@@ -314,74 +330,74 @@ ensure_sysfs_permissions() {
     local applied_count=0
     local total_count=0
     
-    # Applica permessi ai file CPU
+    # Apply permissions to CPU files
     for file in "${cpu_files[@]}"; do
         if [[ -f "$file" ]]; then
             total_count=$((total_count + 1))
             local current_perms=$(stat -c "%a" "$file" 2>/dev/null || echo "0")
             local current_owner=$(stat -c "%U:%G" "$file" 2>/dev/null || echo "unknown:unknown")
             
-            # Se i permessi non sono corretti, applicali
+            # If permissions are not correct, apply them
             if [[ "$current_perms" != "666" ]] || [[ "$current_owner" != "$(whoami):$user_group" ]]; then
                 if chmod 666 "$file" 2>/dev/null && chown "$(whoami):$user_group" "$file" 2>/dev/null; then
-                    log "Permessi applicati a $file (666, $(whoami):$user_group)"
+                    log "Permissions applied to $file (666, $(whoami):$user_group)"
                     applied_count=$((applied_count + 1))
                 else
-                    warn "Impossibile applicare permessi a $file (permessi: $current_perms, owner: $current_owner)"
+                    warn "Unable to apply permissions to $file (permissions: $current_perms, owner: $current_owner)"
                 fi
             else
-                log "Permessi già corretti per $file"
+                log "Permissions already correct for $file"
                 applied_count=$((applied_count + 1))
             fi
         fi
     done
     
-    # Applica permessi ai file C-states
+    # Apply permissions to C-state files
     for file in "${cstate_files[@]}"; do
         if [[ -f "$file" ]]; then
             total_count=$((total_count + 1))
             local current_perms=$(stat -c "%a" "$file" 2>/dev/null || echo "0")
             local current_owner=$(stat -c "%U:%G" "$file" 2>/dev/null || echo "unknown:unknown")
             
-            # Se i permessi non sono corretti, applicali
+            # If permissions are not correct, apply them
             if [[ "$current_perms" != "666" ]] || [[ "$current_owner" != "$(whoami):$user_group" ]]; then
                 if chmod 666 "$file" 2>/dev/null && chown "$(whoami):$user_group" "$file" 2>/dev/null; then
-                    log "Permessi applicati a $file (666, $(whoami):$user_group)"
+                    log "Permissions applied to $file (666, $(whoami):$user_group)"
                     applied_count=$((applied_count + 1))
                 else
-                    warn "Impossibile applicare permessi a $file (permessi: $current_perms, owner: $current_owner)"
+                    warn "Unable to apply permissions to $file (permissions: $current_perms, owner: $current_owner)"
                 fi
             else
-                log "Permessi già corretti per $file"
+                log "Permissions already correct for $file"
                 applied_count=$((applied_count + 1))
             fi
         fi
     done
     
-    log "Permessi sysfs verificati/applicati: $applied_count/$total_count"
+    log "Sysfs permissions verified/applied: $applied_count/$total_count"
     
-    # Se non tutti i permessi sono stati applicati, prova ad eseguire il Runtime Permission Manager
+    # If not all permissions have been applied, try to run the Runtime Permission Manager
     if [[ $applied_count -lt $total_count ]]; then
-        log "Alcuni permessi non sono stati applicati, tentativo con Runtime Permission Manager..."
+        log "Some permissions were not applied, attempting with Runtime Permission Manager..."
         if [[ -x "/usr/local/bin/olms-runtime-permissions" ]]; then
             sudo /usr/local/bin/olms-runtime-permissions
-            log "Runtime Permission Manager eseguito"
+            log "Runtime Permission Manager executed"
         else
-            warn "Runtime Permission Manager non trovato o non eseguibile"
+            warn "Runtime Permission Manager not found or not executable"
         fi
     fi
 }
 
-# Configurazione memory locking e realtime privileges
+# Configure memory locking and realtime privileges
 configure_realtime_privileges() {
-    log "Configurazione memory locking e realtime privileges..."
+    log "Configuring memory locking and realtime privileges..."
     
-    # Verifica se il file limits esiste già
+    # Verify if the limits file already exists
     if [[ -f "$LIMITS_FILE" ]]; then
-        log "File limits già esistente: $LIMITS_FILE"
-        log "Saltando creazione file (richiede privilegi root)"
+        log "Limits file already exists: $LIMITS_FILE"
+        log "Skipping file creation (requires root privileges)"
     else
-        # Crea file limits per realtime solo se non esiste
+        # Create realtime limits file only if it doesn't exist
         local limits_content="# OLMS Real-Time User Limits
 @realtime soft rtprio 99
 @realtime hard rtprio 99
@@ -395,53 +411,53 @@ configure_realtime_privileges() {
         safe_write_file "$limits_content" "$LIMITS_FILE"
     fi
     
-    log "File limits verificato: $LIMITS_FILE"
+    log "Limits file verified: $LIMITS_FILE"
     
-    # Verifica limiti correnti
+    # Verify current limits
     local current_rtprio=$(ulimit -r 2>/dev/null || echo "0")
     local current_memlock=$(ulimit -l 2>/dev/null || echo "0")
     
-    log "Limiti correnti: rtprio=$current_rtprio, memlock=${current_memlock}KB"
+    log "Current limits: rtprio=$current_rtprio, memlock=${current_memlock}KB"
     
-    # Verifica appartenenza gruppi
+    # Verify group membership
     local current_user=$(whoami)
     if groups "$current_user" | grep -q "realtime"; then
-        log "Utente $current_user appartiene al gruppo 'realtime'"
+        log "User $current_user belongs to the 'realtime' group"
     else
-        warn "Utente $current_user NON appartiene al gruppo 'realtime'"
+        warn "User $current_user does NOT belong to the 'realtime' group"
     fi
     
     if groups "$current_user" | grep -q "audio"; then
-        log "Utente $current_user appartiene al gruppo 'audio'"
+        log "User $current_user belongs to the 'audio' group"
     else
-        warn "Utente $current_user NON appartiene al gruppo 'audio'"
+        warn "User $current_user does NOT belong to the 'audio' group"
     fi
 }
 
-# Verifica configurazione RT
+# Verify RT configuration
 verify_rt_configuration() {
-    log "Verifica finale..."
+    log "Final verification..."
     
-    # Verifica CPU governor
+    # Verify CPU governor
     local gov=$(cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor 2>/dev/null || echo "N/A")
     [[ "$gov" == "performance" ]] && log "Governor: OK ($gov)" || error "Governor: FAIL ($gov)"
     
-    # Verifica limiti utente
+    # Verify user limits
     local rtprio=$(ulimit -r)
-    [[ "$rtprio" -eq 99 ]] && log "RT Prio: OK ($rtprio)" || warn "RT Prio: $rtprio (richiede riavvio sessione)"
+    [[ "$rtprio" -eq 99 ]] && log "RT Prio: OK ($rtprio)" || warn "RT Prio: $rtprio (requires session restart)"
     
-    # Verifica irqbalance
+    # Verify irqbalance
     if ! systemctl is-active --quiet irqbalance 2>/dev/null; then
-        log "irqbalance: disattivato (corretto per audio RT)"
+        log "irqbalance: disabled (correct for RT audio)"
     else
-        warn "irqbalance: attivo (potrebbe causare jitter)"
+        warn "irqbalance: active (may cause jitter)"
     fi
 }
 
-# Funzione principale
+# Main function
 main() {
-    log "=== FASE 1: OTTIMIZZAZIONE SISTEMA REAL-TIME ==="
-    info "Modalità: $MODE (prod=95%, test=80%, light=60%)"
+    log "=== PHASE 1: REAL-TIME SYSTEM OPTIMIZATION ==="
+    info "Mode: $MODE (prod=95%, test=80%, light=60%)"
     
     configure_kernel_parameters
     configure_cpu_governor
@@ -449,10 +465,10 @@ main() {
     configure_realtime_privileges
     verify_rt_configuration
     
-    log "Ottimizzazione sistema real-time completata"
+    log "Real-time system optimization completed"
 }
 
-# Esegui se chiamato direttamente
+# Execute if called directly
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     main "$@"
 fi

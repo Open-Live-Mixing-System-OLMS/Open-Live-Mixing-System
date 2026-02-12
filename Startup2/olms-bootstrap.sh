@@ -1,19 +1,35 @@
+# Copyright (C) 2024 Francesco Nano <tua@email.com>
+# 
+# This file is part of the Open Live Mixing System (OLMS).
+#
+# OLMS is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU General Public License for more details.
+#
+# Created with AI collaboration. Visit: https://openlivemixingsystem.org/
+
 #!/bin/bash
 
 # OLMS Bootstrap Script
-# Configurazione universale per qualsiasi utente Linux
-# Versione: 1.0
+# Universal configuration for any Linux user
+# Version: 1.0
 
 set -euo pipefail
 
-# Colori
+# Colors
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 
-# Definisci SCRIPT_DIR globalmente per le funzioni che ne hanno bisogno
+# Define SCRIPT_DIR globally for functions that need it
 SCRIPT_DIR="$(dirname "$0")"
 
 log() {
@@ -32,91 +48,91 @@ info() {
     echo -e "${BLUE}[$(date '+%Y-%m-%d %H:%M:%S')] INFO:${NC} $1"
 }
 
-# Rilevamento utente e sistema
+# User and system detection
 detect_user_environment() {
-    # Gestione intelligente del percorso home per gestire anche l'esecuzione con sudo
+    # Intelligent home path management to handle sudo execution
     if [[ "$EUID" -eq 0 ]]; then
-        # Se siamo root, dobbiamo determinare l'utente effettivo
+        # If we are root, we need to determine the actual user
         if [[ -n "${SUDO_USER:-}" ]]; then
-            # Eseguito con sudo, usa l'utente originale
+            # Executed with sudo, use original user
             ACTUAL_USER="$SUDO_USER"
             ACTUAL_HOME=$(eval echo ~$SUDO_USER)
         elif [[ -n "${USER:-}" ]] && [[ "$USER" != "root" ]]; then
-            # Eseguito come root ma USER è impostato a un utente non root
+            # Executed as root but USER is set to a non-root user
             ACTUAL_USER="$USER"
             ACTUAL_HOME=$(eval echo ~$USER)
         else
-            # Eseguito direttamente come root
+            # Executed directly as root
             ACTUAL_USER="root"
             ACTUAL_HOME="/root"
         fi
     else
-        # Eseguito come utente normale
+        # Executed as normal user
         ACTUAL_USER="$(whoami)"
         ACTUAL_HOME="$HOME"
     fi
     
     ACTUAL_UID=$(id -u "$ACTUAL_USER")
     
-    log "Ambiente utente rilevato:"
-    log "  Utente: $ACTUAL_USER"
+    log "Detected user environment:"
+    log "  User: $ACTUAL_USER"
     log "  UID: $ACTUAL_UID"
     log "  Home: $ACTUAL_HOME"
     
-    # Verifica che l'utente esista e abbia i permessi necessari
+    # Verify user exists and has necessary permissions
     if ! id "$ACTUAL_USER" >/dev/null 2>&1; then
-        error "Utente $ACTUAL_USER non esiste"
+        error "User $ACTUAL_USER does not exist"
         exit 1
     fi
     
-    # Verifica che l'utente abbia una home directory
+    # Verify user has a home directory
     if [[ ! -d "$ACTUAL_HOME" ]]; then
-        warn "Home directory $ACTUAL_HOME non esiste, creazione in corso..."
+        warn "Home directory $ACTUAL_HOME does not exist, creating..."
         mkdir -p "$ACTUAL_HOME"
         chown "$ACTUAL_USER:$ACTUAL_USER" "$ACTUAL_HOME"
     fi
 }
 
-# Creazione directory necessarie
+# Create necessary directories
 create_directories() {
-    log "Creazione directory necessarie..."
+    log "Creating necessary directories..."
     
-    # Directory per OLMS
+    # OLMS directories
     mkdir -p "$ACTUAL_HOME/.olms"
     mkdir -p "$ACTUAL_HOME/Progetti/OLMS-Core"
     
-    # NOTA: Non creiamo directory personalizzate per JACK
-    # JACK2 mette i file direttamente in /dev/shm/ con prefisso jack_olms
-    # La directory /dev/shm è già gestita dal sistema
+    # NOTE: We don't create custom JACK directories
+    # JACK2 puts files directly in /dev/shm/ with jack_olms prefix
+    # The /dev/shm directory is already managed by the system
     
-    # Imposta permessi corretti
+    # Set correct permissions
     chown -R "$ACTUAL_USER:$ACTUAL_USER" "$ACTUAL_HOME/.olms" 2>/dev/null || true
     chown -R "$ACTUAL_USER:$ACTUAL_USER" "$ACTUAL_HOME/Progetti/OLMS-Core" 2>/dev/null || true
     
-    log "Directory create con successo"
+    log "Directories created successfully"
 }
 
-# Generazione regole Udev USB
+# Generate USB Udev rules
 generate_usb_rules() {
-    log "Generazione regole Udev USB per $ACTUAL_USER..."
+    log "Generating USB Udev rules for $ACTUAL_USER..."
     
     local usb_rules_file="/etc/udev/rules.d/99-olms-usb-permissions.rules"
     
-    # Contenuto delle regole USB
+    # USB rules content
     cat > "$usb_rules_file" << EOF
 # OLMS USB Audio Device Permissions
-# Generato automaticamente per l'utente $ACTUAL_USER
-# Permette all'utente $ACTUAL_USER di controllare i dispositivi USB senza sudo
+# Automatically generated for user $ACTUAL_USER
+# Allows user $ACTUAL_USER to control USB devices without sudo
 
-# Regole per dispositivi audio USB (vendor/product specifici)
+# Rules for USB audio devices (vendor/product specific)
 # Texas Instruments PCM2902
 SUBSYSTEM=="usb", ATTR{idVendor}=="08bb", ATTR{idProduct}=="2902", MODE="0666", OWNER="$ACTUAL_USER", GROUP="$ACTUAL_USER"
 
-# Regole generiche per dispositivi audio USB
+# Generic rules for USB audio devices
 SUBSYSTEM=="usb", ATTR{bInterfaceClass}=="01", MODE="0666", OWNER="$ACTUAL_USER", GROUP="$ACTUAL_USER"
 SUBSYSTEM=="usb", ATTR{bInterfaceClass}=="03", MODE="0666", OWNER="$ACTUAL_USER", GROUP="$ACTUAL_USER"
 
-# Regole per dispositivi audio ALSA
+# ALSA audio device rules
 KERNEL=="snd/*", MODE="0666", OWNER="$ACTUAL_USER", GROUP="$ACTUAL_USER"
 KERNEL=="controlC[0-9]*", MODE="0666", OWNER="$ACTUAL_USER", GROUP="$ACTUAL_USER"
 KERNEL=="pcmC[D0-9]*c", MODE="0666", OWNER="$ACTUAL_USER", GROUP="$ACTUAL_USER"
@@ -126,51 +142,51 @@ KERNEL=="timer", MODE="0666", OWNER="$ACTUAL_USER", GROUP="$ACTUAL_USER"
 KERNEL=="seq", MODE="0666", OWNER="$ACTUAL_USER", GROUP="$ACTUAL_USER"
 EOF
 
-    log "Regole Udev USB generate in $usb_rules_file"
+    log "USB Udev rules generated in $usb_rules_file"
 }
 
-# Generazione regole Udev JACK
+# Generate JACK Udev rules
 generate_jack_rules() {
-    log "Generazione regole Udev JACK per $ACTUAL_USER..."
+    log "Generating JACK Udev rules for $ACTUAL_USER..."
     
     local jack_rules_file="/etc/udev/rules.d/99-olms-jack-sockets.rules"
     
-    # Contenuto delle regole JACK
+    # JACK rules content
     cat > "$jack_rules_file" << EOF
 # OLMS JACK Socket Permissions
-# Generato automaticamente per l'utente $ACTUAL_USER
-# Permette all'utente $ACTUAL_USER di gestire i socket JACK senza sudo
+# Automatically generated for user $ACTUAL_USER
+# Allows user $ACTUAL_USER to manage JACK sockets without sudo
 
-# Permessi per socket JACK in /dev/shm (pattern moderno)
+# Permissions for JACK sockets in /dev/shm (modern pattern)
 KERNEL=="jack_*", MODE="0666", OWNER="$ACTUAL_USER", GROUP="$ACTUAL_USER"
 KERNEL=="jack-shm-*", MODE="0666", OWNER="$ACTUAL_USER", GROUP="$ACTUAL_USER"
 
-# Permessi per socket JACK legacy (pattern legacy che alcuni script JACK usano)
+# Permissions for legacy JACK sockets (legacy pattern used by some JACK scripts)
 KERNEL=="jack-*", MODE="0666", OWNER="$ACTUAL_USER", GROUP="$ACTUAL_USER"
 
-# Permessi per socket JACK in /tmp
+# Permissions for JACK sockets in /tmp
 KERNEL=="jack_*", SUBSYSTEM=="misc", MODE="0666", OWNER="$ACTUAL_USER", GROUP="$ACTUAL_USER"
 
-# Permessi per directory JACK per compatibilità
+# Permissions for JACK directory for compatibility
 KERNEL=="jack-*", SUBSYSTEM=="misc", MODE="0777", OWNER="$ACTUAL_USER", GROUP="$ACTUAL_USER"
 EOF
 
-    log "Regole Udev JACK generate in $jack_rules_file"
+    log "JACK Udev rules generated in $jack_rules_file"
 }
 
-# Generazione regole Udev CPU/Governor
+# Generate CPU/Governor Udev rules
 generate_cpu_rules() {
-    log "Generazione regole Udev CPU/Governor per $ACTUAL_USER..."
+    log "Generating CPU/Governor Udev rules for $ACTUAL_USER..."
     
     local cpu_rules_file="/etc/udev/rules.d/99-olms-cpu.rules"
     
-    # Contenuto delle regole CPU per permettere la gestione dei governor
+    # CPU rules content for governor management
     cat > "$cpu_rules_file" << EOF
 # OLMS CPU Governor Permissions
-# Generato automaticamente per l'utente $ACTUAL_USER
-# Permette all'utente $ACTUAL_USER di gestire i governor CPU senza sudo
+# Automatically generated for user $ACTUAL_USER
+# Allows user $ACTUAL_USER to manage CPU governors without sudo
 
-# Permessi per governor CPU
+# Permissions for CPU governors
 KERNEL=="cpu*", SUBSYSTEM=="cpu", MODE="0666", OWNER="$ACTUAL_USER", GROUP="$ACTUAL_USER"
 KERNEL=="scaling_governor", SUBSYSTEM=="cpu", MODE="0666", OWNER="$ACTUAL_USER", GROUP="$ACTUAL_USER"
 KERNEL=="scaling_min_freq", SUBSYSTEM=="cpu", MODE="0666", OWNER="$ACTUAL_USER", GROUP="$ACTUAL_USER"
@@ -178,86 +194,86 @@ KERNEL=="scaling_max_freq", SUBSYSTEM=="cpu", MODE="0666", OWNER="$ACTUAL_USER",
 KERNEL=="scaling_setspeed", SUBSYSTEM=="cpu", MODE="0666", OWNER="$ACTUAL_USER", GROUP="$ACTUAL_USER"
 KERNEL=="scaling_cur_freq", SUBSYSTEM=="cpu", MODE="0666", OWNER="$ACTUAL_USER", GROUP="$ACTUAL_USER"
 
-# Permessi per Turbo Boost
+# Permissions for Turbo Boost
 KERNEL=="no_turbo", SUBSYSTEM=="cpu", MODE="0666", OWNER="$ACTUAL_USER", GROUP="$ACTUAL_USER"
 
-# Permessi per CPU affinity
+# Permissions for CPU affinity
 KERNEL=="smp_affinity", SUBSYSTEM=="cpu", MODE="0666", OWNER="$ACTUAL_USER", GROUP="$ACTUAL_USER"
 KERNEL=="smp_affinity_list", SUBSYSTEM=="cpu", MODE="0666", OWNER="$ACTUAL_USER", GROUP="$ACTUAL_USER"
 
-# Permessi per C-states
+# Permissions for C-states
 KERNEL=="state*", SUBSYSTEM=="cpuidle", MODE="0666", OWNER="$ACTUAL_USER", GROUP="$ACTUAL_USER"
 KERNEL=="disable", SUBSYSTEM=="cpuidle", MODE="0666", OWNER="$ACTUAL_USER", GROUP="$ACTUAL_USER"
 EOF
 
-    log "Regole Udev CPU generate in $cpu_rules_file"
+    log "CPU Udev rules generated in $cpu_rules_file"
 }
 
-# Generazione regole Udev IRQ
+# Generate IRQ Udev rules
 generate_irq_rules() {
-    log "Generazione regole Udev IRQ per $ACTUAL_USER..."
+    log "Generating IRQ Udev rules for $ACTUAL_USER..."
     
     local irq_rules_file="/etc/udev/rules.d/99-olms-irq.rules"
     
-    # Contenuto delle regole IRQ per permettere la gestione delle IRQ
+    # IRQ rules content for IRQ management
     cat > "$irq_rules_file" << EOF
 # OLMS IRQ Permissions
-# Generato automaticamente per l'utente $ACTUAL_USER
-# Permette all'utente $ACTUAL_USER di gestire le IRQ senza sudo
+# Automatically generated for user $ACTUAL_USER
+# Allows user $ACTUAL_USER to manage IRQs without sudo
 
-# Permessi per IRQ
+# Permissions for IRQ
 KERNEL=="smp_affinity", SUBSYSTEM=="irq", MODE="0666", OWNER="$ACTUAL_USER", GROUP="$ACTUAL_USER"
 KERNEL=="smp_affinity_list", SUBSYSTEM=="irq", MODE="0666", OWNER="$ACTUAL_USER", GROUP="$ACTUAL_USER"
 KERNEL=="affinity_hint", SUBSYSTEM=="irq", MODE="0666", OWNER="$ACTUAL_USER", GROUP="$ACTUAL_USER"
 EOF
 
-    log "Regole Udev IRQ generate in $irq_rules_file"
+    log "IRQ Udev rules generated in $irq_rules_file"
 }
 
-# Generazione regole sysfs per CPU/Governor
+# Generate sysfs rules for CPU/Governor
 generate_sysfs_rules() {
-    log "Generazione regole sysfs per CPU/Governor per $ACTUAL_USER..."
+    log "Generating sysfs rules for CPU/Governor for $ACTUAL_USER..."
     
-    # Ottieni il gruppo primario dell'utente
+    # Get user's primary group
     local user_group=$(id -gn "$ACTUAL_USER")
     
-    # Creazione di un file di configurazione per systemd-sysfs per gestire i permessi sysfs
+    # Creation of a configuration file for systemd-sysfs to manage sysfs permissions
     local sysfs_config_file="/etc/tmpfiles.d/olms-cpu.conf"
     
-    # Contenuto delle regole sysfs per permettere la gestione dei governor e C-states
+    # Content of sysfs rules to allow management of governors and C-states
     cat > "$sysfs_config_file" << EOF
 # OLMS CPU Governor and C-states Permissions
-# Generato automaticamente per l'utente $ACTUAL_USER
-# Permette all'utente $ACTUAL_USER di gestire i governor CPU e C-states senza sudo
+# Automatically generated for user $ACTUAL_USER
+# Allows user $ACTUAL_USER to manage CPU governors and C-states without sudo
 
-# Permessi per governor CPU
+# Permissions for CPU governors
 f /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor 0666 $ACTUAL_USER $user_group -
 f /sys/devices/system/cpu/cpu*/cpufreq/scaling_min_freq 0666 $ACTUAL_USER $user_group -
 f /sys/devices/system/cpu/cpu*/cpufreq/scaling_max_freq 0666 $ACTUAL_USER $user_group -
 f /sys/devices/system/cpu/cpu*/cpufreq/scaling_setspeed 0666 $ACTUAL_USER $user_group -
 f /sys/devices/system/cpu/cpu*/cpufreq/scaling_cur_freq 0666 $ACTUAL_USER $user_group -
 
-# Permessi per Turbo Boost
+# Permissions for Turbo Boost
 f /sys/devices/system/cpu/intel_pstate/no_turbo 0666 $ACTUAL_USER $user_group -
 
-# Permessi per C-states
+# Permissions for C-states
 f /sys/devices/system/cpu/cpu*/cpuidle/state*/disable 0666 $ACTUAL_USER $user_group -
 f /sys/devices/system/cpu/cpu*/cpuidle/state*/name 0666 $ACTUAL_USER $user_group -
 f /sys/devices/system/cpu/cpu*/cpuidle/state*/latency 0666 $ACTUAL_USER $user_group -
 f /sys/devices/system/cpu/cpu*/cpuidle/state*/power 0666 $ACTUAL_USER $user_group -
 EOF
 
-    log "Regole sysfs generate in $sysfs_config_file"
+    log "Sysfs rules generated in $sysfs_config_file"
 }
 
-# Applicazione permessi sysfs diretti
+# Apply direct sysfs permissions
 apply_sysfs_permissions() {
-    log "Applicazione permessi sysfs diretti per $ACTUAL_USER..."
+    log "Applying direct sysfs permissions for $ACTUAL_USER..."
     
-    # Ottieni il gruppo primario dell'utente
+    # Get user's primary group
     local user_group=$(id -gn "$ACTUAL_USER")
     
-    # Applica permessi diretti sui file sysfs esistenti
+    # Apply direct permissions on existing sysfs files
     local sysfs_files=(
         "/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor"
         "/sys/devices/system/cpu/cpu1/cpufreq/scaling_governor"
@@ -297,310 +313,310 @@ apply_sysfs_permissions() {
         "/sys/devices/system/cpu/cpu3/cpuidle/state2/disable"
     )
     
-    # Applica permessi sui file governor e freq
+    # Apply permissions on governor and freq files
     for file in "${sysfs_files[@]}"; do
         if [[ -f "$file" ]]; then
-            log "Impostazione permessi su $file"
-            chmod 666 "$file" 2>/dev/null || warn "Impossibile impostare permessi su $file"
-            chown "$ACTUAL_USER:$user_group" "$file" 2>/dev/null || warn "Impossibile impostare proprietario su $file"
+            log "Setting permissions on $file"
+            chmod 666 "$file" 2>/dev/null || warn "Unable to set permissions on $file"
+            chown "$ACTUAL_USER:$user_group" "$file" 2>/dev/null || warn "Unable to set owner on $file"
         fi
     done
     
-    # Applica permessi sui file C-states (solo se esistono e sono scrivibili)
+    # Apply permissions on C-state files (only if they exist and are writable)
     for file in "${cstate_files[@]}"; do
         if [[ -f "$file" ]]; then
-            log "Verifica permessi su $file"
-            # Controlla se il file è già scrivibile
+            log "Verifying permissions on $file"
+            # Check if file is already writable
             if [[ -w "$file" ]]; then
-                log "Permessi già corretti su $file"
+                log "Permissions already correct on $file"
             else
-                log "Impostazione permessi su $file"
-                chmod 666 "$file" 2>/dev/null || warn "Impossibile impostare permessi su $file (potrebbe essere di sola lettura)"
-                chown "$ACTUAL_USER:$user_group" "$file" 2>/dev/null || warn "Impossibile impostare proprietario su $file (potrebbe essere di sola lettura)"
+                log "Setting permissions on $file"
+                chmod 666 "$file" 2>/dev/null || warn "Unable to set permissions on $file (might be read-only)"
+                chown "$ACTUAL_USER:$user_group" "$file" 2>/dev/null || warn "Unable to set owner on $file (might be read-only)"
             fi
         fi
     done
     
-    log "Permessi sysfs applicati"
+    log "Sysfs permissions applied"
 }
 
-# Generazione configurazione realtime limits
+# Generate realtime limits configuration
 generate_realtime_limits() {
-    log "Generazione limiti realtime per $ACTUAL_USER..."
+    log "Generating realtime limits for $ACTUAL_USER..."
     
     local limits_file="/etc/security/limits.d/99-olms-realtime.conf"
     
-    # Contenuto dei limiti realtime
+    # Realtime limits content
     cat > "$limits_file" << EOF
 # OLMS Real-Time User Limits
-# Generato automaticamente per l'utente $ACTUAL_USER
+# Automatically generated for user $ACTUAL_USER
 
-# Limiti per utenti realtime
+# Limits for realtime users
 @$ACTUAL_USER soft rtprio 99
 @$ACTUAL_USER hard rtprio 99
 @$ACTUAL_USER soft memlock unlimited
 @$ACTUAL_USER hard memlock unlimited
 
-# Limiti per gruppo audio
+# Limits for audio group
 @audio soft rtprio 99
 @audio hard rtprio 99
 @audio soft memlock unlimited
 @audio hard memlock unlimited
 
-# Limiti specifici per l'utente
+# Specific limits for user
 $ACTUAL_USER soft rtprio 99
 $ACTUAL_USER hard rtprio 99
 $ACTUAL_USER soft memlock unlimited
 $ACTUAL_USER hard memlock unlimited
 EOF
 
-    log "Limiti realtime generati in $limits_file"
+    log "Realtime limits generated in $limits_file"
 }
 
-# Generazione configurazione kernel RT
+# Generate kernel RT configuration
 generate_kernel_config() {
-    log "Generazione configurazione kernel RT..."
+    log "Generating kernel RT configuration..."
     
     local kernel_config_file="/etc/sysctl.d/99-olms-rt.conf"
     
-    # Contenuto della configurazione kernel
+    # Kernel configuration content
     cat > "$kernel_config_file" << EOF
 # OLMS Real-Time Kernel Parameters
-# Generato automaticamente per l'utente $ACTUAL_USER
+# Automatically generated for user $ACTUAL_USER
 
-# Parametri RT base
+# Base RT parameters
 kernel.sched_rt_runtime_us = 950000
 kernel.sched_rt_period_us = 1000000
 
-# Migrazione CPU (se supportato)
+# CPU migration (if supported)
 kernel.sched_migration_cost_ns = 500000
 
-# Granularità wakeup (se supportato)
+# Wakeup granularity (if supported)
 kernel.sched_wakeup_granularity_ns = 1000000
 
-# Disabilita C-states deep (se supportato)
+# Disable deep C-states (if supported)
 kernel.sched_mc_power_savings = 0
 EOF
 
-    log "Configurazione kernel RT generata in $kernel_config_file"
+    log "Kernel RT configuration generated in $kernel_config_file"
 }
 
-# Generazione permessi taskset/chrt e /proc access
+# Generate taskset/chrt and /proc access permissions
 generate_taskset_chrt_permissions() {
-    log "Generazione permessi taskset/chrt e /proc access per $ACTUAL_USER..."
+    log "Generating taskset/chrt and /proc access permissions for $ACTUAL_USER..."
     
     local taskset_chrt_rules="/etc/udev/rules.d/99-olms-taskset-chrt.rules"
     
-    # Contenuto delle regole taskset/chrt
+    # taskset/chrt rules content
     cat > "$taskset_chrt_rules" << EOF
 # OLMS taskset/chrt Permissions
-# Generato automaticamente per l'utente $ACTUAL_USER
-# Permette all'utente $ACTUAL_USER di usare taskset e chrt senza sudo
+# Automatically generated for user $ACTUAL_USER
+# Allows user $ACTUAL_USER to use taskset and chrt without sudo
 
-# Permessi per taskset (CPU affinity)
+# Permissions for taskset (CPU affinity)
 KERNEL=="cpu*", SUBSYSTEM=="cpu", MODE="0666", OWNER="$ACTUAL_USER", GROUP="$ACTUAL_USER"
 
-# Permessi per chrt (scheduling)
+# Permissions for chrt (scheduling)
 KERNEL=="sched*", SUBSYSTEM=="cpu", MODE="0666", OWNER="$ACTUAL_USER", GROUP="$ACTUAL_USER"
 
-# Permessi per sched_setscheduler
+# Permissions for sched_setscheduler
 KERNEL=="sched_setscheduler", SUBSYSTEM=="cpu", MODE="0666", OWNER="$ACTUAL_USER", GROUP="$ACTUAL_USER"
 
-# Permessi per sched_getscheduler
+# Permissions for sched_getscheduler
 KERNEL=="sched_getscheduler", SUBSYSTEM=="cpu", MODE="0666", OWNER="$ACTUAL_USER", GROUP="$ACTUAL_USER"
 
-# Permessi per sched_getparam
+# Permissions for sched_getparam
 KERNEL=="sched_getparam", SUBSYSTEM=="cpu", MODE="0666", OWNER="$ACTUAL_USER", GROUP="$ACTUAL_USER"
 
-# Permessi per sched_setparam
+# Permissions for sched_setparam
 KERNEL=="sched_setparam", SUBSYSTEM=="cpu", MODE="0666", OWNER="$ACTUAL_USER", GROUP="$ACTUAL_USER"
 EOF
 
-    log "Regole taskset/chrt generate in $taskset_chrt_rules"
+    log "taskset/chrt rules generated in $taskset_chrt_rules"
     
-    # Aggiunta regole per l'accesso ai file /proc (necessari per la nuova implementazione)
+    # Add rules for /proc file access (necessary for new implementation)
     local proc_rules="/etc/udev/rules.d/99-olms-proc-access.rules"
     
     cat > "$proc_rules" << EOF
 # OLMS /proc Access Permissions
-# Generato automaticamente per l'utente $ACTUAL_USER
-# Permette all'utente $ACTUAL_USER di accedere ai file /proc per CPU affinity e scheduling
+# Automatically generated for user $ACTUAL_USER
+# Allows user $ACTUAL_USER to access /proc files for CPU affinity and scheduling
 
-# Permessi per /proc/*/cpuset (CPU affinity)
+# Permissions for /proc/*/cpuset (CPU affinity)
 KERNEL=="cpuset", SUBSYSTEM=="cpu", MODE="0666", OWNER="$ACTUAL_USER", GROUP="$ACTUAL_USER"
 
-# Permessi per /proc/*/sched* (scheduling)
+# Permissions for /proc/*/sched* (scheduling)
 KERNEL=="sched*", SUBSYSTEM=="cpu", MODE="0666", OWNER="$ACTUAL_USER", GROUP="$ACTUAL_USER"
 
-# Permessi per /proc/*/status (status processi)
+# Permissions for /proc/*/status (process status)
 KERNEL=="status", SUBSYSTEM=="cpu", MODE="0666", OWNER="$ACTUAL_USER", GROUP="$ACTUAL_USER"
 EOF
 
-    log "Regole /proc access generate in $proc_rules"
+    log "/proc access rules generated in $proc_rules"
 }
 
-# Configurazione PAM per caricare i limiti RT
+# Configure PAM to load RT limits
 configure_pam_limits() {
-    log "Configurazione PAM per caricare i limiti RT..."
+    log "Configuring PAM to load RT limits..."
     
-    # File PAM da modificare
+    # PAM files to modify
     local pam_sudo="/etc/pam.d/sudo"
     local pam_common_session="/etc/pam.d/common-session"
     
-    # Verifica e aggiunta regola PAM per sudo
+    # Verify and add PAM rule for sudo
     if [[ -f "$pam_sudo" ]]; then
         if ! grep -q "pam_limits.so" "$pam_sudo"; then
-            log "Aggiunta regola PAM a $pam_sudo"
+            log "Adding PAM rule to $pam_sudo"
             echo "session required pam_limits.so" >> "$pam_sudo"
         else
-            log "Regola PAM già presente in $pam_sudo"
+            log "PAM rule already present in $pam_sudo"
         fi
     else
-        warn "File PAM $pam_sudo non trovato"
+        warn "PAM file $pam_sudo not found"
     fi
     
-    # Verifica e aggiunta regola PAM per common-session
+    # Verify and add PAM rule for common-session
     if [[ -f "$pam_common_session" ]]; then
         if ! grep -q "pam_limits.so" "$pam_common_session"; then
-            log "Aggiunta regola PAM a $pam_common_session"
+            log "Adding PAM rule to $pam_common_session"
             echo "session required pam_limits.so" >> "$pam_common_session"
         else
-            log "Regola PAM già presente in $pam_common_session"
+            log "PAM rule already present in $pam_common_session"
         fi
     else
-        warn "File PAM $pam_common_session non trovato"
+        warn "PAM file $pam_common_session not found"
     fi
     
-    log "Configurazione PAM completata"
+    log "PAM configuration completed"
 }
 
-# Generazione regole Udev DMA Latency
+# Generate Udev DMA Latency rules
 generate_dma_latency_rules() {
-    log "Generazione regole Udev DMA Latency per $ACTUAL_USER..."
+    log "Generating Udev DMA Latency rules for $ACTUAL_USER..."
     
     local dma_rules_file="/etc/udev/rules.d/99-olms-dma-latency.rules"
     
-    # Contenuto delle regole DMA Latency
+    # DMA Latency rules content
     cat > "$dma_rules_file" << EOF
 # OLMS DMA Latency Permissions
-# Generato automaticamente per l'utente $ACTUAL_USER
-# Permette all'utente $ACTUAL_USER di impedire alla CPU di andare in risparmio energetico
+# Automatically generated for user $ACTUAL_USER
+# Allows user $ACTUAL_USER to prevent CPU from going into power saving
 
-# Permessi per /dev/cpu_dma_latency (impedisce C-states deep)
+# Permissions for /dev/cpu_dma_latency (prevents deep C-states)
 KERNEL=="cpu_dma_latency", MODE="0666", OWNER="$ACTUAL_USER", GROUP="$ACTUAL_USER"
 EOF
 
-    log "Regole DMA Latency generate in $dma_rules_file"
+    log "DMA Latency rules generated in $dma_rules_file"
 }
 
-# Configurazione gruppi utente
+# Configure user groups
 configure_user_groups() {
-    log "Configurazione gruppi utente per $ACTUAL_USER..."
+    log "Configuring user groups for $ACTUAL_USER..."
     
-    # Aggiungi utente ai gruppi necessari
+    # Add user to necessary groups
     local groups=("audio" "realtime" "plugdev")
     
     for group in "${groups[@]}"; do
         if getent group "$group" >/dev/null 2>&1; then
             if ! groups "$ACTUAL_USER" | grep -q "\b$group\b"; then
-                log "Aggiunta utente $ACTUAL_USER al gruppo $group"
-                usermod -a -G "$group" "$ACTUAL_USER" 2>/dev/null || warn "Impossibile aggiungere $ACTUAL_USER al gruppo $group (potrebbe richiedere riavvio)"
+                log "Adding user $ACTUAL_USER to group $group"
+                usermod -a -G "$group" "$ACTUAL_USER" 2>/dev/null || warn "Unable to add $ACTUAL_USER to group $group (might require restart)"
             else
-                log "Utente $ACTUAL_USER già nel gruppo $group"
+                log "User $ACTUAL_USER already in group $group"
             fi
         else
-            log "Gruppo $group non esiste, creazione in corso..."
-            groupadd "$group" 2>/dev/null || warn "Impossibile creare il gruppo $group"
-            usermod -a -G "$group" "$ACTUAL_USER" 2>/dev/null || warn "Impossibile aggiungere $ACTUAL_USER al gruppo $group"
+            log "Group $group does not exist, creating..."
+            groupadd "$group" 2>/dev/null || warn "Unable to create group $group"
+            usermod -a -G "$group" "$ACTUAL_USER" 2>/dev/null || warn "Unable to add $ACTUAL_USER to group $group"
         fi
     done
 }
 
-# Configurazione volume audio USB al 100% per passaggio completo del segnale
+# Configure USB audio volume to 100% for complete signal pass-through
 configure_audio_volume() {
-    log "Configurazione volume audio USB al 100% per passaggio completo del segnale..."
+    log "Configuring USB audio volume to 100% for complete signal pass-through..."
     
-    # Trova dispositivi audio USB disponibili
+    # Find available USB audio devices
     local usb_devices=$(aplay -l 2>/dev/null | grep -i "USB Audio" | grep -o "card [0-9]*" | cut -d' ' -f2)
     
     if [[ -z "$usb_devices" ]]; then
-        log "Nessun dispositivo audio USB trovato"
+        log "No USB audio devices found"
         return 0
     fi
     
     for card_num in $usb_devices; do
-        log "Configurazione volume per scheda audio USB: card $card_num"
+        log "Configuring volume for USB audio card: card $card_num"
         
-        # Imposta volume PCM al 100% per passaggio completo del segnale
+        # Set PCM volume to 100% for complete signal pass-through
         if amixer -c "$card_num" set PCM 100% unmute >/dev/null 2>&1; then
-            log "✅ Volume PCM impostato al 100% per card $card_num"
+            log "✅ PCM volume set to 100% for card $card_num"
         else
-            warn "⚠️ Impossibile impostare volume PCM per card $card_num"
+            warn "⚠️ Unable to set PCM volume for card $card_num"
         fi
         
-        # Imposta volume Master al 100% per passaggio completo del segnale
+        # Set Master volume to 100% for complete signal pass-through
         if amixer -c "$card_num" set Master 100% unmute >/dev/null 2>&1; then
-            log "✅ Volume Master impostato al 100% per card $card_num"
+            log "✅ Master volume set to 100% for card $card_num"
         else
-            warn "⚠️ Impossibile impostare volume Master per card $card_num"
+            warn "⚠️ Unable to set Master volume for card $card_num"
         fi
         
-        # Imposta volume digitale al 100% se disponibile
+        # Set Digital volume to 100% if available
         if amixer -c "$card_num" set Digital 100% unmute >/dev/null 2>&1; then
-            log "✅ Volume Digital impostato al 100% per card $card_num"
+            log "✅ Digital volume set to 100% for card $card_num"
         else
-            log "Volume Digital non disponibile per card $card_num (opzionale)"
+            log "Digital volume not available for card $card_num (optional)"
         fi
     done
     
-    log "Configurazione volume audio USB completata"
+    log "USB audio volume configuration completed"
 }
 
-# Installazione Runtime Permission Manager
+# Install Runtime Permission Manager
 install_runtime_permission_manager() {
-    log "Installazione Runtime Permission Manager..."
+    log "Installing Runtime Permission Manager..."
     
     local runtime_script="$ACTUAL_HOME/.olms/olms-runtime-permissions.sh"
     local system_script="/usr/local/bin/olms-runtime-permissions"
     
-    # Copia lo script nella home directory dell'utente
+    # Copy script to user's home directory
     if [[ -f "$SCRIPT_DIR/olms-runtime-permissions.sh" ]]; then
         cp "$SCRIPT_DIR/olms-runtime-permissions.sh" "$runtime_script"
         chmod +x "$runtime_script"
-        log "Runtime Permission Manager installato in $runtime_script"
+        log "Runtime Permission Manager installed in $runtime_script"
     else
-        warn "Script Runtime Permission Manager non trovato in $SCRIPT_DIR"
+        warn "Runtime Permission Manager script not found in $SCRIPT_DIR"
     fi
     
-    # Copia lo script nel sistema (richiede sudo)
+    # Copy script to system (requires sudo)
     if [[ -f "$SCRIPT_DIR/olms-runtime-permissions.sh" ]]; then
         cp "$SCRIPT_DIR/olms-runtime-permissions.sh" "$system_script"
         chmod +x "$system_script"
-        log "Runtime Permission Manager installato in $system_script"
+        log "Runtime Permission Manager installed in $system_script"
     fi
     
-    # Configura esecuzione automatica all'avvio
+    # Configure automatic startup
     configure_autostart
 }
 
-# Configurazione esecuzione automatica all'avvio
+# Configure automatic startup
 configure_autostart() {
-    log "Configurazione esecuzione automatica all'avvio..."
+    log "Configuring automatic startup..."
     
-    # Crea script di avvio per systemd (se disponibile)
+    # Create systemd script (if available)
     if command -v systemctl >/dev/null 2>&1; then
         create_systemd_service
     fi
     
-    # Crea script di avvio per rc.local (fallback)
+    # Create rc.local script (fallback)
     create_rc_local_script
     
-    log "Configurazione autostart completata"
+    log "Autostart configuration completed"
 }
 
-# Crea servizio systemd per Runtime Permission Manager
+# Create systemd service for Runtime Permission Manager
 create_systemd_service() {
-    log "Creazione servizio systemd per Runtime Permission Manager..."
+    log "Creating systemd service for Runtime Permission Manager..."
     
     local service_file="/etc/systemd/system/olms-runtime-permissions.service"
     
@@ -621,106 +637,106 @@ Group=root
 WantedBy=multi-user.target
 EOF
 
-    # Abilita il servizio
+    # Enable service
     systemctl daemon-reload
     systemctl enable olms-runtime-permissions.service
     
-    log "Servizio systemd creato e abilitato: $service_file"
+    log "Systemd service created and enabled: $service_file"
 }
 
-# Crea script rc.local per esecuzione all'avvio (fallback)
+# Create rc.local script for startup (fallback)
 create_rc_local_script() {
-    log "Creazione script rc.local per Runtime Permission Manager..."
+    log "Creating rc.local script for Runtime Permission Manager..."
     
     local rc_local="/etc/rc.local"
     local script_content="#!/bin/bash
-# OLMS Runtime Permission Manager - Esecuzione all'avvio
+# OLMS Runtime Permission Manager - Startup execution
 if [ -x /usr/local/bin/olms-runtime-permissions ]; then
     /usr/local/bin/olms-runtime-permissions
 fi
 exit 0"
     
-    # Se rc.local esiste, aggiungi la chiamata allo script
+    # If rc.local exists, add script call
     if [[ -f "$rc_local" ]]; then
-        # Verifica che la chiamata non sia già presente
+        # Verify that the call is not already present
         if ! grep -q "olms-runtime-permissions" "$rc_local"; then
-            # Aggiungi la chiamata prima dell'exit 0
+            # Add call before exit 0
             sed -i '/^exit 0$/i\
 # OLMS Runtime Permission Manager\
 if [ -x /usr/local/bin/olms-runtime-permissions ]; then\
     /usr/local/bin/olms-runtime-permissions\
 fi' "$rc_local"
-            log "Chiamata a Runtime Permission Manager aggiunta a $rc_local"
+            log "Runtime Permission Manager call added to $rc_local"
         else
-            log "Chiamata a Runtime Permission Manager già presente in $rc_local"
+            log "Runtime Permission Manager call already present in $rc_local"
         fi
     else
-        # Crea rc.local
+        # Create rc.local
         echo "$script_content" > "$rc_local"
         chmod +x "$rc_local"
-        log "File rc.local creato con Runtime Permission Manager: $rc_local"
+        log "rc.local file created with Runtime Permission Manager: $rc_local"
     fi
 }
 
-# Verifica e applicazione configurazioni
+# Verify and apply configurations
 apply_configurations() {
-    log "Applicazione configurazioni..."
+    log "Applying configurations..."
     
-    # Applica limiti realtime
+    # Apply realtime limits
     if [[ -f "/etc/security/limits.d/99-olms-realtime.conf" ]]; then
-        log "Limiti realtime applicati (richiede riavvio sessione)"
+        log "Realtime limits applied (requires session restart)"
     fi
     
-    # Applica configurazione kernel
+    # Apply kernel configuration
     if [[ -f "/etc/sysctl.d/99-olms-rt.conf" ]]; then
-        log "Applicazione parametri kernel..."
-        # Usiamo || true per evitare che set -e interrompa se un parametro è ignoto al kernel
-        sysctl -p "/etc/sysctl.d/99-olms-rt.conf" || warn "Alcuni parametri sysctl non sono stati applicati."
+        log "Applying kernel parameters..."
+        # Use || true to avoid set -e interrupting if a parameter is unknown to the kernel
+        sysctl -p "/etc/sysctl.d/99-olms-rt.conf" || warn "Some sysctl parameters were not applied."
         
-        # Verifica che i parametri principali siano stati applicati correttamente
+        # Verify that the main parameters have been applied correctly
         local rt_runtime=$(sysctl -n kernel.sched_rt_runtime_us 2>/dev/null || echo "0")
         local rt_period=$(sysctl -n kernel.sched_rt_period_us 2>/dev/null || echo "0")
         
         if [[ "$rt_runtime" == "950000" ]] && [[ "$rt_period" == "1000000" ]]; then
-            log "Configurazione kernel RT applicata"
-            log "✅ Kernel parameters RT verificati: runtime=$rt_runtime, period=$rt_period"
+            log "RT kernel configuration applied"
+            log "✅ Verified RT kernel parameters: runtime=$rt_runtime, period=$rt_period"
         else
-            warn "⚠️ Impossibile applicare completamente la configurazione kernel RT"
+            warn "⚠️ Unable to fully apply RT kernel configuration"
         fi
     fi
     
-    # Applica regole sysfs
+    # Apply sysfs rules
     if command -v systemd-tmpfiles >/dev/null 2>&1; then
-        log "Applica regole sysfs tramite tmpfiles..."
-        systemd-tmpfiles --create /etc/tmpfiles.d/olms-cpu.conf || warn "Errore tmpfiles"
+        log "Apply sysfs rules via tmpfiles..."
+        systemd-tmpfiles --create /etc/tmpfiles.d/olms-cpu.conf || warn "tmpfiles error"
     fi
     
-    # Ricarica regole udev
+    # Reload udev rules
     if command -v udevadm >/dev/null 2>&1; then
-        log "Ricarica regole udev..."
+        log "Reload udev rules..."
         udevadm control --reload-rules
         udevadm trigger
     fi
     
-    # Configura volume audio USB al 100% per passaggio completo del segnale
+    # Configure USB audio volume to 100% for complete signal pass-through
     configure_audio_volume
     
-    # Installa Runtime Permission Manager
+    # Install Runtime Permission Manager
     install_runtime_permission_manager
     
-    # CRITICO: Chiamata esplicita a X11 prima della fine
+    # CRITICAL: Explicit X11 call before the end
     configure_x11_environment
 }
 
-# Configurazione X11 per transizione root→utente
+# Configure X11 environment for root→user transition
 configure_x11_environment() {
-    log "Configurazione ambiente X11 per transizione root→utente..."
+    log "Configuring X11 environment for root→user transition..."
     
-    # Verifica se esiste un display X11 attivo
+    # Verify if an active X11 display exists
     local display_found=false
     local active_display=""
     
-    # Ricerca display attivi
+    # Search for active displays
     for i in {0..9}; do
         if [[ -S "/tmp/.X11-unix/X$i" ]]; then
             active_display=":$i"
@@ -730,19 +746,19 @@ configure_x11_environment() {
     done
     
     if [[ "$display_found" == "false" ]]; then
-        warn "Nessun display X11 attivo trovato, creazione display virtuale..."
-        # Creazione display virtuale per compatibilità
+        warn "No active X11 display found, creating virtual display..."
+        # Create virtual display for compatibility
         active_display=":99"
     fi
     
-    log "Display X11 attivo: $active_display"
+    log "Active X11 display: $active_display"
     
-    # Configura variabili d'ambiente X11
+    # Configure X11 environment variables
     local x11_env_file="/etc/profile.d/olms-x11.sh"
     
     cat > "$x11_env_file" << EOF
 # OLMS X11 Environment Variables
-# Generato automaticamente per l'utente $ACTUAL_USER
+# Automatically generated for user $ACTUAL_USER
 
 export DISPLAY="$active_display"
 export XAUTHORITY="$ACTUAL_HOME/.Xauthority"
@@ -755,68 +771,68 @@ export JACK_SESSION_DIR="/dev/shm/jack_olms_0"
 EOF
 
     chmod +x "$x11_env_file"
-    log "Variabili d'ambiente X11 configurate in $x11_env_file"
+    log "X11 environment variables configured in $x11_env_file"
     
-    # Configura XAUTHORITY per root
+    # Configure XAUTHORITY for root
     configure_xauthority_for_root
     
-    # Configura permessi xhost
+    # Configure xhost permissions
     configure_xhost_permissions
     
-    log "Ambiente X11 configurato per transizione root→utente"
+    log "X11 environment configured for root→user transition"
 }
 
-# Configura XAUTHORITY per root
+# Configure XAUTHORITY for root
 configure_xauthority_for_root() {
-    log "Configurazione XAUTHORITY per root..."
+    log "Configuring XAUTHORITY for root..."
     
     local user_xauth="$ACTUAL_HOME/.Xauthority"
     local root_xauth="/root/.Xauthority"
     
-    # Se esiste .Xauthority dell'utente, copialo per root
+    # If user's .Xauthority exists, copy it for root
     if [[ -f "$user_xauth" ]]; then
-        log "Copia .Xauthority da $user_xauth a $root_xauth"
+        log "Copy .Xauthority from $user_xauth to $root_xauth"
         cp "$user_xauth" "$root_xauth"
         chown root:root "$root_xauth"
         chmod 600 "$root_xauth"
-        log "✅ .Xauthority configurato per root"
+        log "✅ XAUTHORITY configured for root"
     else
-        warn "⚠️ File .Xauthority utente non trovato: $user_xauth"
-        warn "⚠️ Root potrebbe non avere accesso al display X11"
+        warn "⚠️ User .Xauthority file not found: $user_xauth"
+        warn "⚠️ Root may not have access to the X11 display"
     fi
 }
 
-# Configura permessi xhost
+# Configure xhost permissions
 configure_xhost_permissions() {
-    log "Configurazione avanzata permessi xhost..."
+    log "Advanced xhost permissions configuration..."
     
-    # Forza il DISPLAY se non impostato
+    # Force DISPLAY if not set
     export DISPLAY=${DISPLAY:-:0}
     
-    # Tenta di autorizzare root a connettersi al server X dell'utente
+    # Attempt to authorize root to connect to user's X server
     if command -v xhost >/dev/null 2>&1; then
-        # Esegui xhost come utente reale, non come root, per aprire la porta
+        # Run xhost as real user, not as root, to open the port
         su - "$ACTUAL_USER" -c "DISPLAY=$DISPLAY xhost +si:localuser:root" || \
-        warn "xhost non è riuscito ad autorizzare root. Provare manualmente come utente: xhost +si:localuser:root"
+        warn "xhost failed to authorize root. Try manually as user: xhost +si:localuser:root"
     fi
 }
 
-# Verifica finale
+# Final verification
 verify_configuration() {
-    log "Verifica configurazione..."
+    log "Final verification..."
     
-    # Verifica gruppi utente
+    # Verify user groups
     local groups_ok=true
     for group in "audio" "realtime"; do
         if groups "$ACTUAL_USER" | grep -q "\b$group\b"; then
-            log "✅ Gruppo $group: OK"
+            log "✅ Group $group: OK"
         else
-            warn "⚠️ Gruppo $group: NON CONFIGURATO"
+            warn "⚠️ Group $group: NOT CONFIGURED"
             groups_ok=false
         fi
     done
     
-    # Verifica file di configurazione
+    # Verify configuration files
     local config_files=(
         "/etc/udev/rules.d/99-olms-usb-permissions.rules"
         "/etc/udev/rules.d/99-olms-jack-sockets.rules"
@@ -832,50 +848,50 @@ verify_configuration() {
         if [[ -f "$file" ]]; then
             log "✅ File $file: OK"
         else
-            warn "⚠️ File $file: NON TROVATO"
+            warn "⚠️ File $file: NOT FOUND"
             groups_ok=false
         fi
     done
     
-    # Verifica limiti utente
+    # Verify user limits
     local current_rtprio=$(ulimit -r 2>/dev/null || echo "0")
     local current_memlock=$(ulimit -l 2>/dev/null || echo "0")
     
-    log "Limiti correnti: rtprio=$current_rtprio, memlock=${current_memlock}KB"
+    log "Current limits: rtprio=$current_rtprio, memlock=${current_memlock}KB"
     
-    # Verifica configurazione X11
-    log "Verifica configurazione X11..."
+    # Verify X11 configuration
+    log "Verifying X11 configuration..."
     if [[ -f "/etc/profile.d/olms-x11.sh" ]]; then
-        log "✅ Variabili d'ambiente X11: OK"
+        log "✅ X11 environment variables: OK"
     else
-        warn "⚠️ Variabili d'ambiente X11: NON CONFIGURATE"
+        warn "⚠️ X11 environment variables: NOT CONFIGURED"
         groups_ok=false
     fi
     
     if [[ -f "/root/.Xauthority" ]]; then
         log "✅ XAUTHORITY root: OK"
     else
-        warn "⚠️ XAUTHORITY root: NON CONFIGURATO"
+        warn "⚠️ XAUTHORITY root: NOT CONFIGURED"
         groups_ok=false
     fi
     
     if [[ "$groups_ok" == "true" ]]; then
-        log "✅ Configurazione completata con successo!"
-        log "⚠️ Nota: Alcune modifiche richiedono il riavvio della sessione utente"
+        log "✅ Configuration completed successfully!"
+        log "⚠️ Note: Some changes require user session restart"
     else
-        warn "⚠️ Configurazione parziale - alcune modifiche potrebbero non essere attive"
+        warn "⚠️ Partial configuration - some changes may not be active"
     fi
 }
 
-# Funzione principale
+# Main function
 main() {
     log "=== OLMS BOOTSTRAP SCRIPT ==="
-    log "Configurazione universale per qualsiasi utente Linux"
+    log "Universal configuration for any Linux user"
     
-    # Verifica che lo script sia eseguito come root (necessario per modifiche di sistema)
+    # Verify that the script is executed as root (required for system changes)
     if [[ "$EUID" -ne 0 ]]; then
-        error "Questo script deve essere eseguito come root per modificare i file di sistema"
-        error "Esegui: sudo $0"
+        error "This script must be executed as root to modify system files"
+        error "Run: sudo $0"
         exit 1
     fi
     
@@ -894,14 +910,14 @@ main() {
     apply_configurations
     verify_configuration
     
-    log "=== BOOTSTRAP COMPLETATO ==="
-    log "L'utente $ACTUAL_USER è ora configurato per l'uso di OLMS"
-    log "Per attivare tutte le modifiche, eseguire:"
-    log "  - Riavvio della sessione utente"
-    log "  - Riavvio del sistema (opzionale ma consigliato)"
+    log "=== BOOTSTRAP COMPLETED ==="
+    log "User $ACTUAL_USER is now configured for OLMS use"
+    log "To activate all changes, run:"
+    log "  - User session restart"
+    log "  - System restart (optional but recommended)"
 }
 
-# Esegui se chiamato direttamente
+# Execute if called directly
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     main "$@"
 fi

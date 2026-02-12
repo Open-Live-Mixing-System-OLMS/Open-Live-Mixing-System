@@ -1,29 +1,29 @@
 #!/bin/bash
 
-# Fase 0.2: Audio Environment Nuclear Cleanup
-# Versione: 2.0
+# Phase 0.2: Audio Environment Nuclear Cleanup
+# Version: 2.0
 
 set -euo pipefail
 
-# Configurazione
-# Gestione intelligente del percorso home per gestire anche l'esecuzione con sudo
+# Configuration
+# Smart home path management to handle sudo execution
 if [[ "$EUID" -eq 0 ]]; then
-    # Se siamo root, dobbiamo determinare l'utente effettivo
+    # If we are root, we need to determine the actual user
     if [[ -n "${SUDO_USER:-}" ]]; then
-        # Eseguito con sudo, usa l'utente originale
+        # Executed with sudo, use the original user
         ACTUAL_USER="$SUDO_USER"
         ACTUAL_HOME=$(eval echo ~$SUDO_USER)
     elif [[ -n "${USER:-}" ]] && [[ "$USER" != "root" ]]; then
-        # Eseguito come root ma USER è impostato a un utente non root
+        # Executed as root but USER is set to a non-root user
         ACTUAL_USER="$USER"
         ACTUAL_HOME=$(eval echo ~$USER)
     else
-        # Eseguito direttamente come root
+        # Executed directly as root
         ACTUAL_USER="root"
         ACTUAL_HOME="/root"
     fi
 else
-    # Eseguito come utente normale
+    # Executed as normal user
     ACTUAL_USER="$(whoami)"
     ACTUAL_HOME="$HOME"
 fi
@@ -31,7 +31,7 @@ fi
 LOG_FILE="$ACTUAL_HOME/olms-orchestrator.log"
 TEMP_DIR="/tmp"
 
-# Colori
+# Colors
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -51,11 +51,11 @@ error() {
     echo -e "${RED}[$(date '+%Y-%m-%d %H:%M:%S')] ERROR:${NC} $1" | tee -a "$LOG_FILE"
 }
 
-# Terminazione processi audio aggressiva
+# Aggressive audio process termination
 kill_audio_processes() {
-    log "Terminazione processi audio con strategia aggressiva..."
+    log "Terminating audio processes with aggressive strategy..."
     
-    # Lista processi da terminare
+    # List of processes to terminate
     local audio_processes=(
         "jackd" "jackdbus"
         "pipewire" "wireplumber"
@@ -70,48 +70,48 @@ kill_audio_processes() {
     for process in "${audio_processes[@]}"; do
         local pids=$(pgrep -f "$process" 2>/dev/null || true)
         if [[ -n "$pids" ]]; then
-            log "Trovati processi $process: $pids"
+            log "Found $process processes: $pids"
             
-            # Fase 1: SIGTERM
+            # Phase 1: SIGTERM
             for pid in $pids; do
                 kill -TERM "$pid" 2>/dev/null || true
             done
             sleep 1
             
-            # Fase 2: SIGKILL con sudo per processi root
+            # Phase 2: SIGKILL with sudo for root processes
             local remaining=$(pgrep -f "$process" 2>/dev/null || true)
             for pid in $remaining; do
-                # Prova prima senza sudo, poi con sudo se necessario
+                # Try first without sudo, then with sudo if necessary
                 if ! kill -KILL "$pid" 2>/dev/null; then
-                    log "Tentativo di terminazione forzata con sudo per PID $pid"
-                    sudo kill -9 "$pid" 2>/dev/null || warn "Impossibile terminare PID $pid anche con sudo"
+                    log "Attempting forced termination with sudo for PID $pid"
+                    sudo kill -9 "$pid" 2>/dev/null || warn "Unable to terminate PID $pid even with sudo"
                 fi
             done
             sleep 1
         fi
     done
     
-    # Verifica terminazione
+    # Verify termination
     local remaining_audio=$(pgrep -f "jackd|pipewire|pulseaudio" 2>/dev/null || true)
     if [[ -n "$remaining_audio" ]]; then
-        warn "Alcuni processi audio non sono stati terminati: $remaining_audio"
-        # Tentativo di terminazione forzata con sudo per processi root
+        warn "Some audio processes were not terminated: $remaining_audio"
+        # Attempt forced termination with sudo for root processes
         for pid in $remaining_audio; do
             if kill -0 "$pid" 2>/dev/null; then
-                log "Tentativo di terminazione forzata con sudo per PID $pid"
-                sudo kill -9 "$pid" 2>/dev/null || warn "Impossibile terminare PID $pid anche con sudo"
+                log "Attempting forced termination with sudo for PID $pid"
+                sudo kill -9 "$pid" 2>/dev/null || warn "Unable to terminate PID $pid even with sudo"
             fi
         done
     else
-        log "Tutti i processi audio sono stati terminati"
+        log "All audio processes have been terminated"
     fi
 }
 
-# Rimozione file socket
+# Remove socket files
 remove_socket_files() {
-    log "Rimozione file socket audio..."
+    log "Removing audio socket files..."
     
-    # Pattern socket JACK
+    # JACK socket patterns
     local jack_patterns=(
         "/tmp/jack_*"
         "/dev/shm/jack_*"
@@ -122,7 +122,7 @@ remove_socket_files() {
         "/var/lock/.jack*"
     )
     
-    # Pattern socket Pipewire
+    # Pipewire socket patterns
     local pipewire_patterns=(
         "/tmp/pipewire*"
         "/dev/shm/pipewire*"
@@ -132,56 +132,56 @@ remove_socket_files() {
         "/var/lock/.pipewire*"
     )
     
-    # Rimuovi file socket JACK (AGGRESSIVO - rimuovi TUTTI i file)
-    # MA: Non rimuovere socket JACK se JACK è già in esecuzione (per evitare conflitti con Fase 3)
+    # Remove JACK socket files (AGGRESSIVE - remove ALL files)
+    # BUT: Don't remove JACK sockets if JACK is already running (to avoid conflicts with Phase 3)
     local jack_running=false
     if pgrep -f "jackd" >/dev/null 2>&1; then
-        log "JACK è già in esecuzione, saltando rimozione socket JACK"
+        log "JACK is already running, skipping JACK socket removal"
         jack_running=true
     fi
     
     if [[ "$jack_running" == "false" ]]; then
         for pattern in "${jack_patterns[@]}"; do
             if ls $pattern 1> /dev/null 2>&1; then
-                log "Rimozione socket JACK: $pattern"
-                # Rimuovi TUTTI i file socket JACK, indipendentemente dal proprietario
-                # Usa sudo per rimuovere anche i file di proprietà dell'utente $(whoami)
+                log "Removing JACK socket: $pattern"
+                # Remove ALL JACK socket files, regardless of owner
+                # Use sudo to remove files owned by user $(whoami) as well
                 for file in $pattern; do
                     if [[ -e "$file" ]]; then
-                        log "Rimozione forzata socket JACK: $file"
-                        sudo rm -rf "$file" 2>/dev/null || warn "Impossibile rimuovere $file (continuando comunque)"
+                        log "Forced removal of JACK socket: $file"
+                        sudo rm -rf "$file" 2>/dev/null || warn "Unable to remove $file (continuing anyway)"
                     fi
                 done
             fi
         done
     fi
     
-    # Rimuovi file socket Pipewire
+    # Remove Pipewire socket files
     for pattern in "${pipewire_patterns[@]}"; do
         if ls $pattern 1> /dev/null 2>&1; then
-            log "Rimozione socket Pipewire: $pattern"
-            # Solo rimuovi file/directory che appartengono all'utente corrente
+            log "Removing Pipewire socket: $pattern"
+            # Only remove files/directories that belong to the current user
             for file in $pattern; do
                 if [[ -e "$file" ]]; then
                     file_owner=$(stat -c '%U' "$file" 2>/dev/null || echo "unknown")
                     if [[ "$file_owner" == "$(whoami)" ]]; then
-                        rm -rf "$file" 2>/dev/null || warn "Impossibile rimuovere $file (permesso negato)"
+                        rm -rf "$file" 2>/dev/null || warn "Unable to remove $file (permission denied)"
                     else
-                        log "Saltato $file (appartiene a $file_owner)"
+                        log "Skipped $file (belongs to $file_owner)"
                     fi
                 fi
             done
         fi
     done
     
-    log "File socket rimossi"
+    log "Socket files removed"
 }
 
 # Cleanup shared memory IPC
 cleanup_shared_memory() {
-    log "Cleanup shared memory IPC..."
+    log "Cleaning up shared memory IPC..."
     
-    # Rimuovi shared memory segments
+    # Remove shared memory segments
     local shm_ids=$(ipcs -m | awk 'NR>3 {print $2}' 2>/dev/null || true)
     for shm_id in $shm_ids; do
         if [[ -n "$shm_id" ]]; then
@@ -189,7 +189,7 @@ cleanup_shared_memory() {
         fi
     done
     
-    # Rimuovi semaphores
+    # Remove semaphores
     local sem_ids=$(ipcs -s | awk 'NR>3 {print $2}' 2>/dev/null || true)
     for sem_id in $sem_ids; do
         if [[ -n "$sem_id" ]]; then
@@ -197,106 +197,104 @@ cleanup_shared_memory() {
         fi
     done
     
-    log "Shared memory IPC pulito"
+    log "Shared memory IPC cleaned"
 }
 
-# Disabilitazione schede audio interne
+# Disable internal audio cards
 disable_internal_audio() {
-    log "Disabilitazione schede audio interne..."
+    log "Disabling internal audio cards..."
     
-    # Controllo preventivo: verificare se l'audio è già disabilitato via kernel parameter
+    # Pre-check: verify if audio is already disabled via kernel parameter
     local enable_status=$(cat /sys/module/snd_hda_intel/parameters/enable 2>/dev/null || echo "")
     if [[ "$enable_status" =~ ^N, ]]; then
-        log "Audio integrato già disabilitato via kernel parameter - saltando disabilitazione PCI"
+        log "Integrated audio already disabled via kernel parameter - skipping PCI disable"
         return 0
     fi
     
-    # Identificare tutte le schede audio PCI (escludendo USB)
+    # Identify all PCI audio cards (excluding USB)
     local pci_audio_devices=$(lspci | grep -i "audio" | grep -v "usb" | awk '{print $1}')
     
     if [[ -n "$pci_audio_devices" ]]; then
-        log "Schede audio PCI trovate: $pci_audio_devices"
+        log "PCI audio cards found: $pci_audio_devices"
         
         for device in $pci_audio_devices; do
             local device_path="/sys/bus/pci/devices/0000:$device"
             
             if [[ -d "$device_path" ]]; then
-                log "Disabilitazione scheda audio PCI: $device"
+                log "Disabling PCI audio card: $device"
                 
-                # Prova a disabilitare la scheda
+                # Try to disable the card
                 if echo 0 > "$device_path/enable" 2>/dev/null; then
-                    log "Scheda audio $device disabilitata correttamente"
+                    log "Audio card $device disabled successfully"
                 else
-                    # Se fallisce, registra ma NON blocca l'avvio
-                    warn "Impossibile disabilitare scheda audio $device (permessi insufficienti - continuerà l'avvio)"
-                    # RIMUOVERE: exit 1
+                    # If it fails, log but DON'T block startup
+                    warn "Unable to disable audio card $device (insufficient permissions - will continue startup)"
                 fi
             fi
         done
         
-        # Attesa per completamento disabilitazione
+        # Wait for disable completion
         sleep 2
         
-        # Verifica disabilitazione
+        # Verify disable
         local remaining_pci_audio=$(lspci | grep -i "audio" | grep -v "usb" | wc -l)
         if [[ $remaining_pci_audio -eq 0 ]]; then
-            log "Tutte le schede audio PCI disabilitate correttamente"
+            log "All PCI audio cards disabled successfully"
         else
-            warn "Alcune schede audio PCI potrebbero essere ancora attive"
+            warn "Some PCI audio cards might still be active"
         fi
     else
-        log "Nessuna scheda audio PCI trovata da disabilitare"
+        log "No PCI audio cards found to disable"
     fi
 }
 
-# Attesa rilevamento dispositivi USB audio (Versione Universale UAC)
+# Wait for USB audio device detection (Universal UAC Version)
 wait_usb_audio_devices() {
-    log "Attesa rilevamento dispositivi USB audio (Metodo Kernel-Class)..."
+    log "Waiting for USB audio device detection (Kernel-Class Method)..."
     
     local usb_audio_wait=30
     local usb_audio_found=false
     
     for i in $(seq 1 $usb_audio_wait); do
-        # 1. Controllo primario: Driver snd-usb-audio caricato e attivo
+        # 1. Primary check: snd-usb-audio driver loaded and active
         if grep -q "usb" /proc/asound/cards 2>/dev/null; then
             local card_info=$(grep "usb" /proc/asound/cards | head -n1)
-            log "✅ Dispositivo USB Audio rilevato nel kernel: $card_info"
+            log "✅ USB Audio device detected in kernel: $card_info"
             usb_audio_found=true
             break
         fi
         
-        # 2. Controllo secondario: Presenza fisica via SysFS (più veloce di lsusb)
+        # 2. Secondary check: Physical presence via SysFS (faster than lsusb)
         if find /sys/class/sound/card* -name "id" -exec grep -l "" {} + 2>/dev/null | xargs cat | grep -qi "usb\|codec\|audio" 2>/dev/null; then
-            log "✅ Dispositivo USB Audio rilevato via SysFS"
+            log "✅ USB Audio device detected via SysFS"
             usb_audio_found=true
             break
         fi
 
-        log "Tentativo $i/$usb_audio_wait: Nessun dispositivo USB audio ancora pronto..."
+        log "Attempt $i/$usb_audio_wait: No USB audio device ready yet..."
         sleep 1
     done
     
     if [[ "$usb_audio_found" == "true" ]]; then
         log "USB audio devices detected, continuing startup"
     else
-        # Invece di 'warn' che fa exit 1, usiamo un log di errore ma permettiamo il fallback
-        error "Nessun dispositivo USB audio rilevato. JACK proverà a usare il backend dummy o integrato."
-        # Se vuoi comunque bloccare l'avvio, tieni 'warn', ma per flessibilità meglio continuare.
+        # Instead of 'warn' which causes exit 1, we use an error log but allow fallback
+        error "No USB audio device detected. JACK will try to use dummy or integrated backend."
     fi
 }
 
-# Hardware reset - rilascio dispositivi audio
+# Hardware reset - audio device release
 reset_audio_hardware() {
-    log "Hardware reset - rilascio dispositivi audio..."
+    log "Hardware reset - releasing audio devices..."
     
-    # Forza il rilascio dei dispositivi audio
+    # Force release of audio devices
     if [[ -d "/dev/snd" ]]; then
-        log "Rilascio dispositivi /dev/snd/*"
+        log "Releasing /dev/snd/* devices"
         fuser -k /dev/snd/* 2>/dev/null || true
         sleep 1
     fi
     
-    # Unload/reload moduli kernel (se possibile)
+    # Unload/reload kernel modules (if possible)
     local kernel_modules=(
         "snd_hda_intel"
         "snd_usb_audio"
@@ -312,21 +310,21 @@ reset_audio_hardware() {
         fi
     done
     
-    # Reload moduli
+    # Reload modules
     for module in "${kernel_modules[@]}"; do
         log "Reloading kernel module: $module"
         modprobe "$module" 2>/dev/null || true
         sleep 0.5
     done
     
-    log "Hardware audio resettato"
+    log "Hardware audio reset"
 }
 
-# Pulizia directory temporanee
+# Clean temporary directories
 cleanup_temp_directories() {
-    log "Pulizia directory temporanee..."
+    log "Cleaning temporary directories..."
     
-    # Directory da pulire (AGGRESSIVO - rimuovi TUTTI i file)
+    # Directories to clean (AGGRESSIVE - remove ALL files)
     local temp_dirs=(
         "/tmp/jack*"
         "/tmp/pipewire*"
@@ -337,46 +335,46 @@ cleanup_temp_directories() {
     
     for dir_pattern in "${temp_dirs[@]}"; do
         if ls $dir_pattern 1> /dev/null 2>&1; then
-            log "Pulizia directory: $dir_pattern"
-            # Rimuovi TUTTI i file socket JACK, indipendentemente dal proprietario
-            # Usa sudo per rimuovere anche i file di proprietà dell'utente $(whoami)
+            log "Cleaning directory: $dir_pattern"
+            # Remove ALL JACK socket files, regardless of owner
+            # Use sudo to remove files owned by user $(whoami) as well
             for file in $dir_pattern; do
                 if [[ -e "$file" ]]; then
-                    log "Rimozione forzata directory temporanea: $file"
-                    sudo rm -rf "$file" 2>/dev/null || warn "Impossibile rimuovere $file (continuando comunque)"
+                    log "Forced removal of temporary directory: $file"
+                    sudo rm -rf "$file" 2>/dev/null || warn "Unable to remove $file (continuing anyway)"
                 fi
             done
         fi
     done
     
-    log "Directory temporanee pulite"
+    log "Temporary directories cleaned"
 }
 
-# Verifica cleanup completato
+# Verify cleanup completed
 verify_cleanup() {
-    log "Verifica cleanup audio completato..."
+    log "Verifying audio cleanup completed..."
     
-    # Controlla quanti dispositivi USB ci sono (escludendo hub e dispositivi non critici)
+    # Check how many USB devices there are (excluding hubs and non-critical devices)
     local usb_count=$(lsusb | grep -v "Alcor Micro Corp. USB Hub" | grep -v "Linux Foundation" | wc -l)
     if [[ $usb_count -gt 3 ]]; then
-        warn "Troppi dispositivi USB rilevati ($usb_count). Possibile blocco durante cleanup."
-        warn "SUGGERIMENTO: Scollegare HD esterni o dispositivi non essenziali prima dell'avvio audio."
-        warn "ESEGUIRE: sudo /home/$ACTUAL_USER/Progetti/OLMS-Core/Startup2/olms-orchestrator.sh dopo aver scollegato i dispositivi"
+        warn "Too many USB devices detected ($usb_count). Possible block during cleanup."
+        warn "SUGGESTION: Unplug external HD or non-essential devices before audio startup."
+        warn "EXECUTE: sudo /home/$ACTUAL_USER/Progetti/OLMS-Core/Startup2/olms-orchestrator.sh after unplugging devices"
         exit 1
     fi
     
-    # Verifica processi
+    # Verify processes
     local remaining_audio=$(pgrep -f "jackd|pipewire|pulseaudio" 2>/dev/null || true)
     if [[ -n "$remaining_audio" ]]; then
-        warn "Processi audio ancora attivi: $remaining_audio"
+        warn "Audio processes still active: $remaining_audio"
     else
-        log "Nessun processo audio attivo"
+        log "No active audio processes"
     fi
     
-    # Verifica socket (migliorata) - LIMITA LA RICERCA AI PRIMI 20 RISULTATI
+    # Verify sockets (improved) - LIMIT SEARCH TO FIRST 20 RESULTS
     local remaining_sockets=$(find /tmp /dev/shm /var/run /run -name "*jack*" -o -name "*pipewire*" 2>/dev/null | head -20)
     if [[ -n "$remaining_sockets" ]]; then
-        # Filtra solo socket esistenti
+        # Filter only existing sockets
         local existing_sockets=""
         for socket in $remaining_sockets; do
             if [[ -e "$socket" ]]; then
@@ -385,28 +383,28 @@ verify_cleanup() {
         done
         
         if [[ -n "$existing_sockets" ]]; then
-            warn "Socket audio ancora presenti: $existing_sockets"
+            warn "Audio sockets still present: $existing_sockets"
         else
-            log "Nessun socket audio presente (pattern trovati ma file non esistenti)"
+            log "No audio sockets present (patterns found but files don't exist)"
         fi
     else
-        log "Nessun socket audio presente"
+        log "No audio sockets present"
     fi
     
-    # Verifica dispositivi
+    # Verify devices
     if [[ -d "/dev/snd" ]]; then
         local device_users=$(fuser /dev/snd/* 2>/dev/null || true)
         if [[ -n "$device_users" ]]; then
-            warn "Dispositivi audio ancora in uso: $device_users"
+            warn "Audio devices still in use: $device_users"
         else
-            log "Dispositivi audio liberi"
+            log "Audio devices free"
         fi
     fi
 }
 
-# Funzione principale
+# Main function
 main() {
-    log "=== FASE 0.2: AUDIO ENVIRONMENT NUCLEAR CLEANUP ==="
+    log "=== PHASE 0.2: AUDIO ENVIRONMENT NUCLEAR CLEANUP ==="
     
     kill_audio_processes
     remove_socket_files
@@ -417,10 +415,10 @@ main() {
     cleanup_temp_directories
     verify_cleanup
     
-    log "Audio environment cleanup completato"
+    log "Audio environment cleanup completed"
 }
 
-# Esegui se chiamato direttamente
+# Execute if called directly
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     main "$@"
 fi

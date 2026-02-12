@@ -1,25 +1,41 @@
-# OLMS Startup2 - Sistema Universale
+# Copyright (C) 2024 Francesco Nano <tua@email.com>
+# 
+# This file is part of the Open Live Mixing System (OLMS).
+#
+# OLMS is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU General Public License for more details.
+#
+# Created with AI collaboration. Visit: https://openlivemixingsystem.org/
 
-## Panoramica
+# OLMS Startup2 - Universal System
 
-Il processo startup2 è stato reso **universale** per funzionare con qualsiasi utente Linux, eliminando tutti i riferimenti hardcoded all'utente "francesco_ssh".
+## Overview
 
-## Cosa è stato modificato
+The startup2 process has been made **universal** to work with any Linux user, eliminating all hardcoded references to the "francesco_ssh" user.
 
-### 1. Variabili Universali
+## What Has Been Modified
 
-Sostituite tutte le occorrenze hardcoded con variabili dinamiche:
+### 1. Universal Variables
+
+Replaced all hardcoded occurrences with dynamic variables:
 
 - `francesco_ssh` → `$(whoami)`
 - `/home/francesco_ssh` → `$HOME`
 - `1000` → `$(id -u)`
 
-### 2. Gestione Intelligente dell'Esecuzione con Sudo
+### 2. Intelligent Sudo Execution Management
 
-Implementata logica avanzata per gestire correttamente l'esecuzione con `sudo`:
+Implemented advanced logic to properly handle execution with `sudo`:
 
 ```bash
-# Rilevamento utente effettivo
+# Actual user detection
 if [[ "$EUID" -eq 0 ]]; then
     if [[ -n "${SUDO_USER:-}" ]]; then
         ACTUAL_USER="$SUDO_USER"
@@ -37,17 +53,17 @@ else
 fi
 ```
 
-### 3. Gestione Intelligente del File di Log
+### 3. Intelligent Log File Management
 
-Sistemato il problema del logging quando lo script viene eseguito con sudo:
+Fixed the logging problem when the script is executed with sudo:
 
-- Log file ora puntano sempre alla home directory corretta
-- Gestione automatica dei permessi di scrittura
-- Fallback a percorsi temporanei se necessario
+- Log files now always point to the correct home directory
+- Automatic write permission management
+- Fallback to temporary paths if necessary
 
-### 4. Variabili d'Ambiente Universali
+### 4. Universal Environment Variables
 
-Aggiornate tutte le variabili d'ambiente per usare `ACTUAL_USER` e `ACTUAL_HOME`:
+Updated all environment variables to use `ACTUAL_USER` and `ACTUAL_HOME`:
 
 ```bash
 export TARGET_USER="$ACTUAL_USER"
@@ -57,104 +73,88 @@ export XDG_RUNTIME_DIR="/run/user/$TARGET_UID"
 export XAUTHORITY="$ACTUAL_HOME/.Xauthority"
 ```
 
-## Nuovi Script: OLMS Bootstrap
+## New Scripts: OLMS Bootstrap
 
 ### `olms-bootstrap.sh`
 
-Script di configurazione universale che genera automaticamente:
+Universal configuration script that automatically generates:
 
-1. **Regole Udev USB** (`/etc/udev/rules.d/99-olms-usb-permissions.rules`)
-   - Permessi per dispositivi audio USB
-   - Configurazione specifica per l'utente corrente
+1. **USB Udev Rules** (`/etc/udev/rules.d/99-olms-usb-permissions.rules`)
+   - Permissions for USB audio devices
+   - Configuration specific to the current user
 
-2. **Regole Udev JACK** (`/etc/udev/rules.d/99-olms-jack-sockets.rules`)
-   - Permessi per socket JACK
-   - Accesso ai file socket senza sudo
+2. **JACK Udev Rules** (`/etc/udev/rules.d/99-olms-jack-sockets.rules`)
+   - Permissions for JACK sockets
+   - Socket file access without sudo
 
-3. **Limiti Realtime** (`/etc/security/limits.d/99-olms-realtime.conf`)
-   - Priorità realtime (rtprio 99)
-   - Memory locking illimitato
-   - Configurazione per gruppi audio e realtime
+3. **Realtime Limits** (`/etc/security/limits.d/99-olms-realtime.conf`)
+   - Realtime priority (rtprio 99)
+   - Unlimited memory locking
+   - Configuration for audio and realtime groups
 
-4. **Configurazione Kernel RT** (`/etc/sysctl.d/99-olms-rt.conf`)
-   - Parametri kernel per audio real-time
-   - Configurazione IRQ e scheduling
+4. **RT Kernel Configuration** (`/etc/sysctl.d/99-olms-rt.conf`)
+   - Kernel parameters for real-time audio
+   - IRQ and scheduling configuration
 
-5. **Configurazione Gruppi Utente**
-   - Aggiunta utente ai gruppi necessari (audio, realtime, plugdev)
+5. **User Group Configuration**
+   - Adding user to necessary groups (audio, realtime, plugdev)
 
-## Come Usare il Sistema Universale
+## How to Use the Universal System
 
-### 1. Configurazione Iniziale (Primo Utilizzo)
+### 1. Initial Configuration (First Use)
 
 ```bash
-# Esegui come root per configurare il sistema
+# Run as root to configure the system
 sudo ./olms-bootstrap.sh
 
-# Segui le istruzioni a schermo
-# Riavvia la sessione utente dopo la configurazione
+# Follow on-screen instructions
+# Restart user session after configuration
 ```
 
-### 2. Avvio del Sistema
+### 2. System Startup
 
 ```bash
-# Modalità test (con interfaccia grafica)
+# Test mode (with graphical interface)
 sudo ./olms-orchestrator.sh --test
 
-# Modalità headless (senza interfaccia grafica)
+# Headless mode (without graphical interface)
 sudo ./olms-orchestrator.sh
 ```
 
-### 3. Per Utenti Diversi
+### 3. For Different Users
 
-Il sistema ora funziona automaticamente per qualsiasi utente:
+The system now works automatically for any user:
 
 ```bash
-# Utente alice
+# User alice
 sudo -u alice ./olms-bootstrap.sh
 sudo -u alice ./olms-orchestrator.sh --test
 
-# Utente bob
+# User bob
 sudo -u bob ./olms-bootstrap.sh
 sudo -u bob ./olms-orchestrator.sh --test
 ```
 
-## File Modificati
+## Modified Files
 
-### Script Principali
-- `olms-orchestrator.sh` - Script principale con gestione intelligente sudo
-- `phase0-audio-cleanup.sh` - Cleanup audio con gestione intelligente sudo
+### Main Scripts
+- `olms-orchestrator.sh` - Main script with intelligent sudo management
+- `phase0-audio-cleanup.sh` - Audio cleanup with intelligent sudo management
 
-### Script Secondari (aggiornati con sed)
-- Tutti gli script nella cartella Startup2 hanno variabili universali
+### Secondary Scripts (updated with sed)
+- All scripts in the Startup2 folder have universal variables
 
-### Nuovi File
-- `olms-bootstrap.sh` - Script di configurazione universale
-- `UNIVERSAL_SYSTEM_GUIDE.md` - Questa guida
+### New Files
+- `olms-bootstrap.sh` - Universal configuration script
+- `UNIVERSAL_SYSTEM_GUIDE.md` - This guide
 
-## Vantaggi del Sistema Universale
+## Advantages of the Universal System
 
-✅ **Multi-utente**: Funziona con qualsiasi utente Linux  
-✅ **Sudo Compatibility**: Gestisce correttamente l'esecuzione con sudo  
-✅ **Auto-configurazione**: Bootstrap script configura automaticamente il sistema  
-✅ **Documentazione**: Guida completa per l'uso e la configurazione  
-✅ **Manutenzione**: Facile da aggiornare e mantenere  
-
-## Prossimi Passi Consigliati
-
-1. **Test su diversi utenti** per verificare la compatibilità
-2. **Documentazione aggiuntiva** per casi d'uso specifici
-3. **Integrazione con PKGBUILD** per la distribuzione
-4. **Test su diverse distribuzioni Linux**
-
-## Risoluzione Problemi Comuni
-
-### Problema: "Impossibile creare file di log"
-**Causa**: Permessi insufficienti quando eseguito con sudo  
-**Soluzione**: Il sistema ora gestisce automaticamente questo caso
-
-### Problema: "Utente non nel gruppo audio"
-**Causa**: Configurazione mancante  
+✅ **Multi-user**: Works with any Linux user  
+✅ **Sudo Compatibility**: Properly handles execution with sudo  
+✅ **Auto-configuration**: Bootstrap script automatically configures the system  
+✅ **Documentation**: Complete guide for use and configuration  
+✅ **Maintenance**: Easy to update and
 **Soluzione**: Eseguire `./olms-bootstrap.sh` come root
 
 ### Problema: "Permessi USB negati"

@@ -1,17 +1,33 @@
+# Copyright (C) 2024 Francesco Nano <tua@email.com>
+# 
+# This file is part of the Open Live Mixing System (OLMS).
+#
+# OLMS is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU General Public License for more details.
+#
+# Created with AI collaboration. Visit: https://openlivemixingsystem.org/
+
 #!/bin/bash
 
 # JACK System Reset Script
-# Versione: 1.0
-# Scopo: Ripristinare rapidamente il sistema JACK in caso di problemi di connettività
+# Version: 1.0
+# Purpose: Quickly restore the JACK system in case of connectivity issues
 
 set -euo pipefail
 
-# Configurazione
+# Configuration
 TARGET_USER="${TARGET_USER:-$(whoami)}"
 TARGET_UID=$(id -u "$TARGET_USER" 2>/dev/null || echo "$(id -u)")
 ACTUAL_SOCKET="/dev/shm/jack_olms_0"
 
-# Colori
+# Colors
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -34,9 +50,9 @@ info() {
     echo -e "${BLUE}[$(date '+%Y-%m-%d %H:%M:%S')] INFO:${NC} $1"
 }
 
-# Termina tutti i processi JACK
+# Terminate all JACK processes
 kill_jack_processes() {
-    log "Terminazione processi JACK..."
+    log "Terminating JACK processes..."
     
     # Termina processi jackd
     sudo pkill -f jackd 2>/dev/null || true
@@ -44,37 +60,37 @@ kill_jack_processes() {
     
     # Verifica che i processi siano terminati
     if pgrep -f jackd >/dev/null 2>&1; then
-        warn "Alcuni processi JACK sono ancora attivi, terminazione forzata..."
+        warn "Some JACK processes are still active, forced termination..."
         sudo pkill -9 -f jackd 2>/dev/null || true
         sleep 1
     fi
     
-    log "Processi JACK terminati"
+    log "JACK processes terminated"
 }
 
-# Pulisce i socket e i link corrotti
+# Clean corrupted sockets and links
 cleanup_jack_files() {
-    log "Pulizia socket e link JACK..."
+    log "Cleaning JACK sockets and links..."
     
-    # Rimuovi link corrotti
+    # Remove corrupted links
     sudo rm -f /tmp/jack-default_$(id -u)_0 /tmp/jack-olms-$(id -u) 2>/dev/null || true
     sudo rm -rf /dev/shm/jack-0 /tmp/jack-0 /dev/shm/jack_db-0 2>/dev/null || true
     
-    # Rimuovi file di log temporanei
+    # Remove temporary log files
     sudo rm -f /tmp/jack.pid /tmp/jack_connectivity_test.log /tmp/jack_startup.log 2>/dev/null || true
     
-    log "File JACK puliti"
+    log "JACK files cleaned"
 }
 
-# Crea i link simbolici necessari
+# Create necessary symbolic links
 create_jack_links() {
-    log "Creazione link simbolici JACK..."
+    log "Creating JACK symbolic links..."
     
-    # Crea la directory socket se non esiste
+    # Create socket directory if it doesn't exist
     sudo mkdir -p "$ACTUAL_SOCKET"
     sudo chmod -R 777 "$ACTUAL_SOCKET"
     
-    # Link da creare che puntano al socket reale di JACK
+    # Links to create that point to the real JACK socket
     local links_to_create=(
         "/dev/shm/jack-olms-0"
         "/dev/shm/jack-olms-${TARGET_UID}"
@@ -92,24 +108,24 @@ create_jack_links() {
         
         if [[ ! -L "$link_path" ]]; then
             sudo ln -sfn "$ACTUAL_SOCKET" "$link_path" 2>/dev/null || true
-            log "Creato link: $link_path -> $ACTUAL_SOCKET"
+            log "Created link: $link_path -> $ACTUAL_SOCKET"
         else
-            log "Link già esistente: $link_path"
+            log "Link already exists: $link_path"
         fi
     done
     
-    # Imposta permessi corretti
+    # Set correct permissions
     sudo chmod -R 777 /dev/shm/jack-* /tmp/jack-* 2>/dev/null || true
     sudo chmod 777 /dev/shm/jack-shm-registry 2>/dev/null || true
     
-    log "Link JACK creati e configurati"
+    log "JACK links created and configured"
 }
 
-# Verifica la connettività JACK
+# Verify JACK connectivity
 verify_connectivity() {
-    log "Verifica connettività JACK..."
+    log "Verifying JACK connectivity..."
     
-    # Test con diversi path
+    # Test with different paths
     local test_paths=(
         "/dev/shm/jack-olms-0"
         "/dev/shm/jack-olms-${TARGET_UID}"
@@ -124,104 +140,104 @@ verify_connectivity() {
     for test_path in "${test_paths[@]}"; do
         if [[ -d "$test_path" ]]; then
             if sudo -u "$TARGET_USER" -E JACK_DEFAULT_SERVER=olms JACK_SESSION_DIR="$test_path" jack_lsp >/dev/null 2>&1; then
-                log "✅ Connettività JACK OK con path: $test_path"
+                log "✅ JACK connectivity OK with path: $test_path"
                 connectivity_working=true
                 break
             else
-                warn "❌ Connettività JACK FALLITA con path: $test_path"
+                warn "❌ JACK connectivity FAILED with path: $test_path"
             fi
         fi
     done
     
     if [[ "$connectivity_working" == "true" ]]; then
-        log "✅ Connettività JACK ripristinata"
+        log "✅ JACK connectivity restored"
         return 0
     else
-        warn "⚠️  Connettività JACK ancora fallita"
+        warn "⚠️  JACK connectivity still failed"
         return 1
     fi
 }
 
-# Avvia il server JACK
+# Start the JACK server
 start_jack_server() {
-    log "Avvio server JACK..."
+    log "Starting JACK server..."
     
-    # Avvia JACK in background
+    # Start JACK in background
     sudo -u "$TARGET_USER" -E JACK_DEFAULT_SERVER=olms jackd -d alsa -d hw:1 -r 48000 -p 1024 -n 2 -s -S >/dev/null 2>&1 &
     local jack_pid=$!
     
-    # Attendi che JACK si avvii
+    # Wait for JACK to start
     sleep 3
     
-    # Verifica che JACK sia attivo
+    # Verify that JACK is active
     if kill -0 $jack_pid 2>/dev/null; then
-        log "✅ Server JACK avviato (PID: $jack_pid)"
+        log "✅ JACK server started (PID: $jack_pid)"
         return 0
     else
-        error "❌ Impossibile avviare il server JACK"
+        error "❌ Unable to start JACK server"
         return 1
     fi
 }
 
-# Test finale completo
+# Complete final test
 final_test() {
-    log "Test finale completo..."
+    log "Complete final test..."
     
-    # Test connettività
+    # Connectivity test
     if ! verify_connectivity; then
-        error "❌ Test connettività fallito"
+        error "❌ Connectivity test failed"
         return 1
     fi
     
-    # Test jack_lsp
+    # jack_lsp test
     if ! sudo -u "$TARGET_USER" -E JACK_DEFAULT_SERVER=olms jack_lsp >/dev/null 2>&1; then
-        error "❌ Test jack_lsp fallito"
+        error "❌ jack_lsp test failed"
         return 1
     fi
     
-    # Test jack_control
+    # jack_control test
     if ! sudo -u "$TARGET_USER" -E JACK_DEFAULT_SERVER=olms jack_control status >/dev/null 2>&1; then
-        error "❌ Test jack_control fallito"
+        error "❌ jack_control test failed"
         return 1
     fi
     
-    log "✅ Tutti i test superati"
+    log "✅ All tests passed"
     return 0
 }
 
-# Funzione principale
+# Main function
 main() {
     log "=== JACK SYSTEM RESET SCRIPT ==="
-    log "Utente target: $TARGET_USER (UID: $TARGET_UID)"
+    log "Target user: $TARGET_USER (UID: $TARGET_UID)"
     log "Socket directory: $ACTUAL_SOCKET"
     
-    # Passo 1: Termina processi JACK
+    # Step 1: Terminate JACK processes
     kill_jack_processes
     
-    # Passo 2: Pulizia file
+    # Step 2: Clean files
     cleanup_jack_files
     
-    # Passo 3: Crea link
+    # Step 3: Create links
     create_jack_links
     
-    # Passo 4: Avvia server JACK
+    # Step 4: Start JACK server
     if ! start_jack_server; then
-        error "Impossibile avviare il server JACK"
+        error "Unable to start JACK server"
         exit 1
     fi
     
-    # Passo 5: Test finale
+    # Step 5: Final test
     if final_test; then
-        log "✅ JACK System Reset completato con successo"
-        log "Il sistema JACK è ora funzionante e pronto all'uso"
+        log "✅ JACK System Reset completed successfully"
+        log "The JACK system is now functional and ready to use"
     else
-        error "❌ JACK System Reset fallito"
-        error "Controllare i log per ulteriori dettagli"
+        error "❌ JACK System Reset failed"
+        error "Check logs for further details"
         exit 1
     fi
 }
 
-# Esegui se chiamato direttamente
+# Execute if called directly
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     main "$@"
 fi

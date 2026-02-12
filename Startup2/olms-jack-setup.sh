@@ -1,3 +1,19 @@
+# Copyright (C) 2024 Francesco Nano <tua@email.com>
+# 
+# This file is part of the Open Live Mixing System (OLMS).
+#
+# OLMS is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU General Public License for more details.
+#
+# Created with AI collaboration. Visit: https://openlivemixingsystem.org/
+
 #!/bin/bash
 # OLMS JACK Setup Script
 # Configures JACK for optimal performance with OLMS
@@ -699,80 +715,80 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     main "$@"
 fi
 
-# Funzione di pulizia JACK
+# JACK cleanup function
 cleanup_jack() {
-    log "=== Pulizia JACK ==="
+    log "=== JACK Cleanup ==="
     
-    # Termina processi JACK
+    # Terminate JACK processes
     pkill -9 jackd 2>/dev/null || true
     pkill -9 jackdbus 2>/dev/null || true
-    log "   Processi JACK terminati"
+    log "   JACK processes terminated"
     
-    # Pulisci socket
+    # Clean sockets
     sudo rm -rf /dev/shm/jack* /tmp/jack* 2>/dev/null || true
-    log "   Socket JACK rimossi"
+    log "   JACK sockets removed"
     
-    # Pulisci registri
+    # Clean registries
     sudo rm -f /dev/shm/jack-shm-registry* 2>/dev/null || true
-    log "   Registri JACK rimossi"
+    log "   JACK registries removed"
     
-    log "Pulizia JACK completata"
+    log "JACK cleanup completed"
 }
 
-# Funzione di verifica stato
+# Status verification function
 check_status() {
-    log "=== Stato Sistema JACK ==="
+    log "=== JACK System Status ==="
     
-    # Verifica processi
+    # Verify processes
     local jack_processes=$(pgrep -f "jackd\|jackdbus" || echo "")
     if [[ -n "$jack_processes" ]]; then
-        log "Processi JACK attivi:"
-        ps -p $jack_processes -o pid,cmd --no-headers 2>/dev/null || echo "   Nessun processo trovato"
+        log "Active JACK processes:"
+        ps -p $jack_processes -o pid,cmd --no-headers 2>/dev/null || echo "   No process found"
     else
-        log "Nessun processo JACK attivo"
+        log "No active JACK process"
     fi
     
-    # Verifica socket
+    # Verify sockets
     local jack_sockets=$(find /dev/shm /tmp -name "*jack*" -type d 2>/dev/null || echo "")
     if [[ -n "$jack_sockets" ]]; then
-        log "Socket JACK presenti:"
+        log "JACK sockets present:"
         echo "$jack_sockets" | while read -r socket; do
             log "   $socket"
         done
     else
-        log "Nessun socket JACK trovato"
+        log "No JACK socket found"
     fi
     
-    # Verifica capabilities
+    # Verify capabilities
     if command -v getcap >/dev/null 2>&1; then
-        local capabilities=$(getcap /usr/bin/jackd 2>/dev/null || echo "Nessuna capability")
-        log "Capabilities JACK: $capabilities"
+        local capabilities=$(getcap /usr/bin/jackd 2>/dev/null || echo "No capability")
+        log "JACK Capabilities: $capabilities"
     fi
     
-    # Verifica limiti utente
-    log "Limiti utente:"
+    # Verify user limits
+    log "User limits:"
     log "  rtprio: $(ulimit -r)"
     log "  memlock: $(ulimit -l)"
-    log "  Gruppi: $(groups)"
+    log "  Groups: $(groups)"
 }
 
 # Help
 show_help() {
     echo "OLMS JACK Setup Script"
     echo ""
-    echo "Uso: $0 [comando]"
+    echo "Usage: $0 [command]"
     echo ""
-    echo "Comandi disponibili:"
-    echo "  setup     Configura JACK per OLMS (default)"
-    echo "  cleanup   Pulisce i processi e socket JACK"
-    echo "  status    Mostra lo stato del sistema JACK"
-    echo "  test      Esegue test di connessione JACK"
-    echo "  help      Mostra questo aiuto"
+    echo "Available commands:"
+    echo "  setup     Configure JACK for OLMS (default)"
+    echo "  cleanup   Clean JACK processes and sockets"
+    echo "  status    Show JACK system status"
+    echo "  test      Run JACK connection test"
+    echo "  help      Show this help"
     echo ""
-    echo "Esempi:"
-    echo "  sudo $0 setup    # Configura JACK"
-    echo "  sudo $0 cleanup  # Pulisce JACK"
-    echo "  $0 status        # Controlla stato"
+    echo "Examples:"
+    echo "  sudo $0 setup    # Configure JACK"
+    echo "  sudo $0 cleanup  # Clean JACK"
+    echo "  $0 status        # Check status"
 }
 
 # Main
@@ -793,7 +809,7 @@ main() {
             if [[ -f "/etc/olms/jack/test.sh" ]]; then
                 /etc/olms/jack/test.sh
             else
-                error "Script di test non trovato. Eseguire prima 'setup'."
+                error "Test script not found. Run 'setup' first."
                 exit 1
             fi
             ;;
@@ -801,14 +817,14 @@ main() {
             show_help
             ;;
         *)
-            error "Comando sconosciuto: $command"
+            error "Unknown command: $command"
             show_help
             exit 1
             ;;
     esac
 }
 
-# Esegui main se chiamato direttamente
+# Execute main if called directly
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     main "$@"
 fi

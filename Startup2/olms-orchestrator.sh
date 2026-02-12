@@ -1,32 +1,48 @@
+# Copyright (C) 2024 Francesco Nano <tua@email.com>
+# 
+# This file is part of the Open Live Mixing System (OLMS).
+#
+# OLMS is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU General Public License for more details.
+#
+# Created with AI collaboration. Visit: https://openlivemixingsystem.org/
+
 #!/bin/bash
 
 # OLMS Startup Orchestrator
-# Gestisce l'intero processo di startup audio real-time
-# Versione: 2.0
+# Manages the entire audio real-time startup process
+# Version: 2.0
 
 set -euo pipefail
 
-# Configurazione base
+# Basic configuration
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# Gestione intelligente del percorso home e log file per gestire anche l'esecuzione con sudo
+# Smart management of home path and log file to handle sudo execution
 if [[ "$EUID" -eq 0 ]]; then
-    # Se siamo root, dobbiamo determinare l'utente effettivo
+    # If we are root, we need to determine the actual user
     if [[ -n "${SUDO_USER:-}" ]]; then
-        # Eseguito con sudo, usa l'utente originale
+        # Executed with sudo, use original user
         ACTUAL_USER="$SUDO_USER"
         ACTUAL_HOME=$(eval echo ~$SUDO_USER)
     elif [[ -n "${USER:-}" ]] && [[ "$USER" != "root" ]]; then
-        # Eseguito come root ma USER è impostato a un utente non root
+        # Executed as root but USER is set to a non-root user
         ACTUAL_USER="$USER"
         ACTUAL_HOME=$(eval echo ~$USER)
     else
-        # Eseguito direttamente come root
+        # Executed directly as root
         ACTUAL_USER="root"
         ACTUAL_HOME="/root"
     fi
 else
-    # Eseguito come utente normale
+    # Executed as normal user
     ACTUAL_USER="$(whoami)"
     ACTUAL_HOME="$HOME"
 fi
@@ -34,40 +50,40 @@ fi
 OLMS_HOME="$ACTUAL_HOME/.olms"
 mkdir -p "$OLMS_HOME"
 
-# Gestione intelligente del file di log
+# Smart log file management
 LOG_FILE="$OLMS_HOME/olms-orchestrator.log"
 
-# Se il file in /tmp esiste ed è di un altro utente, usiamo un nome univoco
+# If the file in /tmp exists and belongs to another user, use a unique name
 if [[ -f "/tmp/olms-orchestrator.log" ]]; then
     LOG_FILE="/tmp/olms-orchestrator-${ACTUAL_USER}-$(date +%s).log"
 fi
 
-# Assicurati che il file di log sia scrivibile
+# Ensure log file is writable
 if [[ ! -f "$LOG_FILE" ]]; then
-    # Crea il file di log se non esiste
+    # Create log file if it doesn't exist
     touch "$LOG_FILE" 2>/dev/null || {
-        # Se non possiamo creare il file nella home, usiamo un percorso alternativo
+        # If we can't create the file in home, use an alternative path
         LOG_FILE="/tmp/olms-orchestrator-${ACTUAL_USER}-$(date +%s).log"
-        warn "Impossibile creare il file di log nella home directory, uso: $LOG_FILE"
+        warn "Unable to create log file in home directory, using: $LOG_FILE"
     }
 elif [[ ! -w "$LOG_FILE" ]]; then
-    # Se il file esiste ma non è scrivibile, creane uno nuovo con timestamp univoco
+    # If file exists but is not writable, create a new one with unique timestamp
     LOG_FILE="/tmp/olms-orchestrator-${ACTUAL_USER}-$(date +%s).log"
-    warn "Il file di log esistente non è scrivibile, uso: $LOG_FILE"
+    warn "Existing log file is not writable, using: $LOG_FILE"
 fi
 
 LOCK_FILE="$OLMS_HOME/olms-startup.lock"
 PID_FILE="$OLMS_HOME/olms-startup.pid"
 
-# Parsing argomenti
+# Argument parsing
 MODE="headless"  # default
 if [[ "${1:-}" == "--test" ]]; then
     MODE="test"
     shift
 fi
 
-# Variabili d'ambiente per l'approccio "tutto come stesso utente"
-# Usiamo ACTUAL_USER e ACTUAL_HOME per gestire correttamente l'esecuzione con sudo
+# Environment variables for "all as same user" approach
+# Use ACTUAL_USER and ACTUAL_HOME to properly handle sudo execution
 export TARGET_USER="$ACTUAL_USER"
 export TARGET_UID=$(id -u "$ACTUAL_USER" 2>/dev/null || echo "$(id -u)")
 export ACTUAL_UID="$TARGET_UID"
@@ -76,13 +92,13 @@ export XDG_RUNTIME_DIR="/run/user/$TARGET_UID"
 export DISPLAY=":0"
 export XAUTHORITY="$ACTUAL_HOME/.Xauthority"
 
-# Variabili JACK per coerenza tra tutti gli script
+# JACK variables for consistency across all scripts
 export JACK_DEFAULT_SERVER="olms"
 export JACK_NO_AUDIO_RESERVATION=1
 export JACK_PROMISCUOUS_SERVER=1
 export JACK_NO_START_SERVER=1
 
-# Colori per output
+# Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -108,17 +124,17 @@ info() {
     echo -e "${BLUE}[$(date '+%Y-%m-%d %H:%M:%S')] INFO:${NC} $1" | tee -a "$LOG_FILE"
 }
 
-# Funzione per verificare se un comando è disponibile
+# Function to check if a command is available
 check_command() {
     if ! command -v "$1" &> /dev/null; then
-        error "Comando '$1' non trovato. Installare prima di procedere."
+        error "Command '$1' not found. Install before proceeding."
         exit 1
     fi
 }
 
-# Pulizia in caso di interruzione
+# Cleanup on interruption
 cleanup() {
-    log "Pulizia in corso..."
+    log "Cleanup in progress..."
     if [[ -f "$LOCK_FILE" ]]; then
         rm -f "$LOCK_FILE" 2>/dev/null || true
     fi
@@ -130,31 +146,31 @@ cleanup() {
 
 trap cleanup EXIT INT TERM
 
-# Verifica lock file
+# Check lock file
 check_lock() {
     if [[ -f "$LOCK_FILE" ]]; then
         local lock_pid=$(cat "$LOCK_FILE" 2>/dev/null || echo "")
         if [[ -n "$lock_pid" ]] && kill -0 "$lock_pid" 2>/dev/null; then
-            log "Processo di startup già in esecuzione (PID: $lock_pid), terminazione forzata in corso..."
-            # Termina il processo esistente
+            log "Startup process already running (PID: $lock_pid), forced termination in progress..."
+            # Terminate existing process
             kill -TERM "$lock_pid" 2>/dev/null || true
             sleep 2
-            # Se il processo è ancora attivo, forza la terminazione
+            # If process is still active, force termination
             if kill -0 "$lock_pid" 2>/dev/null; then
-                log "Processo ancora attivo, terminazione forzata con kill -9..."
+                log "Process still active, forced termination with kill -9..."
                 kill -9 "$lock_pid" 2>/dev/null || true
                 sleep 1
             fi
-            # Pulizia forzata dei file di lock
+            # Forced cleanup of lock files
             sudo rm -f "$LOCK_FILE" "$PID_FILE" 2>/dev/null || true
-            log "Processo di startup precedente terminato e lock file puliti"
+            log "Previous startup process terminated and lock files cleaned"
         else
-            log "Lock file trovato ma processo non attivo, pulizia automatica in corso..."
-            # Pulizia automatica forzata
+            log "Lock file found but process not active, automatic cleanup in progress..."
+            # Forced automatic cleanup
             sudo rm -f "$LOCK_FILE" "$PID_FILE" 2>/dev/null || true
-            # Verifica che la pulizia sia avvenuta
+            # Verify cleanup occurred
             if [[ -f "$LOCK_FILE" ]]; then
-                warn "Impossibile rimuovere lock file, tentativo con kill -9..."
+                warn "Unable to remove lock file, attempting with kill -9..."
                 sudo kill -9 "$lock_pid" 2>/dev/null || true
                 sleep 1
                 sudo rm -f "$LOCK_FILE" "$PID_FILE" 2>/dev/null || true
@@ -162,119 +178,289 @@ check_lock() {
         fi
     fi
     
-    # Crea lock file
+    # Create lock file
     echo $$ > "$LOCK_FILE"
     echo $$ > "$PID_FILE"
-    log "Lock file creato: $LOCK_FILE"
+    log "Lock file created: $LOCK_FILE"
 }
 
-# Pulizia lock file per evitare conflitti con phase0-lock-management.sh
+# Cleanup lock file to avoid conflicts with phase0-lock-management.sh
 cleanup_lock_for_phase0() {
     if [[ -f "$LOCK_FILE" ]]; then
         local lock_pid=$(cat "$LOCK_FILE" 2>/dev/null || echo "")
         if [[ "$lock_pid" == "$$" ]]; then
-            # Questo è il nostro lock file, rimuoviamolo temporaneamente per phase0
+            # This is our lock file, remove it temporarily for phase0
             rm -f "$LOCK_FILE" "$PID_FILE"
-            log "Lock file rimosso temporaneamente per phase0-lock-management.sh"
+            log "Lock file temporarily removed for phase0-lock-management.sh"
         fi
     fi
 }
 
-# Ripristina lock file dopo phase0
+# Restore lock file after phase0
 restore_lock_after_phase0() {
     if [[ ! -f "$LOCK_FILE" ]]; then
         echo $$ > "$LOCK_FILE"
         echo $$ > "$PID_FILE"
-        log "Lock file ripristinato dopo phase0"
+        log "Lock file restored after phase0"
     fi
 }
 
-# Fase 0: Pre-startup e gestione processi
-phase0_pre_startup() {
-    log "=== FASE 0: PRE-STARTUP E GESTIONE DEI PROCESSI ==="
+# Graceful Ardour session closing function
+close_ardour_sessions_gracefully() {
+    log "=== GRACEFUL ARDOUR SESSION CLOSING ==="
     
-    # Esegui cleanup audio
-    log "Esecuzione cleanup audio environment..."
+    # Smart user detection (consistent with other scripts)
+    local ardour_user="$ACTUAL_USER"
+    local ardour_uid=$(id -u "$ardour_user" 2>/dev/null || echo "$(id -u)")
+    local ardour_home="$ACTUAL_HOME"
+    
+    # Session paths
+    local session_path="$ardour_home/Progetti/OLMS-Core/engine/session-template/OLMS-POC/OLMS-POC.ardour"
+    local session_dir="$ardour_home/Progetti/OLMS-Core/engine/session-template/OLMS-POC"
+    
+    # Find Ardour processes
+    local ardour_pids=$(pgrep -x "ardour\|ardour8" 2>/dev/null || true)
+    
+    if [[ -z "$ardour_pids" ]]; then
+        log "No Ardour sessions running - skipping session closing"
+        return 0
+    fi
+    
+    log "Found Ardour processes: $ardour_pids"
+    
+    # Function to check if Ardour is responsive
+    is_ardour_responsive() {
+        local pid=$1
+        # Check if process is still responding
+        if kill -0 "$pid" 2>/dev/null; then
+            # Try to send a simple signal to test responsiveness
+            if kill -CONT "$pid" 2>/dev/null; then
+                return 0
+            fi
+        fi
+        return 1
+    }
+    
+    # Function to save Ardour session
+    save_ardour_session() {
+        local pid=$1
+        log "Attempting to save Ardour session (PID: $pid)..."
+        
+        # Method 1: Try SIGUSR1 (Ardour save signal)
+        if kill -USR1 "$pid" 2>/dev/null; then
+            log "Save signal (SIGUSR1) sent to Ardour PID $pid"
+            # Wait for save to complete
+            sleep 3
+            
+            # Verify the process is still alive after save attempt
+            if is_ardour_responsive "$pid"; then
+                log "Ardour PID $pid responded to save signal"
+                return 0
+            else
+                log "Ardour PID $pid became unresponsive after save signal"
+                return 1
+            fi
+        else
+            log "Unable to send save signal to Ardour PID $pid"
+            return 1
+        fi
+    }
+    
+    # Function to gracefully terminate Ardour
+    terminate_ardour_gracefully() {
+        local pid=$1
+        log "Attempting graceful termination of Ardour (PID: $pid)..."
+        
+        # Method 1: SIGTERM (graceful shutdown)
+        if kill -TERM "$pid" 2>/dev/null; then
+            log "SIGTERM sent to Ardour PID $pid"
+            
+            # Wait for graceful shutdown
+            local wait_time=0
+            local max_wait=10
+            while kill -0 "$pid" 2>/dev/null && [[ $wait_time -lt $max_wait ]]; do
+                sleep 1
+                ((wait_time++))
+            done
+            
+            if kill -0 "$pid" 2>/dev/null; then
+                log "Ardour PID $pid did not respond to SIGTERM after ${max_wait}s"
+                return 1
+            else
+                log "Ardour PID $pid terminated gracefully"
+                return 0
+            fi
+        else
+            log "Unable to send SIGTERM to Ardour PID $pid"
+            return 1
+        fi
+    }
+    
+    # Function to force terminate Ardour (last resort)
+    force_terminate_ardour() {
+        local pid=$1
+        log "Force terminating Ardour (PID: $pid)..."
+        
+        # Method 3: SIGKILL (force termination)
+        if kill -KILL "$pid" 2>/dev/null; then
+            log "SIGKILL sent to Ardour PID $pid"
+            sleep 1
+            
+            # Verify termination
+            if kill -0 "$pid" 2>/dev/null; then
+                log "WARNING: Ardour PID $pid still active after SIGKILL"
+                return 1
+            else
+                log "Ardour PID $pid force terminated"
+                return 0
+            fi
+        else
+            log "Unable to send SIGKILL to Ardour PID $pid"
+            return 1
+        fi
+    }
+    
+    # Process each Ardour instance
+    for pid in $ardour_pids; do
+        log "Processing Ardour instance (PID: $pid)"
+        
+        # Check if process is responsive
+        if ! is_ardour_responsive "$pid"; then
+            log "Ardour PID $pid is not responsive, attempting force termination"
+            force_terminate_ardour "$pid"
+            continue
+        fi
+        
+        # Attempt to save the session
+        if save_ardour_session "$pid"; then
+            log "Session save successful for PID $pid"
+        else
+            log "Session save failed for PID $pid, proceeding with termination"
+        fi
+        
+        # Attempt graceful termination
+        if terminate_ardour_gracefully "$pid"; then
+            log "Graceful termination successful for PID $pid"
+        else
+            log "Graceful termination failed for PID $pid, attempting force termination"
+            force_terminate_ardour "$pid"
+        fi
+        
+        # Verify session files are intact after termination
+        if [[ -f "$session_path" ]]; then
+            local file_size=$(stat -c%s "$session_path" 2>/dev/null || echo "0")
+            if [[ $file_size -gt 1000 ]]; then
+                log "Session file verified: $session_path (${file_size} bytes)"
+            else
+                warn "Session file appears corrupted or empty: $session_path (${file_size} bytes)"
+            fi
+        fi
+    done
+    
+    # Final verification
+    local remaining_ardour=$(pgrep -x "ardour\|ardour8" 2>/dev/null || true)
+    if [[ -n "$remaining_ardour" ]]; then
+        warn "Some Ardour processes remain active: $remaining_ardour"
+        # Attempt one final cleanup
+        for pid in $remaining_ardour; do
+            force_terminate_ardour "$pid"
+        done
+    else
+        log "All Ardour sessions closed successfully"
+    fi
+    
+    return 0
+}
+
+# Phase 0: Pre-startup and process management
+phase0_pre_startup() {
+    log "=== PHASE 0: PRE-STARTUP AND PROCESS MANAGEMENT ==="
+    
+    # Close existing Ardour sessions gracefully before cleanup
+    close_ardour_sessions_gracefully
+    
+    # Execute audio cleanup
+    log "Executing audio environment cleanup..."
     if [[ -f "$SCRIPT_DIR/phase0-audio-cleanup.sh" ]]; then
         bash "$SCRIPT_DIR/phase0-audio-cleanup.sh"
     else
-        error "Script phase0-audio-cleanup.sh non trovato"
+        error "Script phase0-audio-cleanup.sh not found"
         exit 1
     fi
     
-    # Esegui lock file management
-    log "Gestione lock file e processi..."
+    # Execute lock file management
+    log "Lock file and process management..."
     cleanup_lock_for_phase0
     if [[ -f "$SCRIPT_DIR/phase0-lock-management.sh" ]]; then
         bash "$SCRIPT_DIR/phase0-lock-management.sh"
     else
-        error "Script phase0-lock-management.sh non trovato"
+        error "Script phase0-lock-management.sh not found"
         exit 1
     fi
     restore_lock_after_phase0
 }
 
-# Fase 1: Ottimizzazione sistema real-time
+# Phase 1: Real-time system optimization
 phase1_rt_optimization() {
-    log "=== FASE 1: OTTIMIZZAZIONE SISTEMA REAL-TIME ==="
+    log "=== PHASE 1: REAL-TIME SYSTEM OPTIMIZATION ==="
     
     if [[ -f "$SCRIPT_DIR/phase1-rt-optimization.sh" ]]; then
         bash "$SCRIPT_DIR/phase1-rt-optimization.sh"
     else
-        error "Script phase1-rt-optimization.sh non trovato"
+        error "Script phase1-rt-optimization.sh not found"
         exit 1
     fi
 }
 
-# Fase 2: JACK server initialization
+# Phase 2: JACK server initialization
 phase2_jack_init() {
-    log "=== FASE 2: JACK SERVER INITIALIZATION ==="
+    log "=== PHASE 2: JACK SERVER INITIALIZATION ==="
     
     if [[ -f "$SCRIPT_DIR/phase2-hardware-config.sh" ]]; then
-        # Esegui con timeout di 60 secondi per evitare blocchi
+        # Execute with 60 second timeout to avoid blocking
         timeout 60 bash "$SCRIPT_DIR/phase2-hardware-config.sh" || {
-            error "Fase 2 fallita o timeout superato"
+            error "Phase 2 failed or timeout exceeded"
             exit 1
         }
     else
-        error "Script phase2-hardware-config.sh non trovato"
+        error "Script phase2-hardware-config.sh not found"
         exit 1
     fi
 }
 
-# Fase 3: JACK server initialization (FIXED VERSION)
+# Phase 3: JACK server initialization (FIXED VERSION)
 phase3_jack_init_fixed() {
-    log "=== FASE 3: JACK SERVER INITIALIZATION (FIXED) ==="
+    log "=== PHASE 3: JACK SERVER INITIALIZATION (FIXED) ==="
     
     if [[ -f "$SCRIPT_DIR/phase3-jack-init-fixed.sh" ]]; then
-        # Esegui con timeout di 120 secondi per evitare blocchi
+        # Execute with 120 second timeout to avoid blocking
         timeout 120 bash "$SCRIPT_DIR/phase3-jack-init-fixed.sh" || {
-            error "Fase 3 fallita o timeout superato"
+            error "Phase 3 failed or timeout exceeded"
             exit 1
         }
     else
-        error "Script phase3-jack-init-fixed.sh non trovato"
+        error "Script phase3-jack-init-fixed.sh not found"
         exit 1
     fi
 }
 
-# Fase 4: X11 environment setup
+# Phase 4: X11 environment setup
 phase4_x11_setup() {
-    log "=== FASE 4: X11 ENVIRONMENT & DISPLAY MANAGEMENT ==="
+    log "=== PHASE 4: X11 ENVIRONMENT & DISPLAY MANAGEMENT ==="
     
     if [[ -f "$SCRIPT_DIR/phase4-x11-setup.sh" ]]; then
         bash "$SCRIPT_DIR/phase4-x11-setup.sh"
     else
-        error "Script phase4-x11-setup.sh non trovato"
+        error "Script phase4-x11-setup.sh not found"
         exit 1
     fi
 }
 
-# Fase 5: Ardour DAW startup
+# Phase 5: Ardour DAW startup
 phase5_ardour_startup() {
-    log "=== FASE 5: ARDOUR DAW STARTUP ==="
+    log "=== PHASE 5: ARDOUR DAW STARTUP ==="
     
-    # Assicuriamo che le variabili d'ambiente siano passate correttamente
+    # Ensure environment variables are properly passed
     export JACK_DEFAULT_SERVER="olms"
     export JACK_PROMISCUOUS_SERVER=1
     export JACK_NO_START_SERVER=1
@@ -286,75 +472,75 @@ phase5_ardour_startup() {
     export XAUTHORITY="$ACTUAL_HOME/.Xauthority"
     
     if [[ -f "$SCRIPT_DIR/phase5-ardour-startup.sh" ]]; then
-        log "Avvio script phase5-ardour-startup.sh..."
-        log "Variabili d'ambiente impostate per transizione utente: $ACTUAL_USER"
+        log "Starting phase5-ardour-startup.sh script..."
+        log "Environment variables set for user transition: $ACTUAL_USER"
         log "JACK_DEFAULT_SERVER=$JACK_DEFAULT_SERVER"
         log "TARGET_USER=$TARGET_USER"
         log "TARGET_UID=$TARGET_UID"
         bash "$SCRIPT_DIR/phase5-ardour-startup.sh"
-        log "Script phase5-ardour-startup.sh completato"
+        log "Script phase5-ardour-startup.sh completed"
     else
-        error "Script phase5-ardour-startup.sh non trovato"
+        error "Script phase5-ardour-startup.sh not found"
         exit 1
     fi
 }
 
-# Fase 6: Final System Report
+# Phase 6: Final System Report
 phase6_final_report() {
-    log "=== FASE 6: FINAL SYSTEM REPORT ==="
+    log "=== PHASE 6: FINAL SYSTEM REPORT ==="
     
     if [[ -f "$SCRIPT_DIR/phase6-final-report.sh" ]]; then
         bash "$SCRIPT_DIR/phase6-final-report.sh"
     else
-        error "Script phase6-final-report.sh non trovato"
+        error "Script phase6-final-report.sh not found"
         exit 1
     fi
 }
 
-# Fase 6: CPU affinity & resource allocation
+# Phase 6: CPU affinity & resource allocation
 phase6_cpu_affinity() {
-    log "=== FASE 6: CPU AFFINITY & RESOURCE ALLOCATION ==="
+    log "=== PHASE 6: CPU AFFINITY & RESOURCE ALLOCATION ==="
     
     if [[ -f "$SCRIPT_DIR/phase6-cpu-affinity.sh" ]]; then
         bash "$SCRIPT_DIR/phase6-cpu-affinity.sh"
     else
-        error "Script phase6-cpu-affinity.sh non trovato"
+        error "Script phase6-cpu-affinity.sh not found"
         exit 1
     fi
 }
 
-# Fase 7: System verification & monitoring
+# Phase 7: System verification & monitoring
 phase7_verification() {
-    log "=== FASE 7: SYSTEM VERIFICATION & MONITORING ==="
+    log "=== PHASE 7: SYSTEM VERIFICATION & MONITORING ==="
     
     if [[ -f "$SCRIPT_DIR/phase7-verification.sh" ]]; then
         bash "$SCRIPT_DIR/phase7-verification.sh"
     else
-        error "Script phase7-verification.sh non trovato"
+        error "Script phase7-verification.sh not found"
         exit 1
     fi
 }
 
-# Fase 8: Final system state
+# Phase 8: Final system state
 phase8_final_state() {
-    log "=== FASE 8: FINAL SYSTEM STATE & OPERATIONAL READINESS ==="
+    log "=== PHASE 8: FINAL SYSTEM STATE & OPERATIONAL READINESS ==="
     
     if [[ -f "$SCRIPT_DIR/phase8-final-state.sh" ]]; then
         bash "$SCRIPT_DIR/phase8-final-state.sh"
     else
-        error "Script phase8-final-state.sh non trovato"
+        error "Script phase8-final-state.sh not found"
         exit 1
     fi
 }
 
-# Funzione principale
+# Main function
 main() {
-    log "Avvio OLMS Startup Orchestrator v2.0"
+    log "Starting OLMS Startup Orchestrator v2.0"
     log "Script directory: $SCRIPT_DIR"
     log "Log file: $LOG_FILE"
-    log "Modalità di avvio: $MODE"
+    log "Startup mode: $MODE"
     
-    # Verifica comandi necessari
+    # Verify necessary commands
     check_command "pgrep"
     check_command "pkill"
     check_command "kill"
@@ -362,47 +548,47 @@ main() {
     check_command "chrt"
     check_command "sysctl"
     
-    # Verifica lock file
+    # Check lock file
     check_lock
     
-    # Esegui fasi in base alla modalità
+    # Execute phases based on mode
     if [[ "$MODE" == "test" ]]; then
-        log "=== MODALITÀ TEST: Avvio completo con interfaccia grafica ==="
+        log "=== TEST MODE: Complete startup with graphical interface ==="
         phase0_pre_startup
         phase1_rt_optimization
         phase2_jack_init
         phase3_jack_init_fixed
         phase4_x11_setup
-        # Passa la modalità alla fase 5
+        # Pass mode to phase 5
         export OLMS_MODE="test"
         phase5_ardour_startup
     else
-        log "=== MODALITÀ HEADLESS: Avvio senza interfaccia grafica ==="
+        log "=== HEADLESS MODE: Startup without graphical interface ==="
         phase0_pre_startup
         phase1_rt_optimization
         phase2_jack_init
         phase3_jack_init_fixed
-        # Avvia Ardour in modalità headless (senza interfaccia grafica)
+        # Start Ardour in headless mode (without graphical interface)
         export OLMS_MODE="headless"
         phase5_ardour_startup
     fi
     phase6_final_report
     
-    log "=== STARTUP COMPLETATO CON SUCCESSO ==="
+    log "=== STARTUP COMPLETED SUCCESSFULLY ==="
     if [[ "$MODE" == "test" ]]; then
-        log "OLMS è pronto per l'uso audio real-time con interfaccia grafica"
+        log "OLMS is ready for real-time audio use with graphical interface"
     else
-        log "OLMS è pronto per l'uso audio real-time in modalità headless"
+        log "OLMS is ready for real-time audio use in headless mode"
     fi
     
-    # Rimuovi trap di cleanup poiché l'esecuzione è completata con successo
+    # Remove cleanup trap since execution completed successfully
     trap - EXIT INT TERM
     
-    # Rimuovi lock file
+    # Remove lock file
     rm -f "$LOCK_FILE" "$PID_FILE"
 }
 
-# Esegui main se chiamato direttamente
+# Execute main if called directly
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     main "$@"
 fi

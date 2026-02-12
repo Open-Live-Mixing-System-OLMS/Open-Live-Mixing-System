@@ -520,6 +520,59 @@ The core architecture manages 56 input channels, structured into standard banks 
 │   - Tracks can be disabled per bank │
 └─────────────────────────────────────┘
 
+## 🚀 OLMS Startup Process Overview
+
+The OLMS system implements a comprehensive multi-phase startup process designed for professional real-time audio processing. The startup sequence ensures optimal system configuration, hardware detection, and audio engine initialization.
+
+### Startup Architecture
+
+The startup process follows an 8-phase approach:
+
+1. **Phase 0: Pre-Startup and Process Management**
+   - Audio environment cleanup and process termination
+   - Lock file management and Ardour session handling
+   - USB audio device detection and hardware reset
+
+2. **Phase 1: Real-Time System Optimization**
+   - Kernel parameter configuration (RT runtime allocation)
+   - CPU governor enforcement and power management
+   - Real-time privilege configuration and user group verification
+
+3. **Phase 2: Hardware Configuration**
+   - CPU affinity management and core isolation
+   - Hardware detection and IRQ pinning
+   - System topology optimization
+
+4. **Phase 3: JACK Server Initialization**
+   - Two-phase hardware detection (bit-depth and buffer optimization)
+   - Anti-zombie mode with extended stability monitoring
+   - Socket permission management and connection validation
+
+5. **Phase 4: X11 Environment & Display Management**
+   - Multi-method display detection and XAUTHORITY configuration
+   - Runtime directory management and D-Bus session setup
+   - Graphics environment isolation and headless mode support
+
+6. **Phase 5: Ardour DAW Startup**
+   - Session adaptation and JACK port mapping
+   - User environment transition and process management
+   - Headless operation support with Xvfb
+
+7. **Phase 6: Final System Report**
+   - Comprehensive system verification and technical data extraction
+   - Process status monitoring and performance metrics
+   - Operational readiness assessment
+
+### Key Startup Features
+
+- **Modular Design**: Each phase can be tested and debugged independently
+- **Hardware Agnostic**: Universal compatibility across Linux distributions
+- **Robust Error Handling**: Graceful degradation with fallback mechanisms
+- **Real-Time Optimization**: Comprehensive system tuning for low-latency audio
+- **User-Centric**: Smart user detection for both direct execution and sudo scenarios
+
+For detailed startup process specifications, see: [OLMS_STARTUP_SPECIFICATION.md](./OLMS_STARTUP_SPECIFICATION.md)
+
 ## 🚀 Contributor Setup & Testing Guide
 
 This section provides instructions for contributors who want to test and develop OLMS without the complete automated distribution.

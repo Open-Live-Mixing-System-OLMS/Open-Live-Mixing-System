@@ -1,59 +1,75 @@
+# Copyright (C) 2024 Francesco Nano <tua@email.com>
+# 
+# This file is part of the Open Live Mixing System (OLMS).
+#
+# OLMS is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU General Public License for more details.
+#
+# Created with AI collaboration. Visit: https://openlivemixingsystem.org/
+
 #!/bin/bash
 
-# Fase 0.1: Lock File Management & Process Cleanup
-# Versione: 2.0
+# Phase 0.1: Lock File Management & Process Cleanup
+# Version: 2.0
 
 set -euo pipefail
 
-# Configurazione
+# Configuration
 OLMS_HOME="$HOME/.olms"
 mkdir -p "$OLMS_HOME"
 LOCK_FILE="$OLMS_HOME/olms-startup.lock"
 PID_FILE="$OLMS_HOME/olms-startup.pid"
 LOG_FILE="$OLMS_HOME/olms-orchestrator.log"
-STALE_TIMEOUT=10  # secondi
+STALE_TIMEOUT=10  # seconds
 
-# Colori
+# Colors
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m'
 
 log() {
-    # Controlla se possiamo scrivere nel file di log
+    # Check if we can write to the log file
     if [[ -w "$LOG_FILE" ]] || [[ ! -f "$LOG_FILE" ]]; then
         echo -e "${GREEN}[$(date '+%Y-%m-%d %H:%M:%S')]${NC} $1" | tee -a "$LOG_FILE"
     else
-        # Se non possiamo scrivere nel file di log, scriviamo solo su stdout
+        # If we can't write to the log file, write only to stdout
         echo -e "${GREEN}[$(date '+%Y-%m-%d %H:%M:%S')]${NC} $1"
-        warn "Impossibile scrivere nel file di log $LOG_FILE (permesso negato)"
+        warn "Unable to write to log file $LOG_FILE (permission denied)"
     fi
 }
 
 warn() {
-    # Controlla se possiamo scrivere nel file di log
+    # Check if we can write to the log file
     if [[ -w "$LOG_FILE" ]] || [[ ! -f "$LOG_FILE" ]]; then
         echo -e "${YELLOW}[$(date '+%Y-%m-%d %H:%M:%S')] WARNING:${NC} $1" | tee -a "$LOG_FILE"
     else
-        # Se non possiamo scrivere nel file di log, scriviamo solo su stdout
+        # If we can't write to the log file, write only to stdout
         echo -e "${YELLOW}[$(date '+%Y-%m-%d %H:%M:%S')] WARNING:${NC} $1"
     fi
 }
 
 error() {
-    # Controlla se possiamo scrivere nel file di log
+    # Check if we can write to the log file
     if [[ -w "$LOG_FILE" ]] || [[ ! -f "$LOG_FILE" ]]; then
         echo -e "${RED}[$(date '+%Y-%m-%d %H:%M:%S')] ERROR:${NC} $1" | tee -a "$LOG_FILE"
     else
-        # Se non possiamo scrivere nel file di log, scriviamo solo su stdout
+        # If we can't write to the log file, write only to stdout
         echo -e "${RED}[$(date '+%Y-%m-%d %H:%M:%S')] ERROR:${NC} $1"
     fi
 }
 
-# Verifica staleness del lock file
+# Verify lock file staleness
 check_lock_staleness() {
     if [[ ! -f "$LOCK_FILE" ]]; then
-        log "Nessun lock file esistente"
+        log "No existing lock file"
         return 0
     fi
     
@@ -61,203 +77,203 @@ check_lock_staleness() {
     local current_time=$(date +%s)
     local age=$((current_time - lock_mtime))
     
-    log "Lock file esistente, età: ${age}s (timeout: ${STALE_TIMEOUT}s)"
+    log "Existing lock file, age: ${age}s (timeout: ${STALE_TIMEOUT}s)"
     
     if [[ $age -gt $STALE_TIMEOUT ]]; then
-        warn "Lock file considerato stale (> ${STALE_TIMEOUT}s)"
-        # Rimuovi il lock file stale
+        warn "Lock file considered stale (> ${STALE_TIMEOUT}s)"
+        # Remove the stale lock file
         rm -f "$LOCK_FILE"
-        return 0  # Procedi con cleanup
+        return 0  # Proceed with cleanup
     fi
     
-    # Verifica se il PID è ancora attivo
+    # Verify if the PID is still active
     local lock_pid=$(cat "$LOCK_FILE" 2>/dev/null || echo "")
     if [[ -n "$lock_pid" ]] && kill -0 "$lock_pid" 2>/dev/null; then
-        warn "Lock file con PID $lock_pid ancora attivo, rimozione forzata"
-        # Forza la rimozione del lock file anche se il PID è attivo
-        # Questo può succedere se il processo è zombie o se c'è un bug
+        warn "Lock file with PID $lock_pid still active, forced removal"
+        # Force removal of the lock file even if the PID is active
+        # This can happen if the process is zombie or if there's a bug
         rm -f "$LOCK_FILE"
         return 0
     fi
     
-    # Se il PID non è attivo, rimuovi il lock file "morto"
+    # If the PID is not active, remove the "dead" lock file
     if [[ -n "$lock_pid" ]]; then
-        warn "Lock file con PID $lock_pid non più attivo, rimozione lock file"
+        warn "Lock file with PID $lock_pid no longer active, removing lock file"
         rm -f "$LOCK_FILE"
     fi
     
     return 0
 }
 
-# Terminazione processi startup script
+# Terminate startup script processes
 terminate_startup_processes() {
-    log "Terminazione processi startup script esistenti..."
+    log "Terminating existing startup script processes..."
     
-    # Trova tutti i processi bash che contengono "olms-startup"
+    # Find all bash processes containing "olms-startup"
     local startup_pids=$(pgrep -f "olms-startup" 2>/dev/null || true)
     
     if [[ -z "$startup_pids" ]]; then
-        log "Nessun processo startup trovato"
+        log "No startup process found"
         return 0
     fi
     
-    log "Processi startup trovati: $startup_pids"
+    log "Startup processes found: $startup_pids"
     
-    # Fase 1: SIGTERM (grazioso)
-    log "Invio SIGTERM ai processi startup..."
+    # Phase 1: SIGTERM (graceful)
+    log "Sending SIGTERM to startup processes..."
     for pid in $startup_pids; do
         if kill -TERM "$pid" 2>/dev/null; then
-            log "SIGTERM inviato a PID $pid"
+            log "SIGTERM sent to PID $pid"
         else
-            warn "Impossibile inviare SIGTERM a PID $pid"
+            warn "Unable to send SIGTERM to PID $pid"
         fi
     done
     
     sleep 2
     
-    # Fase 2: SIGKILL (forzato)
-    log "Invio SIGKILL ai processi rimanenti..."
+    # Phase 2: SIGKILL (forced)
+    log "Sending SIGKILL to remaining processes..."
     local remaining_pids=$(pgrep -f "olms-startup" 2>/dev/null || true)
     for pid in $remaining_pids; do
         if kill -KILL "$pid" 2>/dev/null; then
-            log "SIGKILL inviato a PID $pid"
+            log "SIGKILL sent to PID $pid"
         else
-            warn "Impossibile inviare SIGKILL a PID $pid"
+            warn "Unable to send SIGKILL to PID $pid"
         fi
     done
     
     sleep 1
     
-    # Verifica finale
+    # Final verification
     local final_pids=$(pgrep -f "olms-startup" 2>/dev/null || true)
     if [[ -n "$final_pids" ]]; then
-        warn "Alcuni processi startup non sono stati terminati: $final_pids"
+        warn "Some startup processes were not terminated: $final_pids"
     else
-        log "Tutti i processi startup sono stati terminati"
+        log "All startup processes have been terminated"
     fi
 }
 
 # Cleanup Ardour sessions
 cleanup_ardour_sessions() {
-    log "Cleanup sessioni Ardour esistenti..."
+    log "Cleaning up existing Ardour sessions..."
     
-    # Usa pgrep -x per evitare falsi positivi (es. editor di testo che apre file con "ardour" nel nome)
+    # Use pgrep -x to avoid false positives (e.g., text editor opening files with "ardour" in the name)
     local ardour_pids=$(pgrep -x "ardour" 2>/dev/null || true)
     
     if [[ -z "$ardour_pids" ]]; then
-        log "Nessuna sessione Ardour in esecuzione"
+        log "No Ardour session running"
         return 0
     fi
     
-    log "Sessioni Ardour trovate: $ardour_pids"
+    log "Ardour sessions found: $ardour_pids"
     
-    # Verifica se Ardour è già in esecuzione e se è la stessa sessione che stiamo per avviare
+    # Verify if Ardour is already running and if it's the same session we're about to start
     local current_session=$(ps -o pid,cmd -p $(pgrep -x ardour) 2>/dev/null | grep -v grep || true)
     if [[ -n "$current_session" ]]; then
-        log "Ardour è già in esecuzione con una sessione attiva"
-        # Controlla se è la stessa sessione che stiamo per avviare
+        log "Ardour is already running with an active session"
+        # Check if it's the same session we're about to start
         local session_path="$HOME/.olms/sessions/OLMS-POC"
         if [[ -f "$session_path/OLMS-POC.pending" ]]; then
-            log "Sessione OLMS-POC già in esecuzione - saltando cleanup"
+            log "OLMS-POC session already running - skipping cleanup"
             return 0
         fi
     fi
     
-    # Procedi con il cleanup solo se non è la stessa sessione
-    # Tentativo di salvataggio delle sessioni (se possibile)
-    log "Tentativo di salvataggio sessioni Ardour..."
+    # Proceed with cleanup only if it's not the same session
+    # Attempt to save sessions (if possible)
+    log "Attempting to save Ardour sessions..."
     for pid in $ardour_pids; do
-        # Verifica che il PID esista prima di inviare il segnale
+        # Verify that the PID exists before sending the signal
         if kill -0 "$pid" 2>/dev/null; then
-            # Invia SIGUSR1 per salvataggio (se supportato)
+            # Send SIGUSR1 for saving (if supported)
             if kill -USR1 "$pid" 2>/dev/null; then
-                log "Richiesta salvataggio inviata a Ardour PID $pid"
+                log "Save request sent to Ardour PID $pid"
             else
-                warn "Impossibile inviare segnale di salvataggio a Ardour PID $pid"
+                warn "Unable to send save signal to Ardour PID $pid"
             fi
         else
-            log "Ardour PID $pid non più attivo (terminato tra il rilevamento e il salvataggio)"
+            log "Ardour PID $pid no longer active (terminated between detection and saving)"
         fi
     done
     
     sleep 3
     
-    # Terminazione forzata con verifica dello stato
-    log "Terminazione forzata sessioni Ardour..."
+    # Forced termination with status verification
+    log "Forced termination of Ardour sessions..."
     for pid in $ardour_pids; do
-        # Verifica che il PID esista prima di tentare la terminazione
+        # Verify that the PID exists before attempting termination
         if kill -0 "$pid" 2>/dev/null; then
             if kill -9 "$pid" 2>/dev/null; then
-                log "Ardour PID $pid terminato"
+                log "Ardour PID $pid terminated"
             else
-                warn "Errore durante il kill di Ardour PID $pid"
+                warn "Error during kill of Ardour PID $pid"
             fi
         else
-            log "Ardour PID $pid già terminato (nessuna azione necessaria)"
+            log "Ardour PID $pid already terminated (no action needed)"
         fi
     done
     
     sleep 2
     
-    # Verifica finale con timeout
+    # Final verification with timeout
     local max_attempts=5
     local attempt=1
     while [[ $attempt -le $max_attempts ]]; do
         local remaining_ardour=$(pgrep -x "ardour" 2>/dev/null || true)
         if [[ -z "$remaining_ardour" ]]; then
-            log "Tutte le sessioni Ardour sono state terminate"
+            log "All Ardour sessions have been terminated"
             return 0
         fi
         
         if [[ $attempt -eq $max_attempts ]]; then
-            warn "Timeout: alcune sessioni Ardour non sono state terminate dopo $max_attempts tentativi: $remaining_ardour"
-            warn "Procedura di startup continuerà ma potrebbero esserci conflitti"
+            warn "Timeout: some Ardour sessions were not terminated after $max_attempts attempts: $remaining_ardour"
+            warn "Startup procedure will continue but there might be conflicts"
             return 1
         fi
         
-        log "Tentativo $attempt/$max_attempts: sessioni Ardour rimanenti: $remaining_ardour"
+        log "Attempt $attempt/$max_attempts: remaining Ardour sessions: $remaining_ardour"
         sleep 1
         ((attempt++))
     done
 }
 
-# Pulizia file temporanei
+# Clean temporary files
 cleanup_temp_files() {
-    log "Pulizia file temporanei..."
+    log "Cleaning temporary files..."
     
-    # Rimuovi file lock esistenti
+    # Remove existing lock files
     rm -f "$LOCK_FILE" "$PID_FILE"
     
-    # Rimuovi file temporanei specifici
+    # Remove specific temporary files
     rm -f /tmp/olms-*.tmp
     rm -f /tmp/jack-*.tmp
     
-    log "File temporanei puliti"
+    log "Temporary files cleaned"
 }
 
-# Funzione principale
+# Main function
 main() {
-    log "=== FASE 0.1: LOCK FILE MANAGEMENT & PROCESS CLEANUP ==="
+    log "=== PHASE 0.1: LOCK FILE MANAGEMENT & PROCESS CLEANUP ==="
     
-    # Verifica staleness
+    # Verify staleness
     check_lock_staleness
     
-    # Terminazione processi
+    # Process termination
     terminate_startup_processes
     
-    # Cleanup Ardour
+    # Ardour cleanup
     cleanup_ardour_sessions
     
-    # Pulizia file
+    # File cleanup
     cleanup_temp_files
     
-    # Crea il lock file per questa esecuzione (dopo il cleanup)
+    # Create the lock file for this execution (after cleanup)
     echo $$ > "$LOCK_FILE"
     
-    log "Lock file management completato"
+    log "Lock file management completed"
 }
 
-# Esegui se chiamato direttamente
+# Execute if called directly
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     main "$@"
 fi

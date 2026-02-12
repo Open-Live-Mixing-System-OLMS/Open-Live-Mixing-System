@@ -1,24 +1,40 @@
+# Copyright (C) 2024 Francesco Nano <tua@email.com>
+# 
+# This file is part of the Open Live Mixing System (OLMS).
+#
+# OLMS is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU General Public License for more details.
+#
+# Created with AI collaboration. Visit: https://openlivemixingsystem.org/
+
 #!/bin/bash
 
-# Fase 5: Avvio di Ardour - FIX PARSING prlimit
+# Phase 5: Ardour Startup - FIX PARSING prlimit
 set -euo pipefail
 
-# Configurazione logging
+# Logging configuration
 LOG_FILE="/tmp/olms-ardour-startup.log"
-# FIX: Assicurati che il file di log sia scrivibile da tutti per evitare Permission Denied
+# FIX: Ensure log file is writable by all to avoid Permission Denied
 touch "$LOG_FILE"
 chmod 666 "$LOG_FILE" 2>/dev/null || true
 exec > >(tee -a "$LOG_FILE")
 exec 2>&1
 
-# Variabili universali per architettura CPU dinamica
+# Universal variables for dynamic CPU architecture
 TOTAL_CORES=$(nproc)
 LAST_CORE=$((TOTAL_CORES - 1))
 SYSTEM_CORE="0"
 IRQ_CORE="1"
 AUDIO_CORES="2-$LAST_CORE"
 
-# Variabili JACK/D-Bus/X11
+# JACK/D-Bus/X11 variables
 JACK_SERVER_NAME="olms"
 JACK_SESSION_DIR="/dev/shm/jack_olms_0"
 JACK_SOCKET_DIR="/dev/shm/jack_olms_0"
@@ -28,55 +44,55 @@ DISPLAY=":0"
 CPU_CORES="$AUDIO_CORES"
 RT_PRIORITY=70
 
-# Funzioni di logging (per coerenza con altri script)
+# Logging functions (consistent with other scripts)
 log() { echo -e "\e[32m[$(date '+%Y-%m-%d %H:%M:%S')]\e[0m $1"; }
 warn() { echo -e "\e[33m[$(date '+%Y-%m-%d %H:%M:%S')] WARN:\e[0m $1"; }
 error() { echo -e "\e[31m[$(date '+%Y-%m-%d %H:%M:%S')] ERROR:\e[0m $1"; }
 
-# Variabili di configurazione universale
-# Rileva l'utente effettivo (quello che ha lanciato sudo) con logica robusta
-# 1. Prova con SUDO_USER (se disponibile)
+# Universal configuration variables
+# Detect the effective user (the one who launched sudo) with robust logic
+# 1. Try with SUDO_USER (if available)
 if [[ -n "${SUDO_USER:-}" ]] && [[ "$SUDO_USER" != "root" ]]; then
     EFFECTIVE_USER="$SUDO_USER"
     EFFECTIVE_HOME=$(eval echo ~$SUDO_USER)
-    log "Utente rilevato da SUDO_USER: $EFFECTIVE_USER (HOME: $EFFECTIVE_HOME)"
-# 2. Prova con TARGET_USER (passato dall'orchestrator)
+    log "User detected from SUDO_USER: $EFFECTIVE_USER (HOME: $EFFECTIVE_HOME)"
+# 2. Try with TARGET_USER (passed from orchestrator)
 elif [[ -n "${TARGET_USER:-}" ]] && [[ "$TARGET_USER" != "root" ]]; then
     EFFECTIVE_USER="$TARGET_USER"
     EFFECTIVE_HOME=$(eval echo ~$TARGET_USER)
-    log "Utente rilevato da TARGET_USER: $EFFECTIVE_USER (HOME: $EFFECTIVE_HOME)"
-# 3. Prova con loginuid (metodo robusto per processi lanciati con sudo)
+    log "User detected from TARGET_USER: $EFFECTIVE_USER (HOME: $EFFECTIVE_HOME)"
+# 3. Try with loginuid (robust method for processes launched with sudo)
 elif [[ -f "/proc/$PPID/loginuid" ]]; then
     LOGINUID=$(cat "/proc/$PPID/loginuid" 2>/dev/null)
     if [[ -n "$LOGINUID" ]] && [[ "$LOGINUID" != "4294967295" ]] && [[ "$LOGINUID" != "0" ]]; then
         EFFECTIVE_USER=$(getent passwd "$LOGINUID" | cut -d: -f1)
         if [[ -n "$EFFECTIVE_USER" ]] && [[ "$EFFECTIVE_USER" != "root" ]]; then
             EFFECTIVE_HOME=$(eval echo ~$EFFECTIVE_USER)
-            log "Utente rilevato da loginuid: $EFFECTIVE_USER (HOME: $EFFECTIVE_HOME)"
+            log "User detected from loginuid: $EFFECTIVE_USER (HOME: $EFFECTIVE_HOME)"
         else
             EFFECTIVE_USER="$(whoami)"
             EFFECTIVE_HOME="$HOME"
-            log "Utente rilevato da whoami (fallback): $EFFECTIVE_USER (HOME: $EFFECTIVE_HOME)"
+            log "User detected from whoami (fallback): $EFFECTIVE_USER (HOME: $EFFECTIVE_HOME)"
         fi
     else
         EFFECTIVE_USER="$(whoami)"
         EFFECTIVE_HOME="$HOME"
-        log "Utente rilevato da whoami (fallback): $EFFECTIVE_USER (HOME: $EFFECTIVE_HOME)"
+        log "User detected from whoami (fallback): $EFFECTIVE_USER (HOME: $EFFECTIVE_HOME)"
     fi
-# 4. Fallback finale
+# 4. Final fallback
 else
     EFFECTIVE_USER="$(whoami)"
     EFFECTIVE_HOME="$HOME"
-    log "Utente rilevato da whoami (fallback): $EFFECTIVE_USER (HOME: $EFFECTIVE_HOME)"
+    log "User detected from whoami (fallback): $EFFECTIVE_USER (HOME: $EFFECTIVE_HOME)"
 fi
 
-# Verifica che l'utente effettivo non sia root (a meno che non sia intenzionale)
+# Verify that the effective user is not root (unless intentional)
 if [[ "$EFFECTIVE_USER" == "root" ]] && [[ "${OLMS_MODE:-}" != "headless" ]]; then
-    warn "⚠️ Utente effettivo è root - verificare che sia intenzionale"
-    warn "💡 Se si esegue con sudo, verificare che SUDO_USER sia impostato correttamente"
+    warn "⚠️ Effective user is root - verify that this is intentional"
+    warn "💡 If running with sudo, verify that SUDO_USER is set correctly"
 fi
 
-# Variabili di configurazione
+# Configuration variables
 ARD_SESSION_PATH="$EFFECTIVE_HOME/Progetti/OLMS-Core/engine/session-template/OLMS-POC/OLMS-POC.ardour"
 ARD_SESSION_DIR="$EFFECTIVE_HOME/Progetti/OLMS-Core/engine/session-template/OLMS-POC"
 ARD_USER="$EFFECTIVE_USER"
@@ -84,54 +100,54 @@ ARD_UID=$(id -u "$EFFECTIVE_USER" 2>/dev/null || echo "$(id -u)")
 ACTUAL_UID=$(id -u "$EFFECTIVE_USER" 2>/dev/null || echo "$(id -u)")
 ARD_HOME="$EFFECTIVE_HOME"
 
-# Variabili per l'adattamento sessione
+# Variables for session adaptation
 JACK_SERVER_NAME="olms"
 SESSION_BACKUP_PATH="${ARD_SESSION_PATH}.backup"
 SESSION_TEMP_PATH="${ARD_SESSION_PATH}.temp"
 
-# Funzioni di logging (per coerenza con altri script)
+# Logging functions (consistent with other scripts)
 log() { echo -e "\e[32m[$(date '+%Y-%m-%d %H:%M:%S')]\e[0m $1"; }
 warn() { echo -e "\e[33m[$(date '+%Y-%m-%d %H:%M:%S')] WARN:\e[0m $1"; }
 error() { echo -e "\e[31m[$(date '+%Y-%m-%d %H:%M:%S')] ERROR:\e[0m $1"; }
 
-# Funzioni di adattamento sessione Ardour
+# Ardour session adaptation functions
 detect_jack_ports() {
-    log "🔍 Rilevamento porte JACK disponibili per il server '$JACK_SERVER_NAME'..."
+    log "🔍 Detecting available JACK ports for server '$JACK_SERVER_NAME'..."
     
-    # Configurazione ambiente completa (come nel latency test)
+    # Complete environment configuration (like in latency test)
     local base_env="PATH=/usr/local/sbin:/usr/local/bin:/usr/bin:/bin JACK_DEFAULT_SERVER=$JACK_SERVER_NAME JACK_PROMISCUOUS_SERVER=1 JACK_NO_START_SERVER=1"
     
-    # Primo tentativo: rileva le porte JACK disponibili con ambiente completo
+    # First attempt: detect available JACK ports with complete environment
     local available_ports
     available_ports=$(sudo -u "$ARD_USER" env $base_env jack_lsp 2>/dev/null | grep "^system:" | sort)
     
     if [ -z "$available_ports" ]; then
-        warn "⚠️ Nessuna porta JACK trovata per il server '$JACK_SERVER_NAME' con jack_lsp"
-        warn "💡 JACK è stabile ma jack_lsp non riesce a vedere le porte (problema comune con schede economiche)"
+        warn "⚠️ No JACK ports found for server '$JACK_SERVER_NAME' with jack_lsp"
+        warn "💡 JACK is stable but jack_lsp cannot see ports (common issue with budget cards)"
         
-        # Secondo tentativo: prova con ambiente semplificato
-        log "🔧 Tentativo con ambiente semplificato..."
+        # Second attempt: try with simplified environment
+        log "🔧 Attempt with simplified environment..."
         available_ports=$(sudo -u "$ARD_USER" env JACK_DEFAULT_SERVER=$JACK_SERVER_NAME JACK_PROMISCUOUS_SERVER=1 JACK_NO_START_SERVER=1 jack_lsp 2>/dev/null | grep "^system:" | sort)
         
         if [ -z "$available_ports" ]; then
-            warn "⚠️ Ancora nessuna porta trovata con ambiente semplificato"
+            warn "⚠️ Still no ports found with simplified environment"
             
-            # Terzo tentativo: prova senza JACK_NO_START_SERVER
-            log "🔧 Tentativo senza JACK_NO_START_SERVER..."
+            # Third attempt: try without JACK_NO_START_SERVER
+            log "🔧 Attempt without JACK_NO_START_SERVER..."
             available_ports=$(sudo -u "$ARD_USER" env JACK_DEFAULT_SERVER=$JACK_SERVER_NAME JACK_PROMISCUOUS_SERVER=1 jack_lsp 2>/dev/null | grep "^system:" | sort)
             
             if [ -z "$available_ports" ]; then
-                warn "⚠️ Nessuna porta JACK trovata con nessun metodo"
-                warn "🔧 Utilizzo porte predefinite per scheda audio standard..."
+                warn "⚠️ No JACK ports found with any method"
+                warn "🔧 Using default ports for standard audio card..."
                 
-                # Fallback: porte predefinite per schede audio standard
+                # Fallback: default ports for standard audio cards
                 export JACK_CAPTURE_PORTS="system:capture_1"
                 export JACK_PLAYBACK_PORTS="system:playback_1
 system:playback_2"
                 export CAPTURE_COUNT=1
                 export PLAYBACK_COUNT=2
                 
-                log "✅ Porte predefinite impostate:"
+                log "✅ Default ports set:"
                 log "  - Capture: system:capture_1"
                 log "  - Playback 1: system:playback_1"
                 log "  - Playback 2: system:playback_2"
@@ -141,143 +157,143 @@ system:playback_2"
         fi
     fi
     
-    log "✅ Porte JACK disponibili trovate:"
+    log "✅ Available JACK ports found:"
     echo "$available_ports" | while read -r port; do
         log "  - $port"
     done
     
-    # Salva le porte disponibili in variabili globali
+    # Save available ports in global variables
     export JACK_CAPTURE_PORTS=$(echo "$available_ports" | grep "capture" | head -10)
     export JACK_PLAYBACK_PORTS=$(echo "$available_ports" | grep "playback" | head -10)
     
-    # Conta le porte disponibili
+    # Count available ports
     export CAPTURE_COUNT=$(echo "$JACK_CAPTURE_PORTS" | wc -l)
     export PLAYBACK_COUNT=$(echo "$JACK_PLAYBACK_PORTS" | wc -l)
     
-    log "Porte disponibili: $CAPTURE_COUNT capture, $PLAYBACK_COUNT playback"
+    log "Available ports: $CAPTURE_COUNT capture, $PLAYBACK_COUNT playback"
     
     return 0
 }
 
 backup_session() {
-    log "📁 Creazione backup sessione Ardour..."
+    log "📁 Creating Ardour session backup..."
     
     if [ -f "$ARD_SESSION_PATH" ]; then
         sudo -u $(whoami) cp "$ARD_SESSION_PATH" "$SESSION_BACKUP_PATH"
         if [ $? -eq 0 ]; then
-            log "✅ Backup sessione creato: $SESSION_BACKUP_PATH"
+            log "✅ Session backup created: $SESSION_BACKUP_PATH"
             return 0
         else
-            error "Impossibile creare il backup della sessione"
+            error "Unable to create session backup"
             return 1
         fi
     else
-        error "File sessione non trovato: $ARD_SESSION_PATH"
+        error "Session file not found: $ARD_SESSION_PATH"
         return 1
     fi
 }
 
 validate_port_mapping() {
-    log "✅ Validazione mappatura porte..."
+    log "✅ Validating port mapping..."
     
-    # Controlla che ci siano abbastanza porte per la sessione
-    local required_capture=1  # Audio 1 richiede 1 porta capture
-    local required_playback=2 # Master e Click richiedono 2 porte playback
+    # Check that there are enough ports for the session
+    local required_capture=1  # Audio 1 requires 1 capture port
+    local required_playback=2 # Master and Click require 2 playback ports
     
     if [ "$CAPTURE_COUNT" -lt "$required_capture" ]; then
-        error "Porte capture insufficienti: necessarie $required_capture, disponibili $CAPTURE_COUNT"
+        error "Insufficient capture ports: required $required_capture, available $CAPTURE_COUNT"
         return 1
     fi
     
     if [ "$PLAYBACK_COUNT" -lt "$required_playback" ]; then
-        error "Porte playback insufficienti: necessarie $required_playback, disponibili $PLAYBACK_COUNT"
+        error "Insufficient playback ports: required $required_playback, available $PLAYBACK_COUNT"
         return 1
     fi
     
-    log "✅ Validazione superata: porte sufficienti per la sessione"
+    log "✅ Validation passed: sufficient ports for session"
     return 0
 }
 
 adapt_session_to_ports() {
-    log "🔧 Adattamento sessione Ardour alle porte disponibili..."
+    log "🔧 Adapting Ardour session to available ports..."
     
     if ! validate_port_mapping; then
         return 1
     fi
     
-    # Estrai la prima porta capture disponibile
+    # Extract first available capture port
     local capture_port=$(echo "$JACK_CAPTURE_PORTS" | head -1)
-    # Estrai le prime 2 porte playback disponibili
+    # Extract first 2 available playback ports
     local playback_port_1=$(echo "$JACK_PLAYBACK_PORTS" | head -1)
     local playback_port_2=$(echo "$JACK_PLAYBACK_PORTS" | sed -n '2p')
     
-    log "Mappatura porte:"
+    log "Port mapping:"
     log "  Capture: system:capture_1 → $capture_port"
     log "  Playback 1: system:playback_1 → $playback_port_1"
     log "  Playback 2: system:playback_2 → $playback_port_2"
     
-    # Crea il file temporaneo con le sostituzioni come utente $(whoami)
+    # Create temporary file with substitutions as user $(whoami)
     sudo -u $(whoami) cp "$ARD_SESSION_PATH" "$SESSION_TEMP_PATH"
     
-    # Sostituzione delle connessioni JACK nel file XML come utente $(whoami)
-    # Usiamo sed per sostituire i pattern specifici
+    # Substitute JACK connections in XML file as user $(whoami)
+    # Use sed to replace specific patterns
     sudo -u $(whoami) sed -i "s/other=\"system:capture_1\"/other=\"$capture_port\"/g" "$SESSION_TEMP_PATH"
     sudo -u $(whoami) sed -i "s/other=\"system:playback_1\"/other=\"$playback_port_1\"/g" "$SESSION_TEMP_PATH"
     sudo -u $(whoami) sed -i "s/other=\"system:playback_2\"/other=\"$playback_port_2\"/g" "$SESSION_TEMP_PATH"
     
-    # Verifica che le sostituzioni siano avvenute correttamente
+    # Verify substitutions were made correctly
     local capture_subs=$(grep -c "$capture_port" "$SESSION_TEMP_PATH")
     local playback1_subs=$(grep -c "$playback_port_1" "$SESSION_TEMP_PATH")
     local playback2_subs=$(grep -c "$playback_port_2" "$SESSION_TEMP_PATH")
     
-    log "Sostituzioni effettuate:"
-    log "  Capture: $capture_subs occorrenze"
-    log "  Playback 1: $playback1_subs occorrenze"
-    log "  Playback 2: $playback2_subs occorrenze"
+    log "Substitutions made:"
+    log "  Capture: $capture_subs occurrences"
+    log "  Playback 1: $playback1_subs occurrences"
+    log "  Playback 2: $playback2_subs occurrences"
     
     if [ "$capture_subs" -gt 0 ] && [ "$playback1_subs" -gt 0 ] && [ "$playback2_subs" -gt 0 ]; then
-        log "✅ Sessione adattata correttamente alle porte disponibili"
+        log "✅ Session successfully adapted to available ports"
         return 0
     else
-        error "Sostituzione porte fallita o incompleta"
+        error "Port substitution failed or incomplete"
         return 1
     fi
 }
 
 reload_ardour_session() {
-    log "🔄 Ricaricamento sessione Ardour..."
+    log "🔄 Reloading Ardour session..."
     
-    # Trova il PID di Ardour
+    # Find Ardour PID
     local ardour_pid
     ardour_pid=$(pgrep -f "ardour8.*--no-splash")
     
     if [ -z "$ardour_pid" ]; then
-        error "Impossibile trovare il processo Ardour"
+        error "Unable to find Ardour process"
         return 1
     fi
     
-    log "Ardour in esecuzione (PID: $ardour_pid)"
+    log "Ardour running (PID: $ardour_pid)"
     
-    # Invia segnale di ricarica alla sessione
-    # Ardour non supporta il reload diretto via segnale, quindi dobbiamo riavviarlo
-    log "Riavvio Ardour con sessione aggiornata..."
+    # Send reload signal to session
+    # Ardour doesn't support direct reload via signal, so we need to restart it
+    log "Restarting Ardour with updated session..."
     
-    # Termina Ardour in modo pulito
+    # Terminate Ardour cleanly
     kill -TERM "$ardour_pid" 2>/dev/null || true
     sleep 2
     
-    # Verifica che Ardour sia terminato
+    # Verify Ardour has terminated
     if pgrep -f "ardour8.*--no-splash" > /dev/null; then
-        log "Ardour non si è chiuso correttamente, forzatura terminazione..."
+        log "Ardour did not close properly, forcing termination..."
         kill -KILL "$ardour_pid" 2>/dev/null || true
         sleep 1
     fi
     
-    # Sposta il file temporaneo al posto di quello originale come utente $(whoami)
+    # Move temporary file to original location as user $(whoami)
     sudo -u $(whoami) mv "$SESSION_TEMP_PATH" "$ARD_SESSION_PATH"
     
-    # Riavvia Ardour con la sessione aggiornata
-    log "Riavvio Ardour con sessione adattata..."
+    # Restart Ardour with updated session
+    log "Restarting Ardour with adapted session..."
     
     sudo -u "$ARD_USER" env \
         HOME=$EFFECTIVE_HOME \
@@ -291,37 +307,37 @@ reload_ardour_session() {
         chrt -f "$RT_PRIORITY" \
         /usr/bin/ardour8 --no-splash "$ARD_SESSION_PATH" &
     
-    # Aspetta che Ardour si riavvii
+    # Wait for Ardour to restart
     sleep 3
     
-    # Verifica che Ardour sia di nuovo in esecuzione
+    # Verify Ardour is running again
     if pgrep -f "ardour8.*--no-splash" > /dev/null; then
         local new_ardour_pid=$(pgrep -f "ardour8.*--no-splash")
-        log "✅ Ardour riavviato con sessione adattata (PID: $new_ardour_pid)"
+        log "✅ Ardour restarted with adapted session (PID: $new_ardour_pid)"
         return 0
     else
-        error "Riavvio Ardour fallito"
+        error "Ardour restart failed"
         return 1
     fi
 }
 
-# Controllo modalità headless
+# Headless mode check
 if [[ "${OLMS_MODE:-}" == "headless" ]]; then
-    log "FASE 5: Modalità headless - Configurazione Xvfb e Ardour"
+    log "PHASE 5: Headless mode - Xvfb and Ardour configuration"
 
-    # 1. Pulizia e avvio Xvfb sul display :99
-    # Rimuoviamo eventuali lock residui se il server è crashato in precedenza
+    # 1. Cleanup and start Xvfb on display :99
+    # Remove any residual locks if the server crashed previously
     sudo rm -f /tmp/.X99-lock
     
-    log "Avvio server grafico virtuale (Xvfb) su :99..."
+    log "Starting virtual graphics server (Xvfb) on :99..."
     sudo -u "$ARD_USER" Xvfb :99 -screen 0 1024x768x16 > /dev/null 2>&1 &
     XVFB_PID=$!
     
-    # Aspetta che Xvfb sia pronto
+    # Wait for Xvfb to be ready
     sleep 1
 
-    # 2. Avvio Ardour puntando al display virtuale
-    log "Avvio Ardour su DISPLAY=:99 (Headless)"
+    # 2. Start Ardour pointing to virtual display
+    log "Starting Ardour on DISPLAY=:99 (Headless)"
     
     exec sudo -u "$ARD_USER" env \
         HOME=/home/$(whoami) \
@@ -335,15 +351,15 @@ if [[ "${OLMS_MODE:-}" == "headless" ]]; then
         chrt -f "$RT_PRIORITY" \
         /usr/bin/ardour8 --no-splash "$ARD_SESSION_PATH" &
     
-    # Aspetta un momento per l'inizializzazione
+    # Wait a moment for initialization
     sleep 3
     
-    # 3. Verifica processi
+    # 3. Verify processes
     if pgrep -f "ardour8.*--no-splash" > /dev/null; then
         ardour_pid=$(pgrep -f "ardour8.*--no-splash")
-        log "✅ Ardour (Headless) e Xvfb avviati (Ardour PID: $ardour_pid, Xvfb PID: $XVFB_PID)"
+        log "✅ Ardour (Headless) and Xvfb started (Ardour PID: $ardour_pid, Xvfb PID: $XVFB_PID)"
     else
-        error "ERRORE: Ardour headless non è partito. Controlla i log."
+        error "ERROR: Ardour headless did not start. Check logs."
         kill $XVFB_PID 2>/dev/null
         exit 1
     fi
@@ -351,128 +367,128 @@ if [[ "${OLMS_MODE:-}" == "headless" ]]; then
 fi
 
 check_user_permissions() {
-    log "Verifica permessi utente $ARD_USER..."
+    log "Checking user permissions for $ARD_USER..."
     
-    # Estraiamo il valore SOFT (terzultimo) e HARD (penultimo) per essere sicuri
+    # Extract SOFT (third-to-last) and HARD (second-to-last) values to be sure
     local rtprio_limit=$(sudo -u "$ARD_USER" prlimit --rtprio --pid=$$ --noheadings --output=SOFT)
     local memlock_limit=$(sudo -u "$ARD_USER" prlimit --memlock --pid=$$ --noheadings --output=SOFT)
 
-    log "Rilevato rtprio_limit: $rtprio_limit"
-    log "Rilevato memlock_limit: $memlock_limit"
+    log "Detected rtprio_limit: $rtprio_limit"
+    log "Detected memlock_limit: $memlock_limit"
 
     if [[ "$rtprio_limit" != "unlimited" ]] && [ "$rtprio_limit" -lt 90 ]; then
-        log "ERRORE: rtprio troppo basso ($rtprio_limit)"
+        log "ERROR: rtprio too low ($rtprio_limit)"
         return 1
     fi
     return 0
 }
 
 start_ardour_with_fallback() {
-    log "=== AVVIO ARDOUR ==="
+    log "=== ARDOUR STARTUP ==="
     
-    # Ambiente pulito per l'esecuzione come utente target
+    # Clean environment for execution as target user
     local base_env="DISPLAY=$DISPLAY XAUTHORITY=$XAUTHORITY_PATH XDG_RUNTIME_DIR=/run/user/$ARD_UID DBUS_SESSION_BUS_ADDRESS=unix:abstract=$DBUS_SOCKET_ABSTRACT JACK_DEFAULT_SERVER=$JACK_SERVER_NAME JACK_SESSION_DIR=$JACK_SESSION_DIR JACK_NO_START_SERVER=1 JACK_PROMISCUOUS_SERVER=1"
 
-    log "Esecuzione comando finale..."
-    log "Transizione utente: sudo -u $ARD_USER (UID: $ARD_UID)"
-    log "Ambiente impostato: DISPLAY=$DISPLAY, XAUTHORITY=$XAUTHORITY_PATH"
-    log "Comando: taskset -c $CPU_CORES chrt -f $RT_PRIORITY /usr/bin/ardour8 -Z olms -n $ARD_SESSION_PATH"
+    log "Final command execution..."
+    log "User transition: sudo -u $ARD_USER (UID: $ARD_UID)"
+    log "Environment set: DISPLAY=$DISPLAY, XAUTHORITY=$XAUTHORITY_PATH"
+    log "Command: taskset -c $CPU_CORES chrt -f $RT_PRIORITY /usr/bin/ardour8 -Z olms -n $ARD_SESSION_PATH"
     
-    # Aggiungi esplicitamente il flag -Z (o --jack-server) ad Ardour
+    # Explicitly add the -Z (or --jack-server) flag to Ardour
     sudo -u "$ARD_USER" -E env $base_env taskset -c "$CPU_CORES" chrt -f "$RT_PRIORITY" /usr/bin/ardour8 -Z olms -n "$ARD_SESSION_PATH"
 }
 
-# --- LIVELLO 1: PULIZIA RADICALE E RESET SHM ---
+# --- LEVEL 1: RADICAL CLEANUP AND SHM RESET ---
 fix_shm_permissions_radical() {
-    log "🧹 PULIZIA E FIX SHM: Analisi segmenti condivisi..."
+    log "🧹 CLEANUP AND FIX SHM: Analysis of shared segments..."
 
-    # 1. Identifica se c'è un server JACK attivo e di chi è
+    # 1. Identify if there is an active JACK server and who it belongs to
     local jack_pid=$(pgrep -x "jackd" || echo "")
     
     if [[ -n "$jack_pid" ]]; then
         local jack_user=$(ps -o user= -p "$jack_pid")
-        log "ℹ️ JACK Server attivo (PID: $jack_pid, User: $jack_user)"
+        log "ℹ️ JACK Server active (PID: $jack_pid, User: $jack_user)"
         
-        # Se JACK è root, dobbiamo aprire tutto
+        # If JACK is root, we need to open everything
         if [[ "$jack_user" == "root" ]]; then
-            warn "⚠️ JACK sta girando come ROOT. Applicazione patch permessi aggressiva..."
+            warn "⚠️ JACK is running as ROOT. Applying aggressive permission patch..."
         fi
     else
-        warn "⚠️ Nessun processo JACK trovato. Ardour potrebbe non partire."
+        warn "⚠️ No JACK process found. Ardour might not start."
     fi
 
-    # 2. Fix permessi directory e file standard in /dev/shm
-    # Cerchiamo tutto ciò che assomiglia a JACK
-    log "🔧 Applicazione chmod 777 su /dev/shm/jack*..."
+    # 2. Fix permissions for standard directories and files in /dev/shm
+    # Look for everything that resembles JACK
+    log "🔧 Applying chmod 777 to /dev/shm/jack*..."
     
-    # Questo sblocca le directory come /dev/shm/jack_olms_0
+    # This unlocks directories like /dev/shm/jack_olms_0
     find /dev/shm -name "jack*" -exec chmod 777 {} \; 2>/dev/null || true
     
-    # Fix specifico per i semafori (spesso causa di Permission Denied)
+    # Fix specific for semaphores (often causes Permission Denied)
     chmod 666 /dev/shm/sem.jack* 2>/dev/null || true
     
-    # 3. FIX CRITICO PER POSIX SHM (/dev/shm/jack-*-*)
-    # Il kernel Linux mappa shm_open in /dev/shm.
-    # Se JACK è root (UID 0), crea /dev/shm/jack-0-*.
-    # Ardour (UID 1000) cerca di aprirli.
+    # 3. CRITICAL FIX FOR POSIX SHM (/dev/shm/jack-*-*)
+    # Linux kernel maps shm_open to /dev/shm.
+    # If JACK is root (UID 0), it creates /dev/shm/jack-0-*.
+    # Ardour (UID 1000) tries to open them.
     
-    log "🔧 Ricerca segmenti SHM orfani o bloccati..."
+    log "🔧 Searching for orphaned or blocked SHM segments..."
     for seg in /dev/shm/jack-*-*; do
         if [ -e "$seg" ]; then
-            # Controlla se è di proprietà di root
+            # Check if it's owned by root
             if [ "$(stat -c '%u' "$seg")" -eq 0 ]; then
-                log "🔓 Sblocco segmento ROOT: $seg"
-                chown "$ARD_USER":audio "$seg" 2>/dev/null || true # Tenta il cambio owner
-                chmod 777 "$seg" # Forza lettura/scrittura per tutti
+                log "🔓 Unlocking ROOT segment: $seg"
+                chown "$ARD_USER":audio "$seg" 2>/dev/null || true # Attempt owner change
+                chmod 777 "$seg" # Force read/write for all
             else
                 chmod 777 "$seg"
             fi
         fi
     done
 
-    # 4. Assicuriamoci che la directory del registry esista e sia accessibile
+    # 4. Ensure the registry directory exists and is accessible
     if [ ! -f "/dev/shm/jack-shm-registry" ]; then
-        # A volte JACK crea pipe invece di file, o usa directory diverse
-        warn "File registry non trovato standard, controllo directory alternative..."
+        # Sometimes JACK creates pipes instead of files, or uses different directories
+        warn "Standard registry file not found, checking alternative directories..."
     else
         chmod 666 "/dev/shm/jack-shm-registry"
     fi
 
-    log "✅ Fix permessi completato."
+    log "✅ Permissions fix completed."
 }
 
-# --- LIVELLO 2: WRAPPER NELLA HOME UTENTE (Fix Permission Denied) ---
+# --- LEVEL 2: WRAPPER IN USER HOME (Fix Permission Denied) ---
 create_ardour_wrapper() {
     local wrapper_path="$EFFECTIVE_HOME/.olms_ardour_launcher.sh"
     mkdir -p "$(dirname "$wrapper_path")"
     
-    log "🏗️ Creazione wrapper script (NO-START MODE) in $wrapper_path..." >&2
+    log "🏗️ Creating wrapper script (NO-START MODE) in $wrapper_path..." >&2
     
     cat << EOF > "$wrapper_path"
 #!/bin/bash
 # OLMS Ardour Launcher - Forced Connection Mode
 
-# 1. Variabili d'ambiente per forzare le librerie JACK a non avviare un server
+# 1. Environment variables to force JACK libraries not to start a server
 export JACK_DEFAULT_SERVER="$JACK_SERVER_NAME"
 export JACK_NO_START_SERVER=1
 export JACK_PROMISCUOUS_SERVER=1
 export JACK_SESSION_DIR="/dev/shm/jack_olms_0"
 
-# 2. Variabili Grafiche
+# 2. Graphics Variables
 export DISPLAY=:0
 export XAUTHORITY=$EFFECTIVE_HOME/.Xauthority
 
-# 3. Verifica esistenza Socket prima di partire
+# 3. Verify Socket existence before starting
 if [ ! -S "/dev/shm/jack_olms_0" ]; then
     echo "ERROR: JACK socket not found. Server '$JACK_SERVER_NAME' is not running."
     exit 1
 fi
 
-# 4. Limiti RT
+# 4. RT Limits
 ulimit -r 99
 ulimit -l unlimited
 
-# 5. Lancio ATOMICO
+# 5. ATOMIC Launch
 exec taskset -c $CPU_CORES chrt -f $RT_PRIORITY /usr/bin/ardour8 \\
     --no-splash \\
     "$ARD_SESSION_PATH"
@@ -483,75 +499,75 @@ EOF
     echo "$wrapper_path"
 }
 
-# --- LIVELLO 3: MONITORAGGIO THREAD BREVE ---
+# --- LEVEL 3: BRIEF THREAD MONITORING ---
 monitor_anti_migration_brief() {
     local target_pid=$1
-    log "🛰️ Monitoraggio breve thread Ardour sui Core $AUDIO_CORES (PID: $target_pid)"
+    log "🛰️ Brief monitoring of Ardour threads on Core $AUDIO_CORES (PID: $target_pid)"
     
-    # Monitoraggio breve per 10 secondi durante l'avvio critico
+    # Brief monitoring for 10 seconds during critical startup
     (
         for i in {1..10}; do
-            # Applica pinning a TUTTI i thread correnti
+            # Apply pinning to ALL current threads
             if [ -d "/proc/$target_pid/task" ]; then
                 ls "/proc/$target_pid/task" 2>/dev/null | xargs -I {} taskset -pc "$AUDIO_CORES" {} >/dev/null 2>&1
             fi
             sleep 1
         done
-        log "✅ Monitoraggio breve completato."
+        log "✅ Brief monitoring completed."
     ) &
 }
 
 main() {
-    log "=== FASE 5: STARTUP ARDOUR (Triple-Lock Mode) ==="
+    log "=== PHASE 5: ARDOUR STARTUP (Triple-Lock Mode) ==="
     
-    # 1. Preparazione SHM
+    # 1. SHM Preparation
     fix_shm_permissions_radical
 
-    # 2. Creazione Wrapper (Ora nella Home)
+    # 2. Wrapper Creation (Now in Home)
     local WRAPPER_SCRIPT=$(create_ardour_wrapper)
 
-    # Verifica che il wrapper sia stato creato correttamente
+    # Verify that the wrapper was created correctly
     if [ ! -f "$WRAPPER_SCRIPT" ]; then
-        error "❌ ERRORE: Wrapper script non creato correttamente: $WRAPPER_SCRIPT"
+        error "❌ ERROR: Wrapper script not created correctly: $WRAPPER_SCRIPT"
         exit 1
     fi
 
-    # Aggiungi un piccolo ritardo per assicurare che il file sia completamente scritto
+    # Add a small delay to ensure the file is completely written
     sleep 0.5
 
-    # Verifica i permessi di esecuzione
+    # Verify execution permissions
     if [ ! -x "$WRAPPER_SCRIPT" ]; then
-        warn "⚠️ Wrapper non eseguibile, riparazione permessi..."
+        warn "⚠️ Wrapper not executable, fixing permissions..."
         chmod +x "$WRAPPER_SCRIPT"
     fi
 
-    # 3. Lancio ATOMICO
-    log "🚀 Lancio atomico tramite wrapper..."
-    # Rimuoviamo il -E di sudo per evitare conflitti di variabili, le passiamo nel wrapper
+    # 3. ATOMIC Launch
+    log "🚀 Atomic launch via wrapper..."
+    # Remove the -E from sudo to avoid variable conflicts, pass them in the wrapper
     sudo -u "$ARD_USER" /bin/bash "$WRAPPER_SCRIPT" &
     local ARD_PID=$!
 
-    # Piccolo check per vedere se il wrapper ha almeno avviato bash
+    # Small check to see if the wrapper at least started bash
     sleep 0.2
     if ! ps -p $ARD_PID > /dev/null; then
-        error "❌ Il wrapper bash non è partito correttamente."
+        error "❌ The bash wrapper did not start correctly."
         exit 1
     fi
     
-    # 4. Monitoraggio immediato (Breve)
+    # 4. Immediate Monitoring (Brief)
     monitor_anti_migration_brief "$ARD_PID"
 
-    # 5. Verifica Kernel
+    # 5. Kernel Verification
     sleep 3
     local final_mask=$(taskset -p "$ARD_PID" | awk '{print $NF}')
-    log "📊 VERIFICA FINALE KERNEL: Mask=$final_mask (Target: 0xc)"
+    log "📊 FINAL KERNEL VERIFICATION: Mask=$final_mask (Target: 0xc)"
 
     if [[ "$final_mask" == "f" ]]; then
-        error "❌ ERRORE: Il sistema continua a forzare la maschera 'f'. Possibile override di systemd o cgroups."
+        error "❌ ERROR: The system continues to force mask 'f'. Possible systemd or cgroups override."
         exit 1
     fi
 
-    log "✅ ADATTAMENTO E STARTUP COMPLETATI."
+    log "✅ ADAPTATION AND STARTUP COMPLETED."
 }
 
 main "$@"

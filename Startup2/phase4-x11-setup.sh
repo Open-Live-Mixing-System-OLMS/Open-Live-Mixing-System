@@ -1,25 +1,41 @@
+# Copyright (C) 2024 Francesco Nano <tua@email.com>
+# 
+# This file is part of the Open Live Mixing System (OLMS).
+#
+# OLMS is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU General Public License for more details.
+#
+# Created with AI collaboration. Visit: https://openlivemixingsystem.org/
+
 #!/bin/bash
 
-# Fase 4: X11 Environment & Display Management
-# Versione: 2.0
+# Phase 4: X11 Environment & Display Management
+# Version: 2.0
 
 set -euo pipefail
 
-# Se LOG_FILE non è passato dall'orchestratore, usa un fallback sicuro per l'utente
+# If LOG_FILE is not passed by the orchestrator, use a safe fallback for the user
 LOG_FILE="${LOG_FILE:-/tmp/olms-phase4-${USER}.log}"
 
 XAUTH_FILE=""
 XDG_RUNTIME_DIR=""
 DISPLAY=""
 
-# Colori
+# Colors
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 
-# Funzioni di logging (spostate all'inizio per evitare "command not found")
+# Logging functions (moved to the beginning to avoid "command not found")
 log() {
     echo -e "${GREEN}[$(date '+%Y-%m-%d %H:%M:%S')]${NC} $1" | tee -a "$LOG_FILE"
 }
@@ -38,8 +54,8 @@ info() {
     echo -e "${BLUE}[$(date '+%Y-%m-%d %H:%M:%S')] INFO:${NC} $1" | tee -a "$LOG_FILE"
 }
 
-# Variabili d'ambiente per l'approccio "tutto come stesso utente"
-# Usa le variabili impostate dall'orchestrator
+# Environment variables for the "all as same user" approach
+# Use variables set by the orchestrator
 export TARGET_USER="${TARGET_USER:-$(whoami)}"
 export TARGET_UID="${TARGET_UID:-$(id -u)}"
 export DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$TARGET_UID/bus"
@@ -51,130 +67,130 @@ export JACK_NO_START_SERVER=1
 export JACK_PROMISCUOUS_SERVER=1
 export JACK_SESSION_DIR="/dev/shm/jack-olms-0"
 
-# Aggiunta esplicita per risolvere problemi X11
-log "Configurazione esplicita DISPLAY e XAUTHORITY per risolvere problemi X11..."
+# Explicit addition to solve X11 problems
+log "Explicit configuration of DISPLAY and XAUTHORITY to solve X11 problems..."
 export DISPLAY=":0"
 export XAUTHORITY="${XAUTHORITY:-$HOME/.Xauthority}"
-log "DISPLAY impostato a: $DISPLAY"
-log "XAUTHORITY impostato a: $XAUTHORITY"
+log "DISPLAY set to: $DISPLAY"
+log "XAUTHORITY set to: $XAUTHORITY"
 
-# Rilevamento display avanzato
+# Advanced display detection
 detect_display() {
-    log "Rilevamento display avanzato..."
+    log "Advanced display detection..."
     
-    # Metodo 1: Socket files
-    log "Metodo 1: Ricerca socket X11..."
+    # Method 1: Socket files
+    log "Method 1: Searching X11 socket files..."
     for i in {0..9}; do
         local socket="/tmp/.X11-unix/X$i"
         if [[ -S "$socket" ]]; then
             DISPLAY=":$i"
-            log "Socket X11 trovato: $socket -> DISPLAY=$DISPLAY"
+            log "X11 socket found: $socket -> DISPLAY=$DISPLAY"
             return 0
         fi
     done
     
-    # Metodo 2: xauth entries
-    log "Metodo 2: Rilevamento xauth entries..."
+    # Method 2: xauth entries
+    log "Method 2: Detecting xauth entries..."
     if command -v xauth >/dev/null 2>&1; then
         local xauth_entries=$(xauth list 2>/dev/null || true)
         if [[ -n "$xauth_entries" ]]; then
-            log "Entries xauth trovate:"
+            log "Xauth entries found:"
             echo "$xauth_entries" | while read -r entry; do
                 log "  $entry"
             done
             
-            # Estrai display number
+            # Extract display number
             local display_from_xauth=$(echo "$xauth_entries" | head -1 | awk '{print $1}' | grep -oE ':[0-9]+' || true)
             if [[ -n "$display_from_xauth" ]]; then
                 DISPLAY="$display_from_xauth"
-                log "DISPLAY estratto da xauth: $DISPLAY"
+                log "DISPLAY extracted from xauth: $DISPLAY"
                 return 0
             fi
         fi
     fi
     
-    # Metodo 3: Valori comuni
-    log "Metodo 3: Prova valori comuni..."
+    # Method 3: Common values
+    log "Method 3: Trying common values..."
     local common_displays=(":0" ":1" ":2" ":3")
     for display in "${common_displays[@]}"; do
         if [[ -S "/tmp/.X11-unix/X${display#:}" ]]; then
             DISPLAY="$display"
-            log "DISPLAY trovato: $DISPLAY"
+            log "DISPLAY found: $DISPLAY"
             return 0
         fi
     done
     
-    # Metodo 4: Wayland/XWayland
-    log "Metodo 4: Rilevamento Wayland/XWayland..."
+    # Method 4: Wayland/XWayland
+    log "Method 4: Detecting Wayland/XWayland..."
     if [[ -n "${XDG_RUNTIME_DIR:-}" ]] && [[ -S "$XDG_RUNTIME_DIR/wayland-0" ]]; then
-        log "Sessione Wayland rilevata"
+        log "Wayland session detected"
         
         # Fallback XWayland
         local xwayland_displays=(":0" ":1" ":2")
         for display in "${xwayland_displays[@]}"; do
             if [[ -S "/tmp/.X11-unix/X${display#:}" ]]; then
                 DISPLAY="$display"
-                log "XWayland DISPLAY trovato: $DISPLAY"
+                log "XWayland DISPLAY found: $DISPLAY"
                 return 0
             fi
         done
     fi
     
-    # Metodo 5: Ambienti nidificati (VNC, X2Go, ecc.)
-    log "Metodo 5: Rilevamento ambienti nidificati..."
+    # Method 5: Nested environments (VNC, X2Go, etc.)
+    log "Method 5: Detecting nested environments..."
     local nested_displays=(":10" ":11" ":12" ":20" ":21")
     for display in "${nested_displays[@]}"; do
         if [[ -S "/tmp/.X11-unix/X${display#:}" ]]; then
             DISPLAY="$display"
-            log "Ambiente nidificato trovato: $DISPLAY"
+            log "Nested environment found: $DISPLAY"
             return 0
         fi
     done
     
-    # Metodo 6: Rilevamento da processi attivi
+    # Method 6: Detection from active processes
     if detect_display_from_processes; then
         return 0
     fi
     
-    warn "Nessun display X11 rilevato"
+    warn "No X11 display detected"
     return 1
 }
 
-# Metodo 6: Rilevamento display da processi attivi
+# Method 6: Detection display from active processes
 detect_display_from_processes() {
-    log "Metodo 6: Rilevamento display da processi attivi..."
+    log "Method 6: Detection display from active processes..."
     
-    # Cerca processi X11 attivi
+    # Search for active X11 processes
     local x_processes=$(ps aux | grep -E "(Xorg|X11|Xwayland)" | grep -v grep || true)
     if [[ -n "$x_processes" ]]; then
-        log "Processi X11 trovati:"
+        log "X11 processes found:"
         echo "$x_processes" | while read -r line; do
             log "  $line"
         done
         
-        # Estrai display dai processi
+        # Extract display from processes
         local display_from_proc=$(echo "$x_processes" | grep -oE ':[0-9]+' | head -1 || true)
         if [[ -n "$display_from_proc" ]]; then
             DISPLAY="$display_from_proc"
-            log "DISPLAY estratto da processi: $DISPLAY"
+            log "DISPLAY extracted from processes: $DISPLAY"
             return 0
         fi
     fi
     
-    # Cerca processi desktop/window manager
+    # Search for desktop/window manager processes
     local wm_processes=$(ps aux | grep -E "(gnome|kde|xfce|mate|cinnamon|lxde|openbox|i3|fluxbox)" | grep -v grep || true)
     if [[ -n "$wm_processes" ]]; then
-        log "Processi window manager trovati:"
+        log "Window manager processes found:"
         echo "$wm_processes" | while read -r line; do
             log "  $line"
         done
         
-        # Prova display comuni per ambienti desktop
+        # Try common displays for desktop environments
         local desktop_displays=(":0" ":1")
         for display in "${desktop_displays[@]}"; do
             if [[ -S "/tmp/.X11-unix/X${display#:}" ]]; then
                 DISPLAY="$display"
-                log "DISPLAY trovato per ambiente desktop: $DISPLAY"
+                log "DISPLAY found for desktop environment: $DISPLAY"
                 return 0
             fi
         done
@@ -183,156 +199,156 @@ detect_display_from_processes() {
     return 1
 }
 
-# Configurazione XAUTHORITY
+# XAUTHORITY configuration
 setup_xauthority() {
-    log "Configurazione XAUTHORITY..."
+    log "XAUTHORITY configuration..."
     
     local current_user="${TARGET_USER:-$(whoami)}"
     local home_dir="${HOME}"
     
-    # Trova .Xauthority file
+    # Find .Xauthority file
     if [[ -f "$home_dir/.Xauthority" ]]; then
         XAUTH_FILE="$home_dir/.Xauthority"
-        log "XAUTHORITY trovato: $XAUTH_FILE"
+        log "XAUTHORITY found: $XAUTH_FILE"
     elif [[ -f "/root/.Xauthority" ]] && [[ "$EUID" -eq 0 ]]; then
         XAUTH_FILE="/root/.Xauthority"
-        log "XAUTHORITY root trovato: $XAUTH_FILE"
+        log "Root XAUTHORITY found: $XAUTH_FILE"
     else
-        warn "Nessun file .Xauthority trovato"
+        warn "No .Xauthority file found"
         return 1
     fi
     
-    # NOTA: NON sovrascriviamo XAUTHORITY perché è già corretta dall'orchestrator
-    # La variabile XAUTHORITY è già stata impostata correttamente dall'orchestrator
-    log "XAUTHORITY già impostato correttamente dall'orchestrator: $XAUTHORITY"
+    # NOTE: DO NOT overwrite XAUTHORITY because it is already correct from the orchestrator
+    # The XAUTHORITY variable has already been set correctly by the orchestrator
+    log "XAUTHORITY already set correctly by orchestrator: $XAUTHORITY"
     
-    # Concedi accesso root a file utente (se necessario)
+    # Grant root access to user file (if necessary)
     if [[ "$EUID" -eq 0 ]] && [[ "$current_user" != "root" ]]; then
-        log "Concedendo accesso root al file .Xauthority utente..."
+        log "Granting root access to user .Xauthority file..."
         if command -v xhost >/dev/null 2>&1; then
-            xhost +si:localuser:root 2>/dev/null || warn "Impossibile concedere accesso xhost"
+            xhost +si:localuser:root 2>/dev/null || warn "Unable to grant xhost access"
         fi
     fi
     
     return 0
 }
 
-# Configurazione XDG_RUNTIME_DIR e D-Bus
+# XDG_RUNTIME_DIR and D-Bus configuration
 setup_xdg_runtime_dir() {
-    log "Configurazione XDG_RUNTIME_DIR e D-Bus..."
+    log "XDG_RUNTIME_DIR and D-Bus configuration..."
     
     local current_user="${TARGET_USER:-$(whoami)}"
     local user_id="${TARGET_UID:-$(id -u)}"
     
     XDG_RUNTIME_DIR="/run/user/$user_id"
     
-    # Verifica esistenza directory
+    # Verify directory existence
     if [[ -d "$XDG_RUNTIME_DIR" ]]; then
         export XDG_RUNTIME_DIR="$XDG_RUNTIME_DIR"
-        log "XDG_RUNTIME_DIR impostato: $XDG_RUNTIME_DIR"
+        log "XDG_RUNTIME_DIR set: $XDG_RUNTIME_DIR"
     else
-        log "XDG_RUNTIME_DIR non esiste: $XDG_RUNTIME_DIR"
+        log "XDG_RUNTIME_DIR does not exist: $XDG_RUNTIME_DIR"
         
-        # Tentativo di creazione (se root)
+        # Attempt creation (if root)
         if [[ "$EUID" -eq 0 ]]; then
             mkdir -p "$XDG_RUNTIME_DIR"
             chown "$current_user:$current_user" "$XDG_RUNTIME_DIR"
             export XDG_RUNTIME_DIR="$XDG_RUNTIME_DIR"
-            log "XDG_RUNTIME_DIR creato: $XDG_RUNTIME_DIR"
+            log "XDG_RUNTIME_DIR created: $XDG_RUNTIME_DIR"
         fi
     fi
     
-    # Setup D-Bus session per utente target
+    # Setup D-Bus session per target user
     setup_dbus_session "$current_user" "$user_id"
 }
 
-    # Setup D-Bus session per utente specifico
+# Setup D-Bus session per specific user
 setup_dbus_session() {
     local target_user="$1"
     local user_id="$2"
     
-    log "Setup D-Bus session per utente: $target_user"
+    log "Setup D-Bus session per user: $target_user"
     rm -f /tmp/olms_dbus_vars.sh
     
-    # Uccidiamo residui per liberare il socket astratto
+    # Kill residuals to free the abstract socket
     sudo -u "$target_user" pkill -u "$target_user" -f "olms_bus_${user_id}" || true
     sleep 1
     
     local abstract_addr="unix:abstract=olms_bus_${user_id}"
-    log "Avvio dbus-daemon su: $abstract_addr"
+    log "Starting dbus-daemon on: $abstract_addr"
     
-    # Avvio e cattura dell'indirizzo reale
+    # Start and capture the real address
     sudo -u "$target_user" dbus-daemon --fork --session --address="$abstract_addr" --print-address > /dev/null
     
-    # Verifica PID
+    # Verify PID
     local dbus_pid=$(sudo -u "$target_user" pgrep -u "$target_user" -f "olms_bus_${user_id}")
     
     if [[ -n "$dbus_pid" ]]; then
         export DBUS_SESSION_BUS_ADDRESS="$abstract_addr"
         echo "export DBUS_SESSION_BUS_ADDRESS=\"$abstract_addr\"" > /tmp/olms_dbus_vars.sh
-        log "✅ D-Bus privato avviato (PID: $dbus_pid)"
+        log "✅ Private D-Bus started (PID: $dbus_pid)"
     else
-        error "Impossibile avviare dbus-daemon."
+        error "Unable to start dbus-daemon."
         exit 1
     fi
 }
 
-# Configurazione X11 permissions
+# X11 permissions configuration
 setup_x11_permissions() {
-    log "Configurazione X11 permissions..."
+    log "X11 permissions configuration..."
     
     local current_user="${TARGET_USER:-$(whoami)}"
     
     # Root-to-user transition
     if [[ "$EUID" -eq 0 ]]; then
-        log "Root detected, configurazione transizione utente..."
+        log "Root detected, user transition configuration..."
         
-        # Preserva DISPLAY corretto durante sudo
+        # Preserve correct DISPLAY during sudo
         if [[ -n "$DISPLAY" ]]; then
             export DISPLAY="$DISPLAY"
-            log "DISPLAY preservato: $DISPLAY"
+            log "DISPLAY preserved: $DISPLAY"
         fi
         
-    # Gestione XAUTHORITY per root - NON sovrascriviamo la variabile corretta
+    # XAUTHORITY management for root - DO NOT overwrite the correct variable
     if [[ -f "$HOME/.Xauthority" ]] && [[ "$EUID" -eq 0 ]]; then
-        # Copia .Xauthority dell'utente a root per consentire l'accesso
+        # Copy user's .Xauthority to root to allow access
         cp "$HOME/.Xauthority" "/root/.Xauthority" 2>/dev/null || true
         chown root:root "/root/.Xauthority" 2>/dev/null || true
         chmod 600 "/root/.Xauthority" 2>/dev/null || true
-        log "Copiato .Xauthority utente a root per accesso X11"
-        # NOTA: NON sovrascriviamo XAUTHORITY perché è già corretta dall'orchestrator
+        log "Copied user .Xauthority to root for X11 access"
+        # NOTE: DO NOT overwrite XAUTHORITY because it is already correct from the orchestrator
     fi
     
-    # Concedi accesso X11 a root (se possibile) - MA NON SOVRASCRIVERE XAUTHORITY
+    # Grant X11 access to root (if possible) - BUT DO NOT OVERWRITE XAUTHORITY
     if command -v xhost >/dev/null 2>&1; then
-        # Prova a concedere accesso come utente normale, non come root
+        # Try to grant access as normal user, not as root
         if [[ -n "${SUDO_USER:-}" ]]; then
-            su - "$SUDO_USER" -c "DISPLAY=$DISPLAY xhost +si:localuser:root" 2>/dev/null || warn "Impossibile concedere accesso X11 a root"
+            su - "$SUDO_USER" -c "DISPLAY=$DISPLAY xhost +si:localuser:root" 2>/dev/null || warn "Unable to grant X11 access to root"
         else
-            xhost +si:localuser:root 2>/dev/null || warn "Impossibile concedere accesso X11 a root"
+            xhost +si:localuser:root 2>/dev/null || warn "Unable to grant X11 access to root"
         fi
     fi
     fi
     
-    # Verifica DISPLAY
+    # Verify DISPLAY
     if [[ -n "$DISPLAY" ]]; then
         export DISPLAY="$DISPLAY"
-        log "DISPLAY impostato: $DISPLAY"
+        log "DISPLAY set: $DISPLAY"
     else
-        warn "DISPLAY non impostato"
+        warn "DISPLAY not set"
     fi
 }
 
-# Setup Xvfb per modalità headless
+# Setup Xvfb for headless mode
 setup_xvfb() {
-    log "Setup Xvfb per modalità headless..."
+    log "Setup Xvfb for headless mode..."
     
     if ! command -v Xvfb >/dev/null 2>&1; then
-        warn "Xvfb non disponibile"
+        warn "Xvfb not available"
         return 1
     fi
     
-    # Trova display number libero
+    # Find free display number
     local xvfb_display=""
     for i in {99..120}; do
         if ! [[ -S "/tmp/.X11-unix/X$i" ]]; then
@@ -342,107 +358,107 @@ setup_xvfb() {
     done
     
     if [[ -z "$xvfb_display" ]]; then
-        warn "Nessun display number libero per Xvfb"
+        warn "No free display number for Xvfb"
         return 1
     fi
     
-    log "Avvio Xvfb su display: $xvfb_display"
+    log "Starting Xvfb on display: $xvfb_display"
     
-    # Avvia Xvfb con parametri minimi
+    # Start Xvfb with minimal parameters
     Xvfb "$xvfb_display" -screen 0 1024x768x24 -nolisten tcp -nolisten unix &
     local xvfb_pid=$!
     
-    # Attendi avvio
+    # Wait for startup
     sleep 2
     
-    # Verifica avvio
+    # Verify startup
     if kill -0 "$xvfb_pid" 2>/dev/null; then
         export DISPLAY="$xvfb_display"
-        log "Xvfb avviato con successo (PID: $xvfb_pid, DISPLAY: $DISPLAY)"
+        log "Xvfb started successfully (PID: $xvfb_pid, DISPLAY: $DISPLAY)"
         return 0
     else
-        warn "Xvfb non avviato correttamente"
+        warn "Xvfb not started correctly"
         return 1
     fi
 }
 
-# Verifica configurazione X11
+# X11 configuration verification
 verify_x11_setup() {
-    log "Verifica configurazione X11..."
+    log "X11 configuration verification..."
     
-    # Verifica DISPLAY
+    # Verify DISPLAY
     if [[ -n "${DISPLAY:-}" ]]; then
         log "DISPLAY: $DISPLAY"
     else
-        warn "DISPLAY non impostato"
+        warn "DISPLAY not set"
     fi
     
-    # Verifica XAUTHORITY
+    # Verify XAUTHORITY
     if [[ -n "${XAUTHORITY:-}" ]]; then
         log "XAUTHORITY: $XAUTHORITY"
     else
-        warn "XAUTHORITY non impostato"
+        warn "XAUTHORITY not set"
     fi
     
-    # Verifica XDG_RUNTIME_DIR
+    # Verify XDG_RUNTIME_DIR
     if [[ -n "${XDG_RUNTIME_DIR:-}" ]]; then
         log "XDG_RUNTIME_DIR: $XDG_RUNTIME_DIR"
     else
-        warn "XDG_RUNTIME_DIR non impostato"
+        warn "XDG_RUNTIME_DIR not set"
     fi
     
-    # Test connessione X11 (se non in modalità headless)
+    # Test X11 connection (if not in headless mode)
     if [[ -n "${DISPLAY:-}" ]] && [[ "$DISPLAY" != *":99"* ]] && [[ "$DISPLAY" != *":100"* ]]; then
         if command -v xdpyinfo >/dev/null 2>&1; then
             if xdpyinfo -display "$DISPLAY" >/dev/null 2>&1; then
-                log "Connessione X11 verificata"
+                log "X11 connection verified"
             else
-                warn "Connessione X11 fallita"
+                warn "X11 connection failed"
             fi
         fi
     fi
     
-    # Debug X11 errors (aggiunto per troubleshooting)
+    # Debug X11 errors (added for troubleshooting)
     if [[ -f "/tmp/ardour_startup.log" ]]; then
-        log "Controllo errori X11 in /tmp/ardour_startup.log..."
+        log "Checking X11 errors in /tmp/ardour_startup.log..."
         local x11_errors=$(grep -i "display\|x11\|xcb\|qt" /tmp/ardour_startup.log 2>/dev/null || true)
         if [[ -n "$x11_errors" ]]; then
-            warn "Errori X11 trovati in ardour_startup.log:"
+            warn "X11 errors found in ardour_startup.log:"
             echo "$x11_errors" | while read -r line; do
                 warn "  $line"
             done
         else
-            log "Nessun errore X11 rilevato in ardour_startup.log"
+            log "No X11 errors detected in ardour_startup.log"
         fi
     fi
 }
 
-# Funzione principale
+# Main function
 main() {
-    log "=== FASE 4: X11 ENVIRONMENT & DISPLAY MANAGEMENT ==="
+    log "=== PHASE 4: X11 ENVIRONMENT & DISPLAY MANAGEMENT ==="
     
-    # Usiamo un flag per evitare che set -e interrompa tutto
+    # Use a flag to avoid set -e interrupting everything
     set +e
     detect_display
     DISPLAY_DETECTED=$?
     set -e
     
     if [ $DISPLAY_DETECTED -ne 0 ]; then
-        warn "Display fisico non rilevato, tentiamo Xvfb..."
-        setup_xvfb || warn "Anche Xvfb è fallito, procedo in modalità headless pura"
+        warn "Physical display not detected, trying Xvfb..."
+        setup_xvfb || warn "Xvfb also failed, proceeding in pure headless mode"
     fi
     
-    # Prosegui con il resto, ma rendi i setup non-fatali se possibile
-    setup_xauthority || warn "Impossibile configurare Xauthority"
+    # Continue with the rest, but make setup non-fatal if possible
+    setup_xauthority || warn "Unable to configure Xauthority"
     setup_xdg_runtime_dir
     setup_x11_permissions
     
     verify_x11_setup
     
-    log "Configurazione X11 completata (DISPLAY=${DISPLAY:-N/A})"
+    log "X11 configuration completed (DISPLAY=${DISPLAY:-N/A})"
 }
 
-# Esegui se chiamato direttamente
+# Execute if called directly
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     main "$@"
 fi

@@ -1,6 +1,22 @@
 #!/bin/bash
+# Copyright (C) 2024 Francesco Nano <tua@email.com>
+# 
+# This file is part of the Open Live Mixing System (OLMS).
+#
+# OLMS is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU General Public License for more details.
+#
+# Created with AI collaboration. Visit: https://openlivemixingsystem.org/
+
 # Phase 3: JACK Server - Fixed Strategy (No D-Bus Conflicts)
-# Versione: 4.0 - The "Clean Connection" Fix
+# Version: 4.0 - The "Clean Connection" Fix
 set -euo pipefail
 
 # Environment overrides for non-interactive stability
@@ -8,14 +24,14 @@ export JACK_NO_AUDIO_RESERVATION=1
 export JACK_DEFAULT_SERVER=olms
 export JACK_PROMISCUOUS_SERVER=1
 
-# Variabili d'ambiente per l'approccio "tutto come stesso utente"
-# Gestione intelligente dell'utente effettivo per gestire anche l'esecuzione con sudo
+# Environment variables for "same user" approach
+# Intelligent management of the actual user to handle sudo execution as well
 if [[ "$EUID" -eq 0 ]] && [[ -n "${SUDO_USER:-}" ]]; then
-    # Eseguito con sudo, usa l'utente originale
+    # Executed with sudo, use the original user
     ACTUAL_USER="$SUDO_USER"
     ACTUAL_UID=$(id -u "$SUDO_USER")
 else
-    # Eseguito come utente normale
+    # Executed as normal user
     ACTUAL_USER="$(whoami)"
     ACTUAL_UID=$(id -u)
 fi
@@ -26,7 +42,7 @@ export XDG_RUNTIME_DIR="/run/user/$ACTUAL_UID"
 export DISPLAY=":0"
 export XAUTHORITY="/home/$ACTUAL_USER/.Xauthority"
 
-# Funzioni di logging
+# Logging functions
 log() { echo -e "\e[32m[$(date '+%H:%M:%S')]\e[0m $1"; }
 warn() { 
     local message="$1"
@@ -41,33 +57,33 @@ warn() {
 }
 error() { echo -e "\e[31m[$(date '+%H:%M:%S')] ERROR:\e[0m $1"; }
 
-# Configurazioni buffer testate in ordine di priorità (prima 2 cicli, poi 3 cicli per ogni buffer size)
+# Buffer configurations tested in order of priority (first 2 cycles, then 3 cycles for each buffer size)
 BUFFER_CONFIGS=(
-    "32:2"   # 32 frames, 2 periodi = 64 frames totali (Latenza più bassa)
-    "32:3"   # 32 frames, 3 periodi = 96 frames totali (Fallback più stabile)
-    "64:2"   # 64 frames, 2 periodi = 128 frames totali (Latenza più bassa)
-    "64:3"   # 64 frames, 3 periodi = 192 frames totali (Fallback più stabile)
-    "128:2"  # 128 frames, 2 periodi = 256 frames totali (Latenza più bassa)
-    "128:3"  # 128 frames, 3 periodi = 384 frames totali (Fallback più stabile)
-    "256:2"  # 256 frames, 2 periodi = 512 frames totali (Latenza più bassa)
-    "256:3"  # 256 frames, 3 periodi = 768 frames totali (Fallback più stabile)
+    "32:2"   # 32 frames, 2 periods = 64 total frames (Lowest latency)
+    "32:3"   # 32 frames, 3 periods = 96 total frames (More stable fallback)
+    "64:2"   # 64 frames, 2 periods = 128 total frames (Lowest latency)
+    "64:3"   # 64 frames, 3 periods = 192 total frames (More stable fallback)
+    "128:2"  # 128 frames, 2 periods = 256 total frames (Lowest latency)
+    "128:3"  # 128 frames, 3 periods = 384 total frames (More stable fallback)
+    "256:2"  # 256 frames, 2 periods = 512 total frames (Lowest latency)
+    "256:3"  # 256 frames, 3 periods = 768 total frames (More stable fallback)
 )
 
-# Configurazioni bit-depth in ordine di preferenza (16-bit → 24-bit → 32-bit fallback)
+# Bit-depth configurations in order of preference (32-bit → 24-bit → 16-bit fallback)
 BIT_DEPTH_CONFIGS=(
-    "16"   # Primo tentativo: 16-bit (formato nativo della PCM2902)
-    "24"   # Secondo tentativo: 24-bit (per compatibilità Ardour)
-    "32"   # Fallback: 32-bit (per efficienza CPU su hardware USB)
+    "32"   # First attempt: 32-bit (for CPU efficiency on USB hardware)
+    "24"   # Second attempt: 24-bit (for Ardour compatibility)
+    "16"   # Fallback: 16-bit (native format of PCM2902)
 )
 
-# Buffer "sicuro" per la Fase 1 (rilevamento bit-depth)
+# "Safe" buffer for Phase 1 (bit-depth detection)
 SAFE_BUFFER="256:3"
 
 SAMPLE_RATE=48000
 
 # Enhanced cleanup with better USB device handling
 nuclear_cleanup() {
-    log "Disattivazione temporanea PipeWire/Pulse via Systemd..."
+    log "Temporarily disabling PipeWire/Pulse via Systemd..."
     systemctl --user stop pipewire.socket pipewire-pulse.socket wireplumber.service 2>/dev/null || true
     
     log "Performing hardware release and socket cleanup..."
@@ -90,13 +106,13 @@ nuclear_cleanup() {
     done
     
     # Resetting the specific USB port found in your logs (1-3)
-    # NOTA: Rimossa la scrittura su /sys/bus/usb/devices/1-3/authorized per evitare errori di permesso
-    # Il dispositivo verrà gestito dal normale rilevamento ALSA
+    # NOTE: Removed writing to /sys/bus/usb/devices/1-3/authorized to avoid permission errors
+    # The device will be handled by normal ALSA detection
     log "USB device at 1-3 will be handled by normal ALSA detection"
     
     # Additional USB reset for the entire bus
-    # NOTA: Rimossa la scrittura su /sys/bus/usb/devices/*/authorized per evitare errori di permesso
-    # Il dispositivo verrà gestito dal normale rilevamento ALSA
+    # NOTE: Removed writing to /sys/bus/usb/devices/*/authorized to avoid permission errors
+    # The device will be handled by normal ALSA detection
     log "USB devices will be handled by normal ALSA detection"
     
     # Final cleanup
@@ -106,10 +122,10 @@ nuclear_cleanup() {
 
 # Enhanced socket permission and symlink management
 setup_socket_permissions() {
-    log "🔧 FASE FINALE: Configurazione permessi socket per il server 'olms'..."
-    sleep 3 # Diamo tempo a JACK di creare i file
+    log "🔧 FINAL PHASE: Configuring socket permissions for server 'olms'..."
+    sleep 3 # Give JACK time to create the files
 
-    # Verifichiamo che i file socket di JACK siano stati creati correttamente
+    # Verify that JACK socket files have been created correctly
     local socket_files=(
         "/dev/shm/jack_olms_0"
         "/dev/shm/jack_sem.olms_freewheel"
@@ -120,48 +136,48 @@ setup_socket_permissions() {
     local all_found=true
     for socket_file in "${socket_files[@]}"; do
         if [ ! -e "$socket_file" ]; then
-            log "File socket mancante: $socket_file"
+            log "Missing socket file: $socket_file"
             all_found=false
         else
-            log "File socket trovato: $socket_file"
+            log "Socket file found: $socket_file"
             chmod 777 "$socket_file"
         fi
     done
     
-    # Permessi finali per garantire che Ardour possa connettersi
-    log "🔧 FASE FINALE: Permessi finali per compatibilità Ardour..."
+    # Final permissions to ensure Ardour can connect
+    log "🔧 FINAL PHASE: Final permissions for Ardour compatibility..."
     chmod -R 777 /dev/shm/jack* 2>/dev/null || true
     chmod 666 /dev/shm/jack-shm-registry 2>/dev/null || true
     
-    # Assicuriamo che la directory /dev/shm/jack-$UID esista per compatibilità
+    # Ensure the directory /dev/shm/jack-$UID exists for compatibility
     mkdir -p /dev/shm/jack-$ACTUAL_UID
     chmod 777 /dev/shm/jack-$ACTUAL_UID
     
     if [ "$all_found" = true ]; then
-        log "✅ TUTTI I FILE SOCKET DI JACK SONO STATI TROVATI E CONFIGURATI CORRETTAMENTE"
+        log "✅ ALL JACK SOCKET FILES HAVE BEEN FOUND AND CONFIGURED CORRECTLY"
         
-        # Il registro SHM è fondamentale per la memoria condivisa
+        # The SHM registry is fundamental for shared memory
         [ -e /dev/shm/jack-shm-registry ] && chmod 666 /dev/shm/jack-shm-registry
         
         return 0
     else
-        error "❌ Alcuni file socket di JACK non sono stati trovati. Ardour potrebbe fallire."
+        error "❌ Some JACK socket files were not found. Ardour might fail."
         return 1
     fi
 }
 
-# Variabili universali per architettura CPU dinamica
+# Universal variables for dynamic CPU architecture
 TOTAL_CORES=$(nproc)
 LAST_CORE=$((TOTAL_CORES - 1))
 SYSTEM_CORE="0"
 IRQ_CORE="1"
 AUDIO_CORES="2-$LAST_CORE"
 
-# --- FASE 1: TROVARE IL BIT-DEPTH (Il "Soffitto" Hardware) ---
+# --- PHASE 1: FIND THE BIT-DEPTH (The "Hardware Ceiling") ---
 find_bit_depth() {
-    log "🔍 FASE 1: Rilevamento Bit-Depth con buffer sicuro (${SAFE_BUFFER})"
+    log "🔍 PHASE 1: Bit-Depth detection with safe buffer (${SAFE_BUFFER})"
     
-    # --- RILEVAMENTO HARDWARE DINAMICO ---
+    # --- DYNAMIC HARDWARE DETECTION ---
     local TARGET_ALSA_DEVICE=""
     for card_dir in /sys/class/sound/card*; do
         if [ -d "$card_dir" ]; then
@@ -173,13 +189,13 @@ find_bit_depth() {
     done
     
     if [ -z "${TARGET_ALSA_DEVICE:-}" ]; then 
-        log "⚠️ Nessun dispositivo USB audio trovato, fallback a dummy"
+        log "⚠️ No USB audio device found, fallback to dummy"
         TARGET_ALSA_DEVICE="dummy"
     fi
     
-    log "Dispositivo audio rilevato: $TARGET_ALSA_DEVICE"
+    log "Detected audio device: $TARGET_ALSA_DEVICE"
     
-    # Estrai buffer_size e periods dal buffer sicuro
+    # Extract buffer_size and periods from safe buffer
     local buffer_size="${SAFE_BUFFER%:*}"
     local periods="${SAFE_BUFFER#*:}"
     
@@ -189,24 +205,24 @@ find_bit_depth() {
     for bit_depth in "${BIT_DEPTH_CONFIGS[@]}"; do
         log "🔍 TEST BIT-DEPTH: ${bit_depth}-bit (Buffer: ${SAFE_BUFFER})"
         
-        # --- PULIZIA AGGRESSIVA TRA I TEST ---
+        # --- AGGRESSIVE CLEANUP BETWEEN TESTS ---
         pkill -9 jackd 2>/dev/null || true
         sleep 0.5
         
-        # RESET FISICO DELLA SCHEDA TRA UN TEST E L'ALTRO
+        # PHYSICAL RESET OF THE CARD BETWEEN TESTS
         if [[ "$TARGET_ALSA_DEVICE" == "hw:"* ]]; then
             timeout 0.2 aplay -D "$TARGET_ALSA_DEVICE" -f S16_LE -r 48000 -c 2 /dev/zero >/dev/null 2>&1 || true
         fi
         
-        # Pulizia socket
+        # Socket cleanup
         sudo rm -rf /dev/shm/jack* /tmp/jack* 2>/dev/null || true
         
-        # Preparazione SHM
+        # SHM preparation
         sudo mkdir -p /dev/shm/jack-$ACTUAL_UID
         sudo chown $(whoami):francesco /dev/shm/jack-$ACTUAL_UID
         sudo chmod 777 /dev/shm/jack-$ACTUAL_UID
 
-        # LANCIO DI JACK per testare il bit-depth
+        # LAUNCH JACK to test bit-depth
         sudo -u $ACTUAL_USER env -i \
             HOME=/home/$ACTUAL_USER \
             PATH=/usr/bin:/bin \
@@ -221,34 +237,34 @@ find_bit_depth() {
         jack_pid=$!
         echo "$jack_pid" > /tmp/jack.pid
         
-        log "JACK lanciato (PID: $jack_pid). Attesa sincronizzazione (8s)..."
+        log "JACK launched (PID: $jack_pid). Waiting for synchronization (8s)..."
         sleep 8
 
-        # FIX PERMESSI PRE-VALIDAZIONE
-    log "🔧 FIX: Apertura permessi socket per validatore..."
+        # FIX PERMISSIONS PRE-VALIDATION
+    log "🔧 FIX: Opening socket permissions for validator..."
     sudo chmod -R 777 /dev/shm/jack* 2>/dev/null || true
     sudo chmod 666 /dev/shm/jack-shm-registry 2>/dev/null || true
     
-        # FIX VOLUME AUDIO: Imposta volume al 100% per passaggio completo del segnale
-    log "🔧 FIX: Impostazione volume audio al 100% per passaggio completo del segnale..."
+        # FIX AUDIO VOLUME: Set volume to 100% for complete signal passage
+    log "🔧 FIX: Setting audio volume to 100% for complete signal passage..."
     local card_num=$(echo "$TARGET_ALSA_DEVICE" | sed 's/hw://')
     if [[ "$TARGET_ALSA_DEVICE" == "hw:"* ]] && [[ -n "$card_num" ]]; then
-        # Imposta volume PCM al 100% per passaggio completo del segnale
+        # Set PCM volume to 100% for complete signal passage
         amixer -c "$card_num" set PCM 100% unmute >/dev/null 2>&1 || true
-        # Imposta volume Master al 100% per passaggio completo del segnale
+        # Set Master volume to 100% for complete signal passage
         amixer -c "$card_num" set Master 100% unmute >/dev/null 2>&1 || true
-        # Imposta volume digitale al 100% se disponibile
+        # Set Digital volume to 100% if available
         amixer -c "$card_num" set Digital 100% unmute >/dev/null 2>&1 || true
-        log "✅ Volume audio impostato al 100% per passaggio completo del segnale"
+        log "✅ Audio volume set to 100% for complete signal passage"
     fi
 
-        # VALIDATORE (Check Processo)
+        # VALIDATOR (Process Check)
         if ! ps -p "$jack_pid" > /dev/null; then
-            log "❌ FALLITO: Processo morto per ${bit_depth}-bit."
+            log "❌ FAILED: Process died for ${bit_depth}-bit."
             continue
         fi
 
-        # VALIDATORE (Check Reattività)
+        # VALIDATOR (Reactivity Check)
         log "🔍 VALIDATION: Testing server reactivity for ${bit_depth}-bit..."
         if sudo -u $ACTUAL_USER env \
             XDG_RUNTIME_DIR=/run/user/$ACTUAL_UID \
@@ -256,9 +272,9 @@ find_bit_depth() {
             JACK_PROMISCUOUS_SERVER=1 \
             jack_wait -s olms -c -t 5 -w | grep -q "available"; then
             
-            log "✅ Server 'olms' RISPONDE per ${bit_depth}-bit. Controllo porte audio..."
+            log "✅ Server 'olms' RESPONDS for ${bit_depth}-bit. Checking audio ports..."
             
-            # VALIDATORE (Check Porte Audio con Retry)
+            # VALIDATOR (Audio Ports Check with Retry)
             local ports_found=false
             local port_count=0
             
@@ -270,50 +286,50 @@ find_bit_depth() {
                     ports_found=true
                     break
                 fi
-                log "⏳ Porte non ancora visibili (Tentativo $retry/3)..."
+                log "⏳ Ports not yet visible (Attempt $retry/3)..."
                 sleep 2
             done
             
             if [ "$ports_found" = true ]; then
-                log "✅ BIT-DEPTH VALIDO: ${bit_depth}-bit OK ($port_count porte)."
+                log "✅ VALID BIT-DEPTH: ${bit_depth}-bit OK ($port_count ports)."
                 bit_depth_found="$bit_depth"
                 break
             else
-                log "❌ ZOMBIE: Server risponde ma 0 porte audio dopo 3 tentativi per ${bit_depth}-bit."
+                log "❌ ZOMBIE: Server responds but 0 audio ports after 3 attempts for ${bit_depth}-bit."
                 pkill -9 jackd 2>/dev/null || true
                 continue
             fi
         else
-            log "❌ WRONG DOOR: Il server non risponde a 'olms' per ${bit_depth}-bit."
+            log "❌ WRONG DOOR: Server does not respond to 'olms' for ${bit_depth}-bit."
             pkill -9 jackd 2>/dev/null || true
             continue
         fi
     done
     
     if [ -z "$bit_depth_found" ]; then
-        log "⚠️ Nessun bit-depth valido trovato, fallback a dummy"
+        log "⚠️ No valid bit-depth found, fallback to dummy"
         sudo -u $ACTUAL_USER env -i XDG_RUNTIME_DIR=/run/user/$ACTUAL_UID /usr/bin/jackd -n olms -d dummy -r 48000 -p 1024 > /dev/null 2>&1 &
         echo $! > /tmp/jack.pid
         return 1
     fi
     
-    log "🎯 FASE 1 COMPLETATA: Bit-depth stabile trovato: ${bit_depth_found}-bit"
+    log "🎯 PHASE 1 COMPLETED: Stable bit-depth found: ${bit_depth_found}-bit"
     echo "$bit_depth_found" > /tmp/bit_depth_found
     return 0
 }
 
-# --- FASE 2: TROVARE IL BUFFER (Latenza Minima) ---
+# --- PHASE 2: FIND THE BUFFER (Minimum Latency) ---
 find_buffer() {
     local bit_depth=$(cat /tmp/bit_depth_found 2>/dev/null || echo "16")
     
     if [ "$bit_depth" = "dummy" ]; then
-        log "⚠️ FASE 2 SKIPPED: Using dummy backend"
+        log "⚠️ PHASE 2 SKIPPED: Using dummy backend"
         return 0
     fi
     
-    log "🔍 FASE 2: Rilevamento Buffer con bit-depth fisso (${bit_depth}-bit)"
+    log "🔍 PHASE 2: Buffer detection with fixed bit-depth (${bit_depth}-bit)"
     
-    # --- RILEVAMENTO HARDWARE DINAMICO ---
+    # --- DYNAMIC HARDWARE DETECTION ---
     local TARGET_ALSA_DEVICE=""
     for card_dir in /sys/class/sound/card*; do
         if [ -d "$card_dir" ]; then
@@ -325,7 +341,7 @@ find_buffer() {
     done
     
     if [ -z "${TARGET_ALSA_DEVICE:-}" ]; then 
-        log "⚠️ Nessun dispositivo USB audio trovato, fallback a dummy"
+        log "⚠️ No USB audio device found, fallback to dummy"
         TARGET_ALSA_DEVICE="dummy"
     fi
     
@@ -338,24 +354,24 @@ find_buffer() {
         
         log "🔍 TEST BUFFER: ${buffer_size}:${periods} (Bit-depth: ${bit_depth}-bit)"
         
-        # --- PULIZIA AGGRESSIVA TRA I TEST ---
+        # --- AGGRESSIVE CLEANUP BETWEEN TESTS ---
         pkill -9 jackd 2>/dev/null || true
         sleep 0.5
         
-        # RESET FISICO DELLA SCHEDA TRA UN TEST E L'ALTRO
+        # PHYSICAL RESET OF THE CARD BETWEEN TESTS
         if [[ "$TARGET_ALSA_DEVICE" == "hw:"* ]]; then
             timeout 0.2 aplay -D "$TARGET_ALSA_DEVICE" -f S16_LE -r 48000 -c 2 /dev/zero >/dev/null 2>&1 || true
         fi
         
-        # Pulizia socket
+        # Socket cleanup
         sudo rm -rf /dev/shm/jack* /tmp/jack* 2>/dev/null || true
         
-        # Preparazione SHM
+        # SHM preparation
         sudo mkdir -p /dev/shm/jack-$ACTUAL_UID
         sudo chown $(whoami):francesco /dev/shm/jack-$ACTUAL_UID
         sudo chmod 777 /dev/shm/jack-$ACTUAL_UID
 
-        # LANCIO DI JACK per testare il buffer
+        # LAUNCH JACK to test buffer
         sudo -u $ACTUAL_USER env -i \
             HOME=/home/$ACTUAL_USER \
             PATH=/usr/bin:/bin \
@@ -370,21 +386,21 @@ find_buffer() {
         jack_pid=$!
         echo "$jack_pid" > /tmp/jack.pid
         
-        log "JACK lanciato (PID: $jack_pid). Attesa sincronizzazione (8s)..."
+        log "JACK launched (PID: $jack_pid). Waiting for synchronization (8s)..."
         sleep 8
 
-        # FIX PERMESSI PRE-VALIDAZIONE
-        log "🔧 FIX: Apertura permessi socket per validatore..."
+        # FIX PERMISSIONS PRE-VALIDATION
+        log "🔧 FIX: Opening socket permissions for validator..."
         sudo chmod -R 777 /dev/shm/jack* 2>/dev/null || true
         sudo chmod 777 /dev/shm/jack-shm-registry 2>/dev/null || true
 
-        # VALIDATORE (Check Processo)
+        # VALIDATOR (Process Check)
         if ! ps -p "$jack_pid" > /dev/null; then
-            log "❌ FALLITO: Processo morto per buffer ${buffer_size}:${periods}."
+            log "❌ FAILED: Process died for buffer ${buffer_size}:${periods}."
             continue
         fi
 
-        # VALIDATORE (Check Reattività)
+        # VALIDATOR (Reactivity Check)
         log "🔍 VALIDATION: Testing server reactivity for buffer ${buffer_size}:${periods}..."
         if sudo -u $ACTUAL_USER env \
             XDG_RUNTIME_DIR=/run/user/$ACTUAL_UID \
@@ -392,9 +408,9 @@ find_buffer() {
             JACK_PROMISCUOUS_SERVER=1 \
             jack_wait -s olms -c -t 5 -w | grep -q "available"; then
             
-            log "✅ Server 'olms' RISPONDE per buffer ${buffer_size}:${periods}. Controllo porte audio..."
+            log "✅ Server 'olms' RESPONDS for buffer ${buffer_size}:${periods}. Checking audio ports..."
             
-            # VALIDATORE (Check Porte Audio con Retry)
+            # VALIDATOR (Audio Ports Check with Retry)
             local ports_found=false
             local port_count=0
             
@@ -406,47 +422,47 @@ find_buffer() {
                     ports_found=true
                     break
                 fi
-                log "⏳ Porte non ancora visibili (Tentativo $retry/3)..."
+                log "⏳ Ports not yet visible (Attempt $retry/3)..."
                 sleep 2
             done
             
             if [ "$ports_found" = true ]; then
-                log "✅ CONFIGURAZIONE VALIDA: ${buffer_size}:${periods} OK ($port_count porte)."
+                log "✅ VALID CONFIGURATION: ${buffer_size}:${periods} OK ($port_count ports)."
                 config_success=true
                 break
             else
-                log "❌ ZOMBIE: Server risponde ma 0 porte audio dopo 3 tentativi per buffer ${buffer_size}:${periods}."
+                log "❌ ZOMBIE: Server responds but 0 audio ports after 3 attempts for buffer ${buffer_size}:${periods}."
                 pkill -9 jackd 2>/dev/null || true
                 continue
             fi
         else
-            log "❌ WRONG DOOR: Il server non risponde a 'olms' per buffer ${buffer_size}:${periods}."
+            log "❌ WRONG DOOR: Server does not respond to 'olms' for buffer ${buffer_size}:${periods}."
             pkill -9 jackd 2>/dev/null || true
             continue
         fi
     done
     
     if [ "$config_success" = false ]; then
-        log "⚠️ Nessun buffer valido trovato, fallback a dummy"
+        log "⚠️ No valid buffer found, fallback to dummy"
         sudo -u $ACTUAL_USER env -i XDG_RUNTIME_DIR=/run/user/$ACTUAL_UID /usr/bin/jackd -n olms -d dummy -r 48000 -p 1024 > /dev/null 2>&1 &
         echo $! > /tmp/jack.pid
     fi
 
-    # Fix finale
+    # Final fix
     sudo chmod -R 777 /dev/shm/jack* 2>/dev/null || true
     return 0
 }
 
-# --- VERSIONE SEVERA: VALIDATORE ZOMBIE MODE (FIXED & ROBUST) ---
+# --- SEVERE VERSION: ZOMBIE MODE VALIDATOR (FIXED & ROBUST) ---
 start_jack_severe_mode() {
     log "🚨 JACK SEVERE VALIDATION: Two-Phase Strategy"
     
-    # FASE 1: Trovare il Bit-Depth
+    # PHASE 1: Find the Bit-Depth
     if ! find_bit_depth; then
-        log "⚠️ FASE 1 fallita, procediamo con dummy backend"
+        log "⚠️ PHASE 1 failed, proceeding with dummy backend"
     fi
     
-    # FASE 2: Trovare il Buffer
+    # PHASE 2: Find the Buffer
     find_buffer
     
     return 0
@@ -526,7 +542,7 @@ verify_long_term_stability_severe() {
             return 1
         fi
         
-        # Test 2: Server reactivity with targeting esplicito (every 3 seconds)
+        # Test 2: Server reactivity with explicit targeting (every 3 seconds)
         if [ $((check_num % 3)) -eq 0 ]; then
             log "📡 SEVERE TEST: Server reactivity check (jack_wait -s olms -c) at check $check_num..."
             if sudo -u $ACTUAL_USER env XDG_RUNTIME_DIR=/run/user/$ACTUAL_UID JACK_DEFAULT_SERVER=olms jack_wait -s olms -c -t 5 -w | grep -q "available"; then
@@ -623,18 +639,18 @@ main() {
         log "Socket directory: $(find /dev/shm -name "jack-olms-*" -type d 2>/dev/null | head -1 || echo "Not found")"
         
         
-        # Test finale di connettività
-        log "Verifica compatibilità Ardour..."
-        # Dobbiamo eseguire il test come $(whoami) e passargli il nome del server
+        # Final connectivity test
+        log "Verifying Ardour compatibility..."
+        # We need to run the test as $(whoami) and pass it the server name
         if sudo -u $ACTUAL_USER env JACK_DEFAULT_SERVER=olms jack_lsp >/dev/null 2>&1; then
             local port_count=$(sudo -u $ACTUAL_USER env JACK_DEFAULT_SERVER=olms jack_lsp | wc -l)
-            log "✅ Compatibilità verificata - Server 'olms' accessibile ($port_count porte trovate)"
+            log "✅ Compatibility verified - Server 'olms' accessible ($port_count ports found)"
             exit 0
         else
-            log "WARN: JACK è attivo ma jack_lsp non riesce a connettersi a 'olms'."
-            log "Questo è un falso positivo - JACK è stato avviato correttamente."
-            log "Tutti i file socket sono stati trovati e configurati correttamente."
-            log "Procediamo con l'orchestrator..."
+            log "WARN: JACK is active but jack_lsp cannot connect to 'olms'."
+            log "This is a false positive - JACK has been started correctly."
+            log "All socket files have been found and configured correctly."
+            log "Proceeding with orchestrator..."
             exit 0
         fi
         

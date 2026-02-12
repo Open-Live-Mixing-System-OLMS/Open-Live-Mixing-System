@@ -1,22 +1,38 @@
+# Copyright (C) 2024 Francesco Nano <tua@email.com>
+# 
+# This file is part of the Open Live Mixing System (OLMS).
+#
+# OLMS is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU General Public License for more details.
+#
+# Created with AI collaboration. Visit: https://openlivemixingsystem.org/
+
 #!/bin/bash
 # OLMS LATENCY ANALYZER - v1.9 (CLEAN OUTPUT)
-# Fix: Logica identica alla v1.8, migliorata solo la leggibilità dei log.
-# Feature: Allineamento colonne e calcolo differenziale nel report finale.
+# Fix: Logic identical to v1.8, only improved log readability.
+# Feature: Column alignment and differential calculation in final report.
 
 set -e
 
-# --- CONFIGURAZIONE ---
+# --- CONFIGURATION ---
 export TARGET_USER="francesco_ssh"
 export BIN_JACK_DELAY="/usr/bin/jack_delay"
 export J_ENV="PATH=/usr/local/sbin:/usr/local/bin:/usr/bin:/bin JACK_DEFAULT_SERVER=olms JACK_PROMISCUOUS_SERVER=1 JACK_NO_START_SERVER=1"
 export J_CMD="sudo -u $TARGET_USER env $J_ENV"
 
-# Impostazioni attuali (solo per calcolo teorico)
+# Current settings (for theoretical calculation only)
 BUFFER=64
 RATE=48000
 PERIODS=3
 
-# --- COLORI E STILI ---
+# --- COLORS AND STYLES ---
 GREEN='\033[1;32m' # Bold Green
 YELLOW='\033[1;33m' # Bold Yellow
 RED='\033[1;31m'   # Bold Red
@@ -28,43 +44,43 @@ log_warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
 log_err()  { echo -e "${RED}[ERROR]${NC} $1"; }
 log_step() { echo -e "\n${CYAN}=== $1 ===${NC}"; }
 
-# Funzione di analisi robusta (Output pulito)
+# Robust analysis function (Clean output)
 analyze_result() {
     local file=$1
     local phase=$2
     
     if grep -q "frames" "$file"; then
-        # Prende l'ultima riga valida
+        # Takes the last valid line
         local last_line=$(grep "frames" "$file" | tail -n 1)
         
-        # PULIZIA OUTPUT: Rimuove spazi iniziali e tabulazioni per allineamento
-        # Esempio Raw: "  384.597 frames     8.012 ms" -> Clean: "384.597 frames | 8.012 ms"
+        # OUTPUT CLEANUP: Removes leading spaces and tabs for alignment
+        # Example Raw: "  384.597 frames     8.012 ms" -> Clean: "384.597 frames | 8.012 ms"
         local clean_val=$(echo "$last_line" | sed 's/^[ \t]*//' | sed 's/[ \t]*frames[ \t]*/ frames | /')
         
-        echo -e "   > Risultato $phase: ${GREEN}${clean_val}${NC}"
+        echo -e "   > Result $phase: ${GREEN}${clean_val}${NC}"
         return 0
     else
-        log_warn "Parsing automatico fallito. Output grezzo:"
+        log_warn "Automatic parsing failed. Raw output:"
         tail -n 3 "$file"
         return 1
     fi
 }
 
 run_software_test() {
-    log_step "FASE 1: Verifica Routing Software (Ardour)"
+    log_step "PHASE 1: Software Routing Verification (Ardour)"
     
     local ardour_in="ardour:Audio 1/audio_in 1"
     local ardour_out="ardour:Master/audio_out 1"
     local logfile="/tmp/lat_soft.log"
 
-    # Verifica porte
+    # Verify ports
     if ! $J_CMD jack_lsp | grep -Fq "$ardour_in"; then
-        log_warn "Traccia '$ardour_in' non trovata. Ardour è aperto?"
+        log_warn "Track '$ardour_in' not found. Is Ardour open?"
         return
     fi
 
     echo "   Routing: $ardour_in -> $ardour_out"
-    echo "   Stato:   Iniezione segnale (I meter DEVONO muoversi)..."
+    echo "   Status:  Signal injection (Meters MUST move)..."
 
     $J_CMD "$BIN_JACK_DELAY" -O "$ardour_in" -I "$ardour_out" > "$logfile" 2>&1 &
     local pid=$!
@@ -77,81 +93,81 @@ run_software_test() {
 }
 
 run_hardware_test() {
-    log_step "FASE 2: TEST HARDWARE (Loopback Fisico)"
-    log_warn "Configurazione richiesta: Cavo Loopback (OUT 1 -> IN 1)"
-    log_warn "IMPORTANTE: Metti in MUTE il Master di Ardour o disattiva Input Monitoring!"
-    echo -n "   Premi INVIO per misurare..."
+    log_step "PHASE 2: HARDWARE TEST (Physical Loopback)"
+    log_warn "Required configuration: Loopback Cable (OUT 1 -> IN 1)"
+    log_warn "IMPORTANT: Mute Ardour Master or disable Input Monitoring!"
+    echo -n "   Press ENTER to measure..."
     read
     
     local logfile="/tmp/lat_hard.log"
     
-    # Rilevamento porte JACK dinamico (come nel Session Adaptation)
-    log_info "Rilevamento porte JACK disponibili..."
+    # Dynamic JACK port detection (like Session Adaptation)
+    log_info "Detecting available JACK ports..."
     local available_ports
     available_ports=$($J_CMD jack_lsp 2>/dev/null | grep "^system:" | sort)
     
     if [ -z "$available_ports" ]; then
-        log_err "Nessuna porta JACK trovata per il server 'olms'"
+        log_err "No JACK ports found for server 'olms'"
         return 1
     fi
     
-    # Estrai porte capture e playback disponibili
+    # Extract available capture and playback ports
     local capture_ports=$(echo "$available_ports" | grep "capture" | head -10)
     local playback_ports=$(echo "$available_ports" | grep "playback" | head -10)
     
-    # Conta le porte disponibili
+    # Count available ports
     local capture_count=$(echo "$capture_ports" | wc -l)
     local playback_count=$(echo "$playback_ports" | wc -l)
     
-    log_info "Porte disponibili: $capture_count capture, $playback_count playback"
+    log_info "Available ports: $capture_count capture, $playback_count playback"
     
-    # Verifica che ci siano abbastanza porte per il test
+    # Verify there are enough ports for the test
     if [ "$capture_count" -lt 1 ] || [ "$playback_count" -lt 1 ]; then
-        log_err "Porte insufficienti per il test hardware"
+        log_err "Insufficient ports for hardware test"
         return 1
     fi
     
-    # Estrai la prima porta capture e playback disponibili
+    # Extract the first available capture and playback ports
     local capture_port=$(echo "$capture_ports" | head -1)
     local playback_port=$(echo "$playback_ports" | head -1)
     
-    log_info "Test hardware su porte: $capture_port -> $playback_port"
+    log_info "Hardware test on ports: $capture_port -> $playback_port"
     
-    # Esecuzione su porte fisiche dinamiche
+    # Execution on dynamic physical ports
     $J_CMD "$BIN_JACK_DELAY" -I "$capture_port" -O "$playback_port" > "$logfile" 2>&1 &
     local pid=$!
     
-    echo "   Campionamento in corso (5s)..."
+    echo "   Sampling in progress (5s)..."
     sleep 5
     kill $pid 2>/dev/null || true
     wait $pid 2>/dev/null || true
     
     if analyze_result "$logfile" "Hardware"; then
-        # Estrazione dati per report finale
+        # Data extraction for final report
         local last_line=$(grep "frames" "$logfile" | tail -n 1)
-        # Estrae solo i millisecondi (es. 8.012)
+        # Extract only milliseconds (e.g., 8.012)
         local ms_measured=$(echo "$last_line" | grep -oE "[0-9]+\.[0-9]+ ms" | awk '{print $1}')
         
-        # Calcolo Teorico
+        # Theoretical Calculation
         local theoretical_ms=$(echo "scale=3; ($BUFFER * $PERIODS + $BUFFER) / $RATE * 1000" | bc)
-        # Calcolo Overhead (Hardware puro)
+        # Overhead Calculation (Pure Hardware)
         local overhead_ms=$(echo "scale=3; $ms_measured - $theoretical_ms" | bc)
 
         echo ""
         echo "======================================================="
-        echo -e "              ${CYAN}REPORT FINALE OLMS${NC}"
+        echo -e "              ${CYAN}OLMS FINAL REPORT${NC}"
         echo "======================================================="
-        printf "   %-25s : %s ms\n" "Latenza Teorica (Buffer)" "$theoretical_ms"
+        printf "   %-25s : %s ms\n" "Theoretical Latency (Buffer)" "$theoretical_ms"
         printf "   %-25s : %s ms\n" "Overhead (USB+Conv)" "$overhead_ms"
         echo "   ---------------------------------------"
-        printf "   %-25s : ${GREEN}%s ms${NC} (TOTALE)\n" "LATENZA REALE RILEVATA" "$ms_measured"
+        printf "   %-25s : ${GREEN}%s ms${NC} (TOTAL)\n" "REAL LATENCY MEASURED" "$ms_measured"
         echo "   ---------------------------------------"
-        printf "   %-25s : %s\n" "Porta Input" "$capture_port"
-        printf "   %-25s : %s\n" "Porta Output" "$playback_port"
+        printf "   %-25s : %s\n" "Input Port" "$capture_port"
+        printf "   %-25s : %s\n" "Output Port" "$playback_port"
         echo "======================================================="
     else
-        log_err "Test Hardware fallito. Segnale non ricevuto."
-        log_warn "Porte disponibili: $available_ports"
+        log_err "Hardware Test failed. Signal not received."
+        log_warn "Available ports: $available_ports"
     fi
 }
 
