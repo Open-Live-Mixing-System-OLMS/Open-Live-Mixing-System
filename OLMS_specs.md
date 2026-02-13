@@ -16,62 +16,84 @@
 # Open Live Mixing System (OLMS) - GPL Core Engine and Logic (v 1.3)
 
 ## TARGET FOLDER STRUCTURE
-olms-project/
+OLMS-Core/
 ├── PKGBUILD                 # Arch package definition (Dependencies)
 ├── setup-env.sh             # Bootstrap script (One-time: installation/permissions)
-├── scripts/                 # Operational scripts (On every startup/runtime)
-│   ├── olms-startup.sh      # Main startup script for complete system initialization
-│   ├── prepare_machine.sh   # Machine preparation orchestrator
-│   ├── audio_engine.sh      # Audio engine launch command (renamed from ardour_launcher.sh)
-│   ├── rt_tuning.sh         # CPU/Kernel optimizations
-│   ├── irq_pinning.sh       # Hardware IRQ pinning
-│   ├── olms-apply-affinity.sh # CPU affinity configuration
-│   ├── cpu_shielding_v2.sh  # CPU shielding implementation using cgroup v2
-│   ├── disk_guard.sh        # Disk space monitoring
-│   ├── setup_realtime_privileges.sh # Realtime privileges setup
-│   ├── usb_audio_session_adapter.sh # USB audio session adaptation
-│   ├── olms-final-verification.sh   # Comprehensive system verification
-│   ├── audio_virtual.sh     # Virtual audio backend setup
-│   ├── olms-hard-reset.sh   # Complete system reset
-│   ├── olms-audio-test.sh   # Audio system testing
-│   ├── launchers/           # Environment-specific launchers
-│   │   ├── olms-test-launcher.sh    # Test environment launcher
-│   │   └── olms-prod-launcher.sh    # Production environment launcher
-│   └── config/              # Configuration management utilities
-│       ├── install-symlinks.sh      # Install system symlinks
-│       ├── remove-symlinks.sh       # Remove system symlinks
-│       └── test_complete_system.sh  # Complete system testing
+├── olms.install             # Package installation script
+├── README.md                # Project documentation
+├── LICENSE                  # GNU GPL v3.0 license
+├── copyright_template.txt   # Copyright template for new files
+├── OLMS_specs.md            # Main specifications document
+├── OLMS_STARTUP_SPECIFICATION.md # Startup process specification
 ├── config/                  # System configuration files (Centralized Management)
 │   ├── realtime/            # Realtime privileges configuration
-│   │   ├── 99-realtime.conf # Optimized realtime privileges for OLMS
-│   │   └── README.md        # Realtime configuration documentation
-│   ├── systemd/             # Systemd service configurations
-│   │   ├── olms-affinity.service         # CPU affinity service
-│   │   ├── olms-irq-pinning.service      # IRQ pinning service
-│   │   └── olms-rt-tuning.service        # RT tuning service
-│   └── user.conf.d/         # User-specific systemd overrides
-│       └── 10-olms-realtime.conf       # Realtime user limits
+│   │   └── 99-realtime.conf # Optimized realtime privileges for OLMS
+│   ├── scripts/             # Configuration management utilities
+│   │   ├── install-symlinks.sh      # Install system symlinks
+│   │   ├── remove-symlinks.sh       # Remove system symlinks
+│   │   └── test_complete_system.sh  # Complete system testing
+│   └── systemd/             # Systemd service configurations
+│       ├── user.conf.d/     # User-specific systemd overrides
+│       │   └── 10-olms-realtime.conf # Realtime user limits
+│       └── cpu_shielding.sh # CPU shielding implementation
 ├── engine/                  # Audio Logic (OLMS Core)
-│   ├── session-template/    # Ardour .ardour template
-│   │   └── OLMS-POC/        # Proof of Concept template
-│   │       ├── analysis/    # Session analysis data
-│   │       ├── dead/        # Unused session data
-│   │       ├── export/      # Export configurations
-│   │       ├── externals/   # External plugins
-│   │       ├── interchange/ # Session interchange data
-│   │       │   └── OLMS-POC/
-│   │       │       ├── audiofiles/    # Audio files
-│   │       │       └── midifiles/     # MIDI files
-│   │       ├── peaks/       # Audio peak data
-│   │       └── plugins/     # Plugin configurations
-│   └── lua/                 # Lua scripts for bank management
+│   └── session-template/    # Ardour .ardour template
+│       └── OLMS-POC/        # Proof of Concept template
+│           ├── OLMS-POC.ardour.temp # Ardour session template
+│           ├── OLMS-POC.history      # Session history
+│           ├── OLMS-POC.history.bak  # Session history backup
+│           ├── analysis/    # Session analysis data
+│           ├── dead/        # Unused session data
+│           ├── export/      # Export configurations
+│           ├── externals/   # External plugins
+│           ├── interchange/ # Session interchange data
+│           │   └── OLMS-POC/
+│           │       ├── audiofiles/    # Audio files
+│           │       └── midifiles/     # MIDI files
+│           ├── peaks/       # Audio peak data
+│           └── plugins/     # Plugin configurations
 ├── systemd/                 # Systemd service files
 │   ├── ardour.service       # Ardour headless service
 │   ├── olms-affinity.service # CPU affinity service
 │   ├── olms-disk-guard.service # Disk monitoring service
 │   ├── olms-irq-pinning.service # Hardware IRQ pinning service
 │   └── olms-rt-tuning.service   # Real-time tuning service
-└── ui/                      # OSC Layout (Open Stage Control)
+├── Startup/                 # Operational scripts (On every startup/runtime)
+│   ├── _olms-launcher.sh    # Main launcher script
+│   ├── _olms-launcher-test.sh # Test launcher script
+│   ├── olms-orchestrator.sh # System orchestrator
+│   ├── olms-path-utils.sh   # Path utilities
+│   ├── phase0-audio-cleanup.sh # Audio environment cleanup
+│   ├── phase0-lock-management.sh # Lock file management
+│   ├── phase1-rt-optimization.sh # Real-time system optimization
+│   ├── phase2-hardware-config.sh # Hardware configuration
+│   ├── phase3-jack-init-fixed.sh # JACK server initialization
+│   ├── phase4-x11-setup.sh  # X11 environment setup
+│   ├── phase5-ardour-startup.sh # Ardour DAW startup
+│   ├── phase6-final-report.sh # Final system report
+│   ├── 99-jack-sockets.rules # JACK socket permissions
+│   ├── 99-realtime.conf     # Realtime privileges (duplicate for startup)
+│   ├── 99-usb-permissions.rules # USB device permissions
+│   ├── audio_output_diagnostic.sh # Audio output diagnostics
+│   ├── fix_jack_links.sh    # JACK link fixes
+│   ├── jack_connectivity_test.sh # JACK connectivity testing
+│   ├── jack_system_reset.sh # JACK system reset
+│   ├── olms-jack-force-init.sh # Force JACK initialization
+│   ├── olms-jack-setup.sh   # JACK setup script
+│   ├── olms-runtime-permissions.sh # Runtime permission management
+│   ├── olms-system-monitor.sh # System monitoring
+│   ├── olms-unified-startup.sh # Unified startup script
+│   ├── test_jack_detection.sh # JACK detection testing
+│   └── UNIVERSAL_SYSTEM_GUIDE.md # Universal system guide
+├── test/                    # Testing scripts
+│   ├── olms-latency-test.sh # Latency testing
+│   ├── test_jack_ardour_fixes.sh # JACK/Ardour fixes testing
+│   ├── test_jack_stability.sh # JACK stability testing
+│   ├── test_session_adaptation.sh # Session adaptation testing
+│   └── test_variables.sh    # Variable testing
+└── .gitignore               # Git ignore file
+
+**Note:** The `setup-env.sh` script is the bootstrap script that provides automated system configuration for OLMS. It is the recommended method for initial system setup and configuration.
 
 For detailed script implementation, architecture, and usage examples, see: [SCRIPTS_IMPLEMENTATION_SUMMARY.md](./SCRIPTS_IMPLEMENTATION_SUMMARY.md)
 
@@ -599,11 +621,78 @@ OLMS includes an intelligent bypass mechanism in Phase 3 that allows users to sk
 
 For detailed startup process specifications, see: [OLMS_STARTUP_SPECIFICATION.md](./OLMS_STARTUP_SPECIFICATION.md)
 
+## 🚀 Quick Start: Bootstrap Method (Recommended)
+
+The fastest and most reliable way to get OLMS running is using the **Bootstrap Script**. This single command configures your entire system for professional audio production.
+
+### Bootstrap Script Overview
+
+The `setup-env.sh` script is a comprehensive configuration tool that automates all the complex system setup required for real-time audio processing:
+
+```bash
+# One command to configure your entire system
+sudo ./setup-env.sh
+```
+
+**What the Bootstrap Script Does:**
+- ✅ **System Permissions**: Configures Udev rules for USB audio, JACK sockets, CPU governors, and IRQ management
+- ✅ **Realtime Privileges**: Sets up PAM limits for maximum audio priority (rtprio 99, unlimited memory lock)
+- ✅ **Kernel Optimization**: Applies real-time kernel parameters for low-latency audio
+- ✅ **User Groups**: Adds your user to required groups (audio, realtime, plugdev)
+- ✅ **X11 Configuration**: Sets up display permissions for GUI mode operation
+- ✅ **Runtime Manager**: Installs and configures the Runtime Permission Manager
+- ✅ **Autostart Setup**: Configures automatic startup via systemd or rc.local
+
+**After Bootstrap:**
+1. **Restart your user session** (log out/in or reboot)
+2. **Start OLMS** with the startup scripts:
+   ```bash
+   # Complete system startup
+   ./scripts/olms-startup.sh
+   
+   # Or manual startup for testing
+   ./scripts/prepare_machine.sh
+   ./scripts/audio_engine.sh
+   ```
+
+**Why Use Bootstrap:**
+- **Simplified Setup**: No need to manually configure individual components
+- **Error Prevention**: Automated checks and proper configuration
+- **Consistency**: Same setup across all systems
+- **Time Saving**: Complete configuration in under 2 minutes
+- **Reliability**: Tested configuration patterns
+
+### Manual Configuration (Advanced Users)
+
+For users who prefer manual control or need custom configurations, see the detailed installation methods below.
+
 ## 📦 Installation Methods
 
 OLMS can be installed using multiple methods to accommodate different deployment scenarios and user preferences.
 
-### 1. Arch Linux Package (Recommended)
+### 1. Bootstrap Method (Recommended for Most Users)
+
+**For users who want the fastest, most reliable setup:**
+
+```bash
+# Navigate to OLMS-Core directory
+cd /path/to/OLMS-Core
+
+# Run the bootstrap script (requires root)
+sudo ./setup-env.sh
+
+# Restart your session
+# Then start OLMS
+./scripts/olms-startup.sh
+```
+
+**Benefits:**
+- Complete automated configuration
+- No manual dependency management
+- Optimized for professional audio use
+- Includes all necessary permissions and limits
+
+### 2. Arch Linux Package (Recommended for Arch Users)
 
 The preferred installation method for Arch Linux users is through the PKGBUILD package, which provides automated dependency management, system integration, and post-installation configuration.
 
@@ -635,8 +724,8 @@ The package automatically configures:
 #### Manual Post-Installation Steps
 After package installation, run:
 ```bash
-# Configure realtime privileges
-sudo setup_realtime_privileges
+# Configure realtime privileges (automated by package)
+# Note: The package automatically configures realtime privileges via /etc/security/limits.d/99-realtime.conf
 
 # Configure JACK for optimal performance
 sudo olms-jack-setup setup
@@ -647,14 +736,23 @@ sudo olms-rt-override
 # Enable and start OLMS services
 sudo systemctl enable olms-rt-tuning.service
 sudo systemctl enable olms-irq-pinning.service
-sudo systemctl enable ardour.service
-sudo systemctl enable olms-affinity.service
-sudo systemctl enable olms-disk-guard.service
+sudo systemctl.enable ardour.service
+sudo systemctl.enable olms-affinity.service
+sudo systemctl.enable olms-disk-guard.service
 ```
 
-### 2. Manual Installation
+**Note:** The Arch package automatically configures most system components. For complete automated setup, users can also run the bootstrap script:
+```bash
+sudo ./setup-env.sh
+```
 
-For users on other Linux distributions or those who prefer manual control, OLMS can be installed manually.
+**Alternative Setup Method:** Users can choose between the Arch package or the bootstrap script for system configuration. The bootstrap script provides a more comprehensive setup that works across different distributions.
+
+### 3. Manual Installation (Advanced Users)
+
+**For users who prefer complete manual control or need custom configurations:**
+
+This method is intended for advanced users who need specific customizations or are working on unsupported distributions. For most users, the **Bootstrap Method** is recommended.
 
 #### Prerequisites
 Install required dependencies:
@@ -675,9 +773,6 @@ sudo pacman -S alsa-utils ardour jack2 qjackctl xorg-xauth xorg-xhost
 git clone https://github.com/Open-Live-Mixing-System-OLMS/Open-Live-Mixing-System.git
 cd Open-Live-Mixing-System
 
-# Run the setup script
-./setup-env.sh
-
 # Copy scripts to system locations
 sudo cp scripts/* /usr/bin/
 sudo cp systemd/* /etc/systemd/system/
@@ -686,6 +781,24 @@ sudo cp config/systemd/* /etc/systemd/system/
 
 # Make scripts executable
 sudo chmod +x /usr/bin/olms-*
+
+# Manual configuration (replaces bootstrap script)
+# Configure realtime privileges manually
+sudo ./scripts/setup_realtime_privileges
+
+# Configure JACK manually
+sudo ./scripts/olms-jack-setup setup
+
+# Apply systemd realtime configuration
+sudo ./scripts/olms-rt-override
+```
+
+**Note:** This method requires manual configuration of all system components. The bootstrap script automates these steps and is recommended for most users.
+
+**Alternative:** For a faster setup, users can run the bootstrap script after cloning:
+```bash
+# Use bootstrap for complete automated setup
+sudo ./setup-env.sh
 ```
 
 ### 3. Docker Installation (Development)
@@ -728,7 +841,9 @@ aws ec2 run-instances --image-id ami-rt-kernel --instance-type c5.large
 ssh ec2-user@instance-ip
 git clone https://github.com/Open-Live-Mixing-System-OLMS/Open-Live-Mixing-System.git
 cd Open-Live-Mixing-System
-./setup-env.sh
+
+# Use bootstrap for complete automated setup
+sudo ./Startup/olms-bootstrap.sh
 ```
 
 #### Kubernetes Deployment
@@ -742,7 +857,7 @@ kubectl expose deployment olms --type=LoadBalancer --port=8080
 
 ## 🚀 Contributor Setup & Testing Guide
 
-This section provides instructions for contributors who want to test and develop OLMS without the complete automated distribution.
+This section provides instructions for contributors who want to test and develop OLMS. The **Bootstrap Method** is recommended for the fastest and most reliable setup.
 
 ### 1. Prerequisites for Contributors
 
@@ -757,28 +872,39 @@ To set up a testing environment, you need:
 | **Scripts** | OLMS Core scripts | System configuration and startup |
 | **X11 Support** | xorg-xauth + display manager | X11 authentication for GUI mode |
 
+### 2. Quick Setup with Bootstrap (Recommended)
+
+For contributors, the fastest way to get a working development environment is using the bootstrap script:
+
+```bash
+# Navigate to OLMS-Core directory
+cd /path/to/OLMS-Core
+
+# Run the bootstrap script (requires root)
+sudo ./setup-env.sh
+
+# Restart your session
+# Then start OLMS for testing
+./scripts/olms-startup.sh
+```
+
+**Benefits for Contributors:**
+- Complete automated configuration in under 2 minutes
+- No need to manually configure individual components
+- Consistent setup across all development environments
+- Includes all necessary permissions and limits for audio development
+
 ### 2. Realtime Privileges Configuration
 
 **IMPORTANT**: OLMS requires proper realtime privileges for optimal audio performance. The system has been configured with enhanced realtime privileges management.
 
-#### 2.1 Automatic Configuration
+#### 2.1 Bootstrap Configuration (Recommended)
 
-The `setup-env.sh` script automatically configures realtime privileges:
+**For most users, the bootstrap script handles all realtime configuration automatically.** If you used the bootstrap method, realtime privileges are already configured and no additional setup is needed.
 
-```bash
-# Run the setup script to configure realtime privileges
-./setup-env.sh
-```
+#### 2.2 Manual Configuration (Advanced Users)
 
-This script will:
-- Create the `audio` and `realtime` groups if they don't exist
-- Add the current user to both groups
-- Install the optimized realtime configuration file
-- Verify the configuration is working correctly
-
-#### 2.2 Manual Configuration
-
-If you need to configure realtime privileges manually:
+If you need to configure realtime privileges manually (for example, if you used the Manual Installation method):
 
 ```bash
 # Create required groups
@@ -798,6 +924,9 @@ sudo ./scripts/olms-rt-override.sh
 ulimit -r  # Should show 99
 groups $USER  # Should show both audio and realtime
 ```
+
+**Note:** The bootstrap script (`./setup-env.sh`) automates all these steps and is recommended for most users.
+
 
 #### 2.3 X11 Authentication Setup
 
@@ -986,7 +1115,7 @@ cd /path/to/OLMS-Core
 For contributors working on Arch RT systems without the complete automated distribution, the `prepare_machine.sh` script provides a coordinated approach to manual system preparation. This script acts as a workflow orchestrator that ensures proper system configuration before audio engine startup.
 
 **Concept Overview:**
-The `prepare_machine.sh` script implements a sequential workflow that guarantees correct system configuration before audio engine initialization. It is designed specifically for contributors working on machines without the automated distribution, providing a controlled environment for development and testing.
+The `prepare_machine.sh` script implements a sequential workflow that guarantees correct system configuration before audio engine initialization. It is designed specifically for contributors working on machines without automated configuration, providing a controlled environment for development and testing.
 
 **Workflow Architecture:**
 The script follows a structured approach with distinct phases:
@@ -1001,7 +1130,7 @@ The `prepare_machine.sh` script functions as a wrapper that prepares the system 
 **Testing vs Production Workflow:**
 - **Development Environment**: The `prepare_machine.sh` script enables step-by-step manual testing with full control over each preparation phase
 - **Production Environment**: The same preparation steps are automated through systemd services for reliable, hands-off operation
-- This approach provides a clear migration path from manual development workflows to automated production deployment
+- This approach provides a clear migration path from manual development workflows to automated deployment
 
 **Contributor Benefits:**
 - **Complete Control**: Contributors maintain full oversight of the system preparation process
@@ -1009,7 +1138,7 @@ The `prepare_machine.sh` script functions as a wrapper that prepares the system 
 - **Flexible Testing**: Individual preparation phases can be tested in isolation
 - **Gradual Automation**: Provides a foundation for transitioning to fully automated deployment
 
-This coordinated approach ensures that contributors can reliably prepare their development environment while maintaining compatibility with the production automation infrastructure.
+This coordinated approach ensures that contributors can reliably prepare their development environment while maintaining compatibility with automated infrastructure.
 
 ### 3. Development and Debugging
 

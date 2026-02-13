@@ -1,4 +1,4 @@
-# Copyright (C) 2024 Francesco Nano <tua@email.com>
+# Copyright (C) 2026 Francesco Nano
 # 
 # This file is part of the Open Live Mixing System (OLMS).
 #
@@ -28,16 +28,16 @@
 # Audio device (e.g., "hw:1", "hw:0", "dummy")
 # Find your device with: aplay -l or arecord -l
 # Leave empty for automatic detection (recommended)
-# OLMS_AUDIO_DEVICE=""
+OLMS_AUDIO_DEVICE=""
 
 # Buffer configuration (e.g., "64:3", "32:2", "128:2")
 # Format: buffer_size:periods
 # Default: 64 samples, 3 cycles (periods)
-OLMS_BUFFER_CONFIG="64:3"
+OLMS_BUFFER_CONFIG=""
 
 # Bit depth (e.g., "24", "32", "16")
 # Default: 32-bit for optimal performance
-OLMS_BIT_DEPTH="32"
+OLMS_BIT_DEPTH=""
 
 # === END USER CONFIGURATION SECTION ===
 

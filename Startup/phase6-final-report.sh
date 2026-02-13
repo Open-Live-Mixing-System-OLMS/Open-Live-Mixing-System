@@ -1,4 +1,4 @@
-# Copyright (C) 2024 Francesco Nano <tua@email.com>
+# Copyright (C) 2026 Francesco Nano
 # 
 # This file is part of the Open Live Mixing System (OLMS).
 #
@@ -401,18 +401,25 @@ get_jack_configuration() {
         server_name="${BASH_REMATCH[1]}"
     fi
     
-    # Get scheduling information
-    if [[ -f "/proc/$jack_pid/status" ]]; then
-        local sched_info=$(grep "State:" "/proc/$jack_pid/status" 2>/dev/null)
-        if [[ -n "$sched_info" ]]; then
-            scheduling_policy=$(echo "$sched_info" | awk '{print $2}')
+    # Get scheduling information using ps command (correct method)
+    # Find the actual JACK process (not the sudo wrapper)
+    local actual_jack_pid="$jack_pid"
+    if [[ -f "/proc/$jack_pid/cmdline" ]]; then
+        local cmdline=$(cat "/proc/$jack_pid/cmdline" 2>/dev/null | tr '\0' ' ')
+        if [[ "$cmdline" =~ sudo ]]; then
+            # This is a sudo process, find the actual JACK child process
+            local jackd_pid=$(pgrep -P "$jack_pid" -f "jackd" | head -n 1)
+            if [[ -n "$jackd_pid" ]] && kill -0 "$jackd_pid" 2>/dev/null; then
+                actual_jack_pid="$jackd_pid"
+            fi
         fi
     fi
     
-    if [[ -f "/proc/$jack_pid/stat" ]]; then
-        local priority_info=$(cat "/proc/$jack_pid/stat" 2>/dev/null | awk '{print $18, $19}')
-        if [[ -n "$priority_info" ]]; then
-            realtime_priority="$priority_info"
+    if command -v ps >/dev/null 2>&1; then
+        local ps_info=$(ps -o cls,pri -p "$actual_jack_pid" 2>/dev/null | tail -n 1)
+        if [[ -n "$ps_info" ]]; then
+            scheduling_policy=$(echo "$ps_info" | awk '{print $1}')
+            realtime_priority=$(echo "$ps_info" | awk '{print $2}')
         fi
     fi
     
@@ -615,19 +622,114 @@ generate_final_report() {
     log "INFO: Core $SYSTEM_CORE=SYSTEM | Core $IRQ_CORE=AUDIO IRQ | Core $AUDIO_CORES=AUDIO RT"
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     
-    # Final summary
+    # Final summary - Enhanced validation logic
     local error_count=$(grep -c "ERROR:" "$FINAL_REPORT_LOG" 2>/dev/null | tr -d '\n' || echo "0")
     local warning_count=$(grep -c "WARNING:" "$FINAL_REPORT_LOG" 2>/dev/null | tr -d '\n' || echo "0")
     
-    if [[ $error_count -eq 0 ]] && [[ $warning_count -eq 0 ]]; then
+    # Check critical real-time conditions
+    local rt_validation_passed=true
+    local critical_issues=()
+    
+    # 1. Verify JACK is in real-time mode with proper privileges
+    local jack_pid=$(pgrep -u "$TARGET_USER" -x "jackd" | head -n 1)
+    if [[ -n "$jack_pid" ]]; then
+        local actual_jack_pid="$jack_pid"
+        if [[ -f "/proc/$jack_pid/cmdline" ]]; then
+            local cmdline=$(cat "/proc/$jack_pid/cmdline" 2>/dev/null | tr '\0' ' ')
+            if [[ "$cmdline" =~ sudo ]]; then
+                local jackd_pid=$(pgrep -P "$jack_pid" -f "jackd" | head -n 1)
+                if [[ -n "$jackd_pid" ]] && kill -0 "$jackd_pid" 2>/dev/null; then
+                    actual_jack_pid="$jackd_pid"
+                fi
+            fi
+        fi
+        
+        # Check scheduling policy
+        local scheduling=$(ps -o cls -p "$actual_jack_pid" 2>/dev/null | tail -n 1 | tr -d ' ')
+        if [[ "$scheduling" != "FF" ]]; then
+            rt_validation_passed=false
+            critical_issues+=("JACK not in real-time mode (SCHED_FIFO)")
+        fi
+        
+        # Check real-time priority level
+        local rt_priority=$(ps -o pri -p "$actual_jack_pid" 2>/dev/null | tail -n 1 | tr -d ' ')
+        if [[ -n "$rt_priority" ]] && [[ "$rt_priority" -lt 80 ]]; then
+            rt_validation_passed=false
+            critical_issues+=("JACK real-time priority too low ($rt_priority < 80)")
+        fi
+        
+        # Check if JACK has real-time privileges (rtprio limit)
+        local rtprio_limit=$(ulimit -r 2>/dev/null || echo "0")
+        if [[ "$rtprio_limit" -lt 80 ]]; then
+            rt_validation_passed=false
+            critical_issues+=("User real-time priority limit too low ($rtprio_limit < 80)")
+        fi
+        
+        # Verify JACK can actually use real-time scheduling
+        if ! chrt -p "$actual_jack_pid" 2>/dev/null | grep -q "SCHED_FIFO"; then
+            rt_validation_passed=false
+            critical_issues+=("JACK cannot use real-time scheduling despite SCHED_FIFO")
+        fi
+    else
+        rt_validation_passed=false
+        critical_issues+=("JACK server not running")
+    fi
+    
+    # 2. Verify system isolation on core 0
+    local sys_pid=$(pgrep -x "systemd" | head -n 1 || pgrep -x "init" | head -n 1 || echo "1")
+    local sys_aff=$(taskset -cp "$sys_pid" 2>/dev/null | awk -F': ' '{print $2}')
+    if [[ "$sys_aff" != "0" ]] && [[ "$sys_aff" != *"0"* ]]; then
+        rt_validation_passed=false
+        critical_issues+=("System not isolated on core 0")
+    fi
+    
+    # 3. Verify IRQ pinning on core 1
+    local usb_irq=$(grep "xhci_hcd" /proc/interrupts | awk '{print $1}' | tr -d ':' | head -n 1 || echo "")
+    if [[ -n "$usb_irq" ]]; then
+        local irq_aff_mask=$(cat "/proc/irq/$usb_irq/smp_affinity" 2>/dev/null | tr -d ' \n' | sed 's/^0*//')
+        if [[ "$irq_aff_mask" != "2" ]]; then
+            rt_validation_passed=false
+            critical_issues+=("USB IRQ not pinned to core 1")
+        fi
+    fi
+    
+    # 4. Verify JACK and Ardour on audio cores (2-n)
+    local audio_cores_pattern="^[2-$LAST_CORE]"
+    if [[ -n "$jack_pid" ]]; then
+        local jack_aff=$(taskset -cp "$jack_pid" 2>/dev/null | awk -F': ' '{print $2}')
+        if [[ "$jack_aff" == *"0"* ]] || [[ "$jack_aff" == *"1"* ]]; then
+            rt_validation_passed=false
+            critical_issues+=("JACK not isolated on audio cores (2-n)")
+        fi
+    fi
+    
+    local ardour_pid=$(pgrep -u "$TARGET_USER" -f "ardour" | head -n 1)
+    if [[ -n "$ardour_pid" ]]; then
+        local ardour_aff=$(taskset -cp "$ardour_pid" 2>/dev/null | awk -F': ' '{print $2}')
+        if [[ "$ardour_aff" == *"0"* ]] || [[ "$ardour_aff" == *"1"* ]]; then
+            rt_validation_passed=false
+            critical_issues+=("Ardour not isolated on audio cores (2-n)")
+        fi
+    fi
+    
+    # Final validation
+    if [[ "$rt_validation_passed" == "true" ]] && [[ $error_count -eq 0 ]] && [[ $warning_count -eq 0 ]]; then
         log "✅ Real-time audio system fully operational"
         log "✅ Ready for professional use"
     elif [[ $error_count -eq 0 ]] && [[ $warning_count -le 2 ]]; then
-        log "⚠ Audio system operational with some warnings"
-        log "⚠ Performance potentially reduced"
+        if [[ "$rt_validation_passed" == "false" ]]; then
+            log "⚠ Audio system with real-time configuration issues"
+            log "⚠ Critical issues: ${critical_issues[*]}"
+        else
+            log "⚠ Audio system operational with some warnings"
+            log "⚠ Performance potentially reduced"
+        fi
     else
         log "✗ Audio system with critical errors"
         log "✗ Manual intervention required"
+        if [[ "$rt_validation_passed" == "false" ]]; then
+            log "✗ Real-time issues: ${critical_issues[*]}"
+        fi
     fi
     
     log "Detailed log: $FINAL_REPORT_LOG"

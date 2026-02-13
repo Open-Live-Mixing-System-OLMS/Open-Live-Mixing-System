@@ -1,5 +1,5 @@
 #!/bin/bash
-# Copyright (C) 2024 Francesco Nano <tua@email.com>
+# Copyright (C) 2026 Francesco Nano
 # 
 # This file is part of the Open Live Mixing System (OLMS).
 #
