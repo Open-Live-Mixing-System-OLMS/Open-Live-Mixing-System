@@ -22,6 +22,12 @@
 
 set -e
 
+# Importa le funzioni di gestione dei percorsi
+source "$(dirname "${BASH_SOURCE[0]}")/../Startup2/olms-path-utils.sh"
+
+# Inizializza i percorsi OLMS
+init_olms_paths
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'

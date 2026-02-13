@@ -20,4 +20,22 @@
 # Double-click this script to start the OLMS system
 # This script clears the terminal and runs the orchestrator with sudo privileges
 
-clear && sudo /home/$(whoami)/Progetti/OLMS-Core/Startup2/olms-orchestrator.sh
+# Use the orchestrator's built-in path detection
+# The orchestrator has its own path detection system, so we don't need olms-path-utils.sh
+
+# Debug: show current directory and user
+echo "Debug - Current environment:"
+echo "  Current directory: $(pwd)"
+echo "  Script directory: $(dirname "${BASH_SOURCE[0]}")"
+echo "  Current user: $(whoami)"
+echo "  HOME: $HOME"
+echo ""
+
+# Verify that the script exists before executing it
+if [[ ! -f "Startup/olms-orchestrator.sh" ]]; then
+    echo "ERROR: olms-orchestrator.sh script does not exist in Startup directory"
+    echo "Please check that you are in the correct directory."
+    exit 1
+fi
+
+clear && sudo ./Startup/olms-orchestrator.sh

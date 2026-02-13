@@ -18,6 +18,12 @@
 # Force JACK environment for 'olms' identity
 set -e
 
+# Importa le funzioni di gestione dei percorsi
+source "$(dirname "${BASH_SOURCE[0]}")/olms-path-utils.sh"
+
+# Inizializza i percorsi OLMS
+init_olms_paths
+
 USER="$(whoami)"
 UID_USER=$(id -u)
 SERVER_NAME="olms"

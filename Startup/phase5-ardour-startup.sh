@@ -97,10 +97,10 @@ ARD_SESSION_PATH="$EFFECTIVE_HOME/Progetti/OLMS-Core/engine/session-template/OLM
 ARD_SESSION_DIR="$EFFECTIVE_HOME/Progetti/OLMS-Core/engine/session-template/OLMS-POC"
 
 # Try to detect if we're running from within OLMS-Core
-local script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if [[ "$script_dir" == */Startup2 ]]; then
     # We're running from within OLMS-Core, use the parent directory
-    local olms_core_root="$(dirname "$script_dir")"
+    olms_core_root="$(dirname "$script_dir")"
     ARD_SESSION_PATH="$olms_core_root/engine/session-template/OLMS-POC/OLMS-POC.ardour"
     ARD_SESSION_DIR="$olms_core_root/engine/session-template/OLMS-POC"
 fi
@@ -333,44 +333,56 @@ reload_ardour_session() {
 
 # Headless mode check
 if [[ "${OLMS_MODE:-}" == "headless" ]]; then
-    log "PHASE 5: Headless mode - Xvfb and Ardour configuration"
+    log "🚀 CONFIGURAZIONE MODALITÀ HEADLESS (Display :99)"
 
-    # 1. Cleanup and start Xvfb on display :99
-    # Remove any residual locks if the server crashed previously
+    # 1. Pulizia e Setup Xvfb
     sudo rm -f /tmp/.X99-lock
     
-    log "Starting virtual graphics server (Xvfb) on :99..."
-    sudo -u "$ARD_USER" Xvfb :99 -screen 0 1024x768x16 > /dev/null 2>&1 &
+    # Generazione Xauthority per l'utente target
+    XAUTH_FILE="/tmp/.Xauth-ardour"
+    sudo -u "$ARD_USER" touch "$XAUTH_FILE"
+    mcookie=$(mcookie)
+    sudo -u "$ARD_USER" xauth -f "$XAUTH_FILE" add :99 . "$mcookie"
+    log "✅ File Xauthority generato in $XAUTH_FILE"
+
+    # 2. Avvio Xvfb
+    sudo -u "$ARD_USER" Xvfb :99 -screen 0 1024x768x24 -ac +extension GLX +render -noreset > /dev/null 2>&1 &
     XVFB_PID=$!
     
-    # Wait for Xvfb to be ready
-    sleep 1
+    # Attesa che il display sia pronto
+    timeout=10
+    while ! sudo -u "$ARD_USER" DISPLAY=:99 xset q > /dev/null 2>&1; do
+        sleep 0.5
+        ((timeout--))
+        if [ $timeout -le 0 ]; then error "Xvfb timeout"; exit 1; fi
+    done
+    log "✅ Display virtuale :99 pronto."
 
-    # 2. Start Ardour pointing to virtual display
-    log "Starting Ardour on DISPLAY=:99 (Headless)"
+    # 3. Avvio Ardour con parametri specifici
+    # NOTA: Rimosso JACK_NO_START_SERVER per permettere il retry della connessione
+    log "🎼 Avvio Ardour Headless..."
     
-    exec sudo -u "$ARD_USER" env \
-        HOME=/home/$(whoami) \
+    sudo -u "$ARD_USER" env \
+        HOME="$EFFECTIVE_HOME" \
         DISPLAY=:99 \
-        XAUTHORITY=/home/$(whoami)/.Xauthority \
-        XDG_RUNTIME_DIR=/run/user/$(id -u) \
+        XAUTHORITY="$XAUTH_FILE" \
+        XDG_RUNTIME_DIR="/run/user/$ARD_UID" \
         JACK_DEFAULT_SERVER="olms" \
         JACK_PROMISCUOUS_SERVER=1 \
-        JACK_NO_START_SERVER=1 \
         taskset -c "$CPU_CORES" \
         chrt -f "$RT_PRIORITY" \
         /usr/bin/ardour8 --no-splash "$ARD_SESSION_PATH" &
     
-    # Wait a moment for initialization
-    sleep 3
-    
-    # 3. Verify processes
-    if pgrep -f "ardour8.*--no-splash" > /dev/null; then
-        ardour_pid=$(pgrep -f "ardour8.*--no-splash")
-        log "✅ Ardour (Headless) and Xvfb started (Ardour PID: $ardour_pid, Xvfb PID: $XVFB_PID)"
+    ARD_PID=$!
+    sleep 5
+
+    if ps -p $ARD_PID > /dev/null; then
+        log "✅ Ardour Headless operativo (PID: $ARD_PID)"
+        # Monitoraggio pin CPU
+        monitor_anti_migration_brief "$ARD_PID"
     else
-        error "ERROR: Ardour headless did not start. Check logs."
-        kill $XVFB_PID 2>/dev/null
+        error "❌ Ardour Headless è fallito. Controlla /tmp/olms-ardour-startup.log"
+        kill $XVFB_PID 2>/dev/null || true
         exit 1
     fi
     exit 0

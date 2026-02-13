@@ -22,6 +22,12 @@
 
 set -e
 
+# Importa le funzioni di gestione dei percorsi
+source "$(dirname "${BASH_SOURCE[0]}")/../Startup2/olms-path-utils.sh"
+
+# Inizializza i percorsi OLMS
+init_olms_paths
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -135,8 +141,8 @@ setup_audio_group() {
 
 # Function to install realtime privileges symlink
 install_realtime_privileges() {
-    local script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-    local config_dir="$(dirname "$script_dir")"
+    local script_dir="$(get_olms_path "startup_dir")"
+    local config_dir="$(get_olms_path "config_dir")"
     local realtime_source="$config_dir/realtime/99-realtime.conf"
     local realtime_target="/etc/security/limits.d/99-realtime.conf"
     
@@ -157,8 +163,8 @@ install_realtime_privileges() {
 
 # Function to install systemd service symlinks
 install_systemd_services() {
-    local script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-    local config_dir="$(dirname "$script_dir")"
+    local script_dir="$(get_olms_path "startup_dir")"
+    local config_dir="$(get_olms_path "config_dir")"
     local systemd_source_dir="$config_dir/systemd"
     
     print_status "Installing systemd service symlinks..."

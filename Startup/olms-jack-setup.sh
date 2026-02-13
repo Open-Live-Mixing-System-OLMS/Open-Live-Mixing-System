@@ -21,6 +21,12 @@
 
 set -euo pipefail
 
+# Importa le funzioni di gestione dei percorsi
+source "$(dirname "${BASH_SOURCE[0]}")/olms-path-utils.sh"
+
+# Inizializza i percorsi OLMS
+init_olms_paths
+
 # Colors
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -377,17 +383,17 @@ install_runtime_permission_manager() {
     local system_script="/usr/local/bin/olms-runtime-permissions"
     
     # Copy script to user's home directory
-    if [[ -f "$SCRIPT_DIR/olms-runtime-permissions.sh" ]]; then
-        cp "$SCRIPT_DIR/olms-runtime-permissions.sh" "$runtime_script"
+    if [[ -f "$(get_olms_path "startup_dir")/olms-runtime-permissions.sh" ]]; then
+        cp "$(get_olms_path "startup_dir")/olms-runtime-permissions.sh" "$runtime_script"
         chmod +x "$runtime_script"
         log "Runtime Permission Manager installed in $runtime_script"
     else
-        warn "Runtime Permission Manager script not found in $SCRIPT_DIR"
+        warn "Runtime Permission Manager script not found in $(get_olms_path "startup_dir")"
     fi
     
     # Copy script to system (requires sudo)
-    if [[ -f "$SCRIPT_DIR/olms-runtime-permissions.sh" ]]; then
-        cp "$SCRIPT_DIR/olms-runtime-permissions.sh" "$system_script"
+    if [[ -f "$(get_olms_path "startup_dir")/olms-runtime-permissions.sh" ]]; then
+        cp "$(get_olms_path "startup_dir")/olms-runtime-permissions.sh" "$system_script"
         chmod +x "$system_script"
         log "Runtime Permission Manager installed in $system_script"
     fi

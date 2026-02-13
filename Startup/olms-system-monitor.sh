@@ -22,6 +22,12 @@
 
 set -euo pipefail
 
+# Importa le funzioni di gestione dei percorsi
+source "$(dirname "${BASH_SOURCE[0]}")/olms-path-utils.sh"
+
+# Inizializza i percorsi OLMS
+init_olms_paths
+
 # Configuration
 OLMS_HOME="$HOME/.olms"
 mkdir -p "$OLMS_HOME"

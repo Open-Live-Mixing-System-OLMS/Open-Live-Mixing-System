@@ -27,10 +27,10 @@ mkdir -p "$OLMS_HOME"
 LOG_FILE="$OLMS_HOME/olms-orchestrator.log"
 
 # Try to detect if we're running from within OLMS-Core
-local script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if [[ "$script_dir" == */Startup2 ]]; then
     # We're running from within OLMS-Core, use the parent directory
-    local olms_core_root="$(dirname "$script_dir")"
+    olms_core_root="$(dirname "$script_dir")"
     export OLMS_CORE_ROOT="$olms_core_root"
     export OLMS_ENGINE_DIR="$olms_core_root/engine"
     export OLMS_CONFIG_DIR="$olms_core_root/config"
