@@ -21,6 +21,26 @@
 # Usage: ./_olms-launcher-test.sh
 # This script clears the terminal and runs the orchestrator with sudo privileges in test mode
 
+# === USER CONFIGURATION SECTION ===
+# Set these variables if you know your optimal audio settings to skip detection phases
+# Leave them empty to use automatic detection (default behavior)
+
+# Audio device (e.g., "hw:1", "hw:0", "dummy")
+# Find your device with: aplay -l or arecord -l
+# Leave empty for automatic detection (recommended)
+# OLMS_AUDIO_DEVICE=""
+
+# Buffer configuration (e.g., "64:3", "32:2", "128:2")
+# Format: buffer_size:periods
+# Default: 64 samples, 3 cycles (periods)
+OLMS_BUFFER_CONFIG="64:3"
+
+# Bit depth (e.g., "24", "32", "16")
+# Default: 32-bit for optimal performance
+OLMS_BIT_DEPTH="32"
+
+# === END USER CONFIGURATION SECTION ===
+
 # Use the orchestrator's built-in path detection
 # The orchestrator has its own path detection system, so we don't need olms-path-utils.sh
 
@@ -39,4 +59,4 @@ if [[ ! -f "Startup/olms-orchestrator.sh" ]]; then
     exit 1
 fi
 
-clear && sudo ./Startup/olms-orchestrator.sh --test
+clear && sudo OLMS_AUDIO_DEVICE="$OLMS_AUDIO_DEVICE" OLMS_BUFFER_CONFIG="$OLMS_BUFFER_CONFIG" OLMS_BIT_DEPTH="$OLMS_BIT_DEPTH" ./Startup/olms-orchestrator.sh --test

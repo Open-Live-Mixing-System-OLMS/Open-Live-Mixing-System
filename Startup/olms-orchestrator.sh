@@ -540,11 +540,17 @@ phase3_jack_init_fixed() {
     log "=== PHASE 3: JACK SERVER INITIALIZATION (FIXED) ==="
     
     if [[ -f "$SCRIPT_DIR/phase3-jack-init-fixed.sh" ]]; then
-        # Execute with 120 second timeout to avoid blocking
-        timeout 120 bash "$SCRIPT_DIR/phase3-jack-init-fixed.sh" || {
-            error "Phase 3 failed or timeout exceeded"
-            exit 1
-        }
+        # INIEZIONE ESPLICITA: Passiamo le variabili come argomenti d'ambiente a sudo
+        # Questo sovrascrive le restrizioni di env_reset in /etc/sudoers
+        timeout 120 sudo \
+            OLMS_AUDIO_DEVICE="$OLMS_AUDIO_DEVICE" \
+            OLMS_BUFFER_CONFIG="$OLMS_BUFFER_CONFIG" \
+            OLMS_BIT_DEPTH="$OLMS_BIT_DEPTH" \
+            SUDO_USER="$SUDO_USER" \
+            bash "$SCRIPT_DIR/phase3-jack-init-fixed.sh" || {
+                error "Phase 3 failed or timeout exceeded"
+                exit 1
+            }
     else
         error "Script phase3-jack-init-fixed.sh not found"
         exit 1
@@ -647,8 +653,27 @@ main() {
     log "Log file: $LOG_FILE"
     log "Startup mode: $MODE"
     
-    # Initialize OLMS paths for relative path resolution
-    init_olms_paths
+# Initialize OLMS paths for relative path resolution
+init_olms_paths
+
+# Pass configuration variables from launcher to orchestrator
+# These variables allow skipping detection phases in phase 3 if all are set
+export OLMS_AUDIO_DEVICE="${OLMS_AUDIO_DEVICE:-}"
+export OLMS_BUFFER_CONFIG="${OLMS_BUFFER_CONFIG:-}"
+export OLMS_BIT_DEPTH="${OLMS_BIT_DEPTH:-}"
+
+# Log configuration status
+if [[ -n "$OLMS_AUDIO_DEVICE" ]] && [[ -n "$OLMS_BUFFER_CONFIG" ]] && [[ -n "$OLMS_BIT_DEPTH" ]]; then
+    log "🎯 CUSTOM CONFIGURATION DETECTED:"
+    log "  Audio Device: $OLMS_AUDIO_DEVICE"
+    log "  Buffer Config: $OLMS_BUFFER_CONFIG"
+    log "  Bit Depth: $OLMS_BIT_DEPTH"
+    log "  Mode: Fast startup (skipping detection phases)"
+else
+    log "⚙️  AUTOMATIC DETECTION MODE:"
+    log "  All settings will be automatically detected"
+    log "  Mode: Standard startup with detection"
+fi
     
     # Verify necessary commands
     check_command "pgrep"

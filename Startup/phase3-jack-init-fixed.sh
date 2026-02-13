@@ -41,7 +41,12 @@ fi
 
 # Environment variables for "same user" approach
 # Intelligent management of the actual user to handle sudo execution as well
-if [[ "$EUID" -eq 0 ]] && [[ -n "${SUDO_USER:-}" ]]; then
+# Use SUDO_USER passed from orchestrator if available, otherwise use the original logic
+if [[ -n "${SUDO_USER:-}" ]]; then
+    # SUDO_USER passed from orchestrator, use it
+    ACTUAL_USER="$SUDO_USER"
+    ACTUAL_UID=$(id -u "$SUDO_USER")
+elif [[ "$EUID" -eq 0 ]] && [[ -n "${SUDO_USER:-}" ]]; then
     # Executed with sudo, use the original user
     ACTUAL_USER="$SUDO_USER"
     ACTUAL_UID=$(id -u "$SUDO_USER")
@@ -71,6 +76,38 @@ warn() {
     fi
 }
 error() { echo -e "\e[31m[$(date '+%H:%M:%S')] ERROR:\e[0m $1"; }
+
+# Check for custom configuration from launcher
+# If at least Buffer and Bit Depth are set, we can skip detection phases
+OLMS_AUDIO_DEVICE="${OLMS_AUDIO_DEVICE:-}"
+OLMS_BUFFER_CONFIG="${OLMS_BUFFER_CONFIG:-}"
+OLMS_BIT_DEPTH="${OLMS_BIT_DEPTH:-}"
+
+log "=== PHASE 3: JACK INITIALIZATION ==="
+# Se almeno Buffer e Bit Depth sono impostati, consideriamola configurazione CUSTOM
+if [[ -n "$OLMS_BUFFER_CONFIG" ]] && [[ -n "$OLMS_BIT_DEPTH" ]]; then
+    log "🎯 CUSTOM PARAMETERS DETECTED"
+    # Se il device è vuoto, lo cerchiamo ora al volo
+    if [[ -z "$OLMS_AUDIO_DEVICE" ]]; then
+        log "🔍 Device not specified, auto-detecting for Fast Startup..."
+        for card_dir in /sys/class/sound/card*; do
+            if readlink "$card_dir/device/driver" 2>/dev/null | grep -q "snd-usb-audio"; then
+                OLMS_AUDIO_DEVICE="hw:$(basename "$card_dir" | sed 's/card//')"
+                break
+            fi
+        done
+    fi
+    
+    # Se dopo la ricerca abbiamo tutto, andiamo in Fast Mode
+    if [[ -n "$OLMS_AUDIO_DEVICE" ]]; then
+        log "✅ FAST MODE READY: Device=$OLMS_AUDIO_DEVICE, Buffer=$OLMS_BUFFER_CONFIG, Depth=$OLMS_BIT_DEPTH"
+    else
+        log "⚠️ Fast mode requested but no USB device found. Falling back to detection."
+    fi
+else
+    log "⚙️  AUTOMATIC DETECTION MODE - RUNNING FULL DETECTION"
+    log "  Mode: Standard startup with detection phases"
+fi
 
 # Buffer configurations tested in order of priority (first 2 cycles, then 3 cycles for each buffer size)
 BUFFER_CONFIGS=(
@@ -468,6 +505,123 @@ find_buffer() {
     return 0
 }
 
+# --- FAST STARTUP: CUSTOM CONFIGURATION BYPASS ---
+start_jack_fast_mode() {
+    log "🚀 FAST STARTUP: Using custom configuration"
+    
+    # Extract buffer_size and periods from custom config
+    local buffer_size="${OLMS_BUFFER_CONFIG%:*}"
+    local periods="${OLMS_BUFFER_CONFIG#*:}"
+    local bit_depth="$OLMS_BIT_DEPTH"
+    local target_alsa_device="$OLMS_AUDIO_DEVICE"
+    
+    log "🔧 CONFIGURATION: Device=$target_alsa_device, Buffer=${buffer_size}:${periods}, Bit-depth=${bit_depth}-bit"
+    
+    # --- DYNAMIC HARDWARE DETECTION (if device not specified) ---
+    if [[ -z "$target_alsa_device" ]]; then
+        log "🔍 Auto-detecting audio device..."
+        for card_dir in /sys/class/sound/card*; do
+            if [ -d "$card_dir" ]; then
+                if readlink "$card_dir/device/driver" 2>/dev/null | grep -q "snd-usb-audio"; then
+                    target_alsa_device="hw:$(basename "$card_dir" | sed 's/card//')"
+                    break
+                fi
+            fi
+        done
+        
+        if [ -z "${target_alsa_device:-}" ]; then 
+            log "⚠️ No USB audio device found, fallback to dummy"
+            target_alsa_device="dummy"
+        fi
+        log "Detected audio device: $target_alsa_device"
+    fi
+    
+    local jack_pid=""
+    
+    # LAUNCH JACK with known configuration
+    log "🚀 LAUNCHING JACK with known configuration..."
+    sudo -u $ACTUAL_USER env -i \
+        HOME=/home/$ACTUAL_USER \
+        PATH=/usr/bin:/bin \
+        XDG_RUNTIME_DIR=/run/user/$ACTUAL_UID \
+        DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$ACTUAL_UID/bus" \
+        JACK_NO_AUDIO_RESERVATION=1 \
+        JACK_PROMISCUOUS_SERVER=1 \
+        JACK_DEFAULT_SERVER=olms \
+        taskset -c "$AUDIO_CORES" chrt -f 80 \
+        /usr/bin/jackd -R -P 80 -n olms -d alsa -d "$target_alsa_device" -r "$SAMPLE_RATE" -p "$buffer_size" -n "$periods" -S "$bit_depth" > /tmp/jack_startup.log 2>&1 &
+    
+    jack_pid=$!
+    echo "$jack_pid" > /tmp/jack.pid
+    
+    log "JACK launched (PID: $jack_pid). Waiting for synchronization (8s)..."
+    sleep 8
+
+    # FIX PERMISSIONS PRE-VALIDATION
+    log "🔧 FIX: Opening socket permissions for validator..."
+    sudo chmod -R 777 /dev/shm/jack* 2>/dev/null || true
+    sudo chmod 666 /dev/shm/jack-shm-registry 2>/dev/null || true
+    
+    # FIX AUDIO VOLUME: Set volume to 100% for complete signal passage
+    log "🔧 FIX: Setting audio volume to 100% for complete signal passage..."
+    local card_num=$(echo "$target_alsa_device" | sed 's/hw://')
+    if [[ "$target_alsa_device" == "hw:"* ]] && [[ -n "$card_num" ]]; then
+        # Set PCM volume to 100% for complete signal passage
+        amixer -c "$card_num" set PCM 100% unmute >/dev/null 2>&1 || true
+        # Set Master volume to 100% for complete signal passage
+        amixer -c "$card_num" set Master 100% unmute >/dev/null 2>&1 || true
+        # Set Digital volume to 100% if available
+        amixer -c "$card_num" set Digital 100% unmute >/dev/null 2>&1 || true
+        log "✅ Audio volume set to 100% for complete signal passage"
+    fi
+
+    # VALIDATOR (Process Check)
+    if ! ps -p "$jack_pid" > /dev/null; then
+        log "❌ FAILED: Process died for custom configuration."
+        return 1
+    fi
+
+    # VALIDATOR (Reactivity Check)
+    log "🔍 VALIDATION: Testing server reactivity for custom configuration..."
+    if sudo -u $ACTUAL_USER env \
+        XDG_RUNTIME_DIR=/run/user/$ACTUAL_UID \
+        JACK_DEFAULT_SERVER=olms \
+        JACK_PROMISCUOUS_SERVER=1 \
+        jack_wait -s olms -c -t 5 -w | grep -q "available"; then
+        
+        log "✅ Server 'olms' RESPONDS for custom configuration. Checking audio ports..."
+        
+        # VALIDATOR (Audio Ports Check with Retry)
+        local ports_found=false
+        local port_count=0
+        
+        for retry in {1..3}; do
+            local raw_output=$(sudo -u $ACTUAL_USER env JACK_DEFAULT_SERVER=olms JACK_PROMISCUOUS_SERVER=1 jack_lsp 2>/dev/null || echo "")
+            port_count=$(echo "$raw_output" | grep -E "system:capture|physical" | wc -l)
+            
+            if [ "$port_count" -gt 0 ]; then
+                ports_found=true
+                break
+            fi
+            log "⏳ Ports not yet visible (Attempt $retry/3)..."
+            sleep 2
+        done
+        
+        if [ "$ports_found" = true ]; then
+            log "✅ VALID CONFIGURATION: Custom settings OK ($port_count ports)."
+            return 0
+        else
+            log "❌ ZOMBIE: Server responds but 0 audio ports after 3 attempts for custom configuration."
+            pkill -9 jackd 2>/dev/null || true
+            return 1
+        fi
+    else
+        log "❌ WRONG DOOR: Server does not respond to 'olms' for custom configuration."
+        pkill -9 jackd 2>/dev/null || true
+        return 1
+    fi
+}
+
 # --- SEVERE VERSION: ZOMBIE MODE VALIDATOR (FIXED & ROBUST) ---
 start_jack_severe_mode() {
     log "🚨 JACK SEVERE VALIDATION: Two-Phase Strategy"
@@ -625,15 +779,32 @@ setup_signal_handling() {
 
 main() {
     log "=== JACK INITIALIZATION: SEVERE VALIDATION STRATEGY ==="
+    
+    # --- LOGICA DI BYPASS VELOCE ---
+    if [[ -n "${OLMS_AUDIO_DEVICE:-}" ]] && [[ -n "${OLMS_BUFFER_CONFIG:-}" ]] && [[ -n "${OLMS_BIT_DEPTH:-}" ]]; then
+        log "🎯 CUSTOM CONFIGURATION DETECTED - BYPASS ACTIVATED"
+        log "  Device: $OLMS_AUDIO_DEVICE | Buffer: $OLMS_BUFFER_CONFIG | Depth: $OLMS_BIT_DEPTH"
+        
+        # Esegui pulizia iniziale necessaria comunque
+        setup_signal_handling
+        nuclear_cleanup
+        
+        # Avvio rapido
+        if start_jack_fast_mode; then
+            log "✅ FAST STARTUP SUCCESSFUL"
+            setup_socket_permissions
+            exit 0 # CRUCIALE: Esci qui per non avviare start_jack_severe_mode
+        else
+            log "⚠️ FAST STARTUP FAILED, falling back to severe detection mode..."
+        fi
+    fi
+    # --- FINE LOGICA DI BYPASS ---
+
     log "🚨 The 'Anti-Zombie Mode' Solution - No D-Bus Conflicts"
     
-    # Setup signal handling
+    # Procedura standard (se il bypass fallisce o mancano le variabili)
     setup_signal_handling
-    
-    # Perform nuclear cleanup
     nuclear_cleanup
-    
-    # Start JACK with SEVERE VALIDATION mode
     start_jack_severe_mode
     
     local jack_pid=$(cat /tmp/jack.pid 2>/dev/null || echo "")
