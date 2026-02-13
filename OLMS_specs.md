@@ -526,7 +526,7 @@ The OLMS system implements a comprehensive multi-phase startup process designed 
 
 ### Startup Architecture
 
-The startup process follows an 8-phase approach:
+The startup process follows a 6-phase approach with intelligent bypass capabilities:
 
 1. **Phase 0: Pre-Startup and Process Management**
    - Audio environment cleanup and process termination
@@ -543,8 +543,9 @@ The startup process follows an 8-phase approach:
    - Hardware detection and IRQ pinning
    - System topology optimization
 
-4. **Phase 3: JACK Server Initialization**
-   - Two-phase hardware detection (bit-depth and buffer optimization)
+4. **Phase 3: JACK Server Initialization (Smart Detection)**
+   - **Fast Mode**: Bypass detection when optimal settings are known (via launcher variables)
+   - **Standard Mode**: Two-phase hardware detection (bit-depth and buffer optimization)
    - Anti-zombie mode with extended stability monitoring
    - Socket permission management and connection validation
 
@@ -566,12 +567,178 @@ The startup process follows an 8-phase approach:
 ### Key Startup Features
 
 - **Modular Design**: Each phase can be tested and debugged independently
+- **Smart Bypass Capabilities**: Phase 3 includes intelligent bypass when optimal audio settings are known
 - **Hardware Agnostic**: Universal compatibility across Linux distributions
 - **Robust Error Handling**: Graceful degradation with fallback mechanisms
 - **Real-Time Optimization**: Comprehensive system tuning for low-latency audio
 - **User-Centric**: Smart user detection for both direct execution and sudo scenarios
 
+### Bypass Mechanism (Phase 3 Optimization)
+
+OLMS includes an intelligent bypass mechanism in Phase 3 that allows users to skip time-consuming hardware detection when optimal audio settings are known:
+
+**Configuration Variables** (set in launcher scripts):
+- `OLMS_BUFFER_CONFIG`: Buffer configuration (e.g., "64:3", "32:2")
+- `OLMS_BIT_DEPTH`: Bit depth (e.g., "32", "24", "16")
+- `OLMS_AUDIO_DEVICE`: Audio device (e.g., "hw:1", "hw:0") - optional
+
+**Bypass Logic**:
+- If `OLMS_BUFFER_CONFIG` AND `OLMS_BIT_DEPTH` are set → Fast Mode (skip detection)
+- If `OLMS_AUDIO_DEVICE` is not set → Auto-detect device then use fast mode
+- If variables missing → Standard detection mode (2 phases)
+
+**Benefits**:
+- **Time Savings**: Skip 30-60 seconds of detection phases
+- **Stability**: Use known good configurations
+- **Flexibility**: Users can specify only what they know
+
+**Default Values** (in launchers):
+- `OLMS_BUFFER_CONFIG="64:3"` (64 samples, 3 periods)
+- `OLMS_BIT_DEPTH="32"` (32-bit for optimal performance)
+- `OLMS_AUDIO_DEVICE=""` (auto-detect)
+
 For detailed startup process specifications, see: [OLMS_STARTUP_SPECIFICATION.md](./OLMS_STARTUP_SPECIFICATION.md)
+
+## 📦 Installation Methods
+
+OLMS can be installed using multiple methods to accommodate different deployment scenarios and user preferences.
+
+### 1. Arch Linux Package (Recommended)
+
+The preferred installation method for Arch Linux users is through the PKGBUILD package, which provides automated dependency management, system integration, and post-installation configuration.
+
+#### Package Contents
+The `olms-core` package includes:
+- **Scripts**: All operational scripts in `/usr/bin/`
+- **Configuration**: System configuration files in `/etc/olms/`
+- **Templates**: Ardour session templates in `/usr/lib/olms-core/`
+- **Services**: Systemd service files for automated operation
+- **Documentation**: Complete documentation in `/usr/share/doc/olms-core/`
+
+#### Installation Commands
+```bash
+# Build and install the package
+makepkg -si
+
+# Or install from AUR (when available)
+yay -S olms-core
+```
+
+#### Post-Installation Setup
+The package automatically configures:
+- Realtime privileges via `/etc/security/limits.d/99-realtime.conf`
+- Systemd user limits via `/etc/systemd/user.conf.d/10-olms-realtime.conf`
+- X11 authentication support
+- JACK capabilities and socket permissions
+- Audio hardware detection and optimization
+
+#### Manual Post-Installation Steps
+After package installation, run:
+```bash
+# Configure realtime privileges
+sudo setup_realtime_privileges
+
+# Configure JACK for optimal performance
+sudo olms-jack-setup setup
+
+# Apply systemd realtime configuration
+sudo olms-rt-override
+
+# Enable and start OLMS services
+sudo systemctl enable olms-rt-tuning.service
+sudo systemctl enable olms-irq-pinning.service
+sudo systemctl enable ardour.service
+sudo systemctl enable olms-affinity.service
+sudo systemctl enable olms-disk-guard.service
+```
+
+### 2. Manual Installation
+
+For users on other Linux distributions or those who prefer manual control, OLMS can be installed manually.
+
+#### Prerequisites
+Install required dependencies:
+```bash
+# Ubuntu/Debian
+sudo apt install alsa-utils ardour jackd2 qjackctl xorg-xauth xorg-xhost
+
+# Fedora/RHEL
+sudo dnf install alsa-utils ardour jack-audio-connection-kit qjackctl xorg-x11-xauth xorg-x11-xhost
+
+# Arch Linux
+sudo pacman -S alsa-utils ardour jack2 qjackctl xorg-xauth xorg-xhost
+```
+
+#### Installation Steps
+```bash
+# Clone the repository
+git clone https://github.com/Open-Live-Mixing-System-OLMS/Open-Live-Mixing-System.git
+cd Open-Live-Mixing-System
+
+# Run the setup script
+./setup-env.sh
+
+# Copy scripts to system locations
+sudo cp scripts/* /usr/bin/
+sudo cp systemd/* /etc/systemd/system/
+sudo cp config/realtime/* /etc/security/limits.d/
+sudo cp config/systemd/* /etc/systemd/system/
+
+# Make scripts executable
+sudo chmod +x /usr/bin/olms-*
+```
+
+### 3. Docker Installation (Development)
+
+For development and testing purposes, OLMS provides Docker support.
+
+#### Building the Docker Image
+```bash
+# Build the development image
+docker build -t olms-dev .
+
+# Run the container
+docker run -it --rm \
+  --device=/dev/snd \
+  --device=/dev/shm \
+  --cap-add=SYS_NICE \
+  --cap-add=IPC_LOCK \
+  olms-dev
+```
+
+#### Docker Compose
+```bash
+# Start the complete OLMS stack
+docker-compose up -d
+
+# View logs
+docker-compose logs -f
+```
+
+### 4. Cloud Deployment
+
+OLMS supports deployment to cloud platforms for remote access and collaboration.
+
+#### AWS Deployment
+```bash
+# Launch EC2 instance with RT kernel
+aws ec2 run-instances --image-id ami-rt-kernel --instance-type c5.large
+
+# Install OLMS on the instance
+ssh ec2-user@instance-ip
+git clone https://github.com/Open-Live-Mixing-System-OLMS/Open-Live-Mixing-System.git
+cd Open-Live-Mixing-System
+./setup-env.sh
+```
+
+#### Kubernetes Deployment
+```bash
+# Apply the OLMS deployment manifest
+kubectl apply -f k8s/olms-deployment.yaml
+
+# Expose the service
+kubectl expose deployment olms --type=LoadBalancer --port=8080
+```
 
 ## 🚀 Contributor Setup & Testing Guide
 
