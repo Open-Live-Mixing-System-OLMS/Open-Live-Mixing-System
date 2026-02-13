@@ -24,6 +24,21 @@ OLMS_HOME="$HOME/.olms"
 mkdir -p "$OLMS_HOME"
 LOG_FILE="$OLMS_HOME/olms-orchestrator.log"
 
+# Try to detect if we're running from within OLMS-Core
+local script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [[ "$script_dir" == */Startup2 ]]; then
+    # We're running from within OLMS-Core, use the parent directory
+    local olms_core_root="$(dirname "$script_dir")"
+    export OLMS_CORE_ROOT="$olms_core_root"
+    export OLMS_ENGINE_DIR="$olms_core_root/engine"
+    export OLMS_CONFIG_DIR="$olms_core_root/config"
+    export OLMS_STARTUP_DIR="$olms_core_root/Startup2"
+    export OLMS_SYSTEMD_DIR="$olms_core_root/systemd"
+    export OLMS_TEST_DIR="$olms_core_root/test"
+    export OLMS_ARDOUR_SESSION_PATH="$olms_core_root/engine/session-template/OLMS-POC/OLMS-POC.ardour"
+    export OLMS_ARDOUR_SESSION_DIR="$olms_core_root/engine/session-template/OLMS-POC"
+fi
+
 # Dynamic core detection
 TOTAL_CORES=$(nproc)
 LAST_CORE=$((TOTAL_CORES - 1))

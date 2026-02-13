@@ -92,9 +92,19 @@ if [[ "$EFFECTIVE_USER" == "root" ]] && [[ "${OLMS_MODE:-}" != "headless" ]]; th
     warn "💡 If running with sudo, verify that SUDO_USER is set correctly"
 fi
 
-# Configuration variables
+# Configuration variables - use new relative path system
 ARD_SESSION_PATH="$EFFECTIVE_HOME/Progetti/OLMS-Core/engine/session-template/OLMS-POC/OLMS-POC.ardour"
 ARD_SESSION_DIR="$EFFECTIVE_HOME/Progetti/OLMS-Core/engine/session-template/OLMS-POC"
+
+# Try to detect if we're running from within OLMS-Core
+local script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [[ "$script_dir" == */Startup2 ]]; then
+    # We're running from within OLMS-Core, use the parent directory
+    local olms_core_root="$(dirname "$script_dir")"
+    ARD_SESSION_PATH="$olms_core_root/engine/session-template/OLMS-POC/OLMS-POC.ardour"
+    ARD_SESSION_DIR="$olms_core_root/engine/session-template/OLMS-POC"
+fi
+
 ARD_USER="$EFFECTIVE_USER"
 ARD_UID=$(id -u "$EFFECTIVE_USER" 2>/dev/null || echo "$(id -u)")
 ACTUAL_UID=$(id -u "$EFFECTIVE_USER" 2>/dev/null || echo "$(id -u)")

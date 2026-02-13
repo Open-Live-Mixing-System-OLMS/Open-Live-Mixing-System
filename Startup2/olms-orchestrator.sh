@@ -25,6 +25,113 @@ set -euo pipefail
 # Basic configuration
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+# === OLMS PATH UTILITIES ===
+# Funzione per rilevare la root di OLMS-Core in modo relativo
+get_olms_core_root() {
+    local script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    
+    # Se siamo nella directory Startup2, saliamo di un livello
+    if [[ "$script_dir" == */Startup2 ]]; then
+        echo "$script_dir/.."
+        return 0
+    fi
+    
+    # Ricerca intelligente per trovare la root di OLMS-Core
+    local current="$script_dir"
+    while [[ "$current" != "/" ]]; do
+        # Cerchiamo marker caratteristici di OLMS-Core
+        if [[ -f "$current/OLMS_specs.md" ]] && \
+           [[ -f "$current/OLMS_STARTUP_SPECIFICATION.md" ]] && \
+           [[ -d "$current/Startup2" ]] && \
+           [[ -d "$current/engine" ]]; then
+            echo "$current"
+            return 0
+        fi
+        current="$(dirname "$current")"
+    done
+    
+    # Fallback: cerca nella home directory
+    local home_dirs=(
+        "$HOME/Progetti/OLMS-Core"
+        "$HOME/OLMS-Core"
+        "$HOME/olms-core"
+        "$HOME/OLMS"
+    )
+    
+    for dir in "${home_dirs[@]}"; do
+        if [[ -f "$dir/OLMS_specs.md" ]] && [[ -d "$dir/Startup2" ]]; then
+            echo "$dir"
+            return 0
+        fi
+    done
+    
+    # Ultimo fallback: assumiamo che sia nella posizione standard
+    echo "$HOME/Progetti/OLMS-Core"
+}
+
+# Funzione per ottenere il percorso assoluto all'interno di OLMS-Core
+olms_path() {
+    local relative_path="$1"
+    local olms_root="${OLMS_CORE_ROOT:-$(get_olms_core_root)}"
+    echo "$olms_root/$relative_path"
+}
+
+# Funzioni helper per i percorsi comuni
+get_olms_engine_dir() {
+    olms_path "engine"
+}
+
+get_olms_config_dir() {
+    olms_path "config"
+}
+
+get_olms_startup_dir() {
+    olms_path "Startup2"
+}
+
+get_olms_systemd_dir() {
+    olms_path "systemd"
+}
+
+get_olms_test_dir() {
+    olms_path "test"
+}
+
+# Funzioni per i percorsi specifici dei file
+get_ardour_session_path() {
+    local olms_root="${OLMS_CORE_ROOT:-$(get_olms_core_root)}"
+    echo "$olms_root/engine/session-template/OLMS-POC/OLMS-POC.ardour"
+}
+
+get_ardour_session_dir() {
+    local olms_root="${OLMS_CORE_ROOT:-$(get_olms_core_root)}"
+    echo "$olms_root/engine/session-template/OLMS-POC"
+}
+
+# Inizializza le variabili d'ambiente per i percorsi
+init_olms_paths() {
+    # Rileva la root di OLMS-Core
+    export OLMS_CORE_ROOT="$(get_olms_core_root)"
+    
+    # Directory principali
+    export OLMS_ENGINE_DIR="$(get_olms_engine_dir)"
+    export OLMS_CONFIG_DIR="$(get_olms_config_dir)"
+    export OLMS_STARTUP_DIR="$(get_olms_startup_dir)"
+    export OLMS_SYSTEMD_DIR="$(get_olms_systemd_dir)"
+    export OLMS_TEST_DIR="$(get_olms_test_dir)"
+    
+    # Percorsi specifici dei file
+    export OLMS_ARDOUR_SESSION_PATH="$(get_ardour_session_path)"
+    export OLMS_ARDOUR_SESSION_DIR="$(get_ardour_session_dir)"
+    
+    log "OLMS paths initialized:"
+    log "  OLMS_CORE_ROOT: $OLMS_CORE_ROOT"
+    log "  OLMS_ENGINE_DIR: $OLMS_ENGINE_DIR"
+    log "  OLMS_ARDOUR_SESSION_PATH: $OLMS_ARDOUR_SESSION_PATH"
+}
+
+# === END OLMS PATH UTILITIES ===
+
 # Smart management of home path and log file to handle sudo execution
 if [[ "$EUID" -eq 0 ]]; then
     # If we are root, we need to determine the actual user
@@ -214,9 +321,9 @@ close_ardour_sessions_gracefully() {
     local ardour_uid=$(id -u "$ardour_user" 2>/dev/null || echo "$(id -u)")
     local ardour_home="$ACTUAL_HOME"
     
-    # Session paths
-    local session_path="$ardour_home/Progetti/OLMS-Core/engine/session-template/OLMS-POC/OLMS-POC.ardour"
-    local session_dir="$ardour_home/Progetti/OLMS-Core/engine/session-template/OLMS-POC"
+    # Session paths - use new relative path system
+    local session_path="$OLMS_ARDOUR_SESSION_PATH"
+    local session_dir="$OLMS_ARDOUR_SESSION_DIR"
     
     # Find Ardour processes
     local ardour_pids=$(pgrep -x "ardour\|ardour8" 2>/dev/null || true)
@@ -539,6 +646,9 @@ main() {
     log "Script directory: $SCRIPT_DIR"
     log "Log file: $LOG_FILE"
     log "Startup mode: $MODE"
+    
+    # Initialize OLMS paths for relative path resolution
+    init_olms_paths
     
     # Verify necessary commands
     check_command "pgrep"

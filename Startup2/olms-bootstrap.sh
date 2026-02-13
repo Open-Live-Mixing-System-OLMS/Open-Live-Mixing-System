@@ -97,9 +97,18 @@ detect_user_environment() {
 create_directories() {
     log "Creating necessary directories..."
     
-    # OLMS directories
+    # OLMS directories - use new relative path system
+    local olms_core_root="$ACTUAL_HOME/Progetti/OLMS-Core"
+    
+    # Try to detect if we're running from within OLMS-Core
+    local script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    if [[ "$script_dir" == */Startup2 ]]; then
+        # We're running from within OLMS-Core, use the parent directory
+        olms_core_root="$(dirname "$script_dir")"
+    fi
+    
     mkdir -p "$ACTUAL_HOME/.olms"
-    mkdir -p "$ACTUAL_HOME/Progetti/OLMS-Core"
+    mkdir -p "$olms_core_root"
     
     # NOTE: We don't create custom JACK directories
     # JACK2 puts files directly in /dev/shm/ with jack_olms prefix
@@ -107,9 +116,10 @@ create_directories() {
     
     # Set correct permissions
     chown -R "$ACTUAL_USER:$ACTUAL_USER" "$ACTUAL_HOME/.olms" 2>/dev/null || true
-    chown -R "$ACTUAL_USER:$ACTUAL_USER" "$ACTUAL_HOME/Progetti/OLMS-Core" 2>/dev/null || true
+    chown -R "$ACTUAL_USER:$ACTUAL_USER" "$olms_core_root" 2>/dev/null || true
     
     log "Directories created successfully"
+    log "OLMS-Core root detected: $olms_core_root"
 }
 
 # Generate USB Udev rules
