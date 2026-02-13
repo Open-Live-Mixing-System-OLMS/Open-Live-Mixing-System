@@ -121,6 +121,25 @@ warn() { echo -e "\e[33m[$(date '+%Y-%m-%d %H:%M:%S')] WARN:\e[0m $1"; }
 error() { echo -e "\e[31m[$(date '+%Y-%m-%d %H:%M:%S')] ERROR:\e[0m $1"; }
 
 # Ardour session adaptation functions
+
+# --- LEVEL 3: BRIEF THREAD MONITORING ---
+monitor_anti_migration_brief() {
+    local target_pid=$1
+    log "🛰️ Brief monitoring of Ardour threads on Core $AUDIO_CORES (PID: $target_pid)"
+    
+    # Brief monitoring for 10 seconds during critical startup
+    (
+        for i in {1..10}; do
+            # Apply pinning to ALL current threads
+            if [ -d "/proc/$target_pid/task" ]; then
+                ls "/proc/$target_pid/task" 2>/dev/null | xargs -I {} taskset -pc "$AUDIO_CORES" {} >/dev/null 2>&1
+            fi
+            sleep 1
+        done
+        log "✅ Brief monitoring completed."
+    ) &
+}
+
 detect_jack_ports() {
     log "🔍 Detecting available JACK ports for server '$JACK_SERVER_NAME'..."
     
@@ -380,12 +399,21 @@ if [[ "${OLMS_MODE:-}" == "headless" ]]; then
         log "✅ Ardour Headless operativo (PID: $ARD_PID)"
         # Monitoraggio pin CPU
         monitor_anti_migration_brief "$ARD_PID"
+        
+        # Aggiungere verifica kernel
+        sleep 3
+        final_mask=$(taskset -p "$ARD_PID" | awk '{print $NF}')
+        log "📊 FINAL KERNEL VERIFICATION: Mask=$final_mask (Target: 0xc)"
+        
+        if [[ "$final_mask" == "f" ]]; then
+            error "❌ ERROR: The system continues to force mask 'f'. Possible systemd or cgroups override."
+            exit 1
+        fi
     else
         error "❌ Ardour Headless è fallito. Controlla /tmp/olms-ardour-startup.log"
         kill $XVFB_PID 2>/dev/null || true
         exit 1
     fi
-    exit 0
 fi
 
 check_user_permissions() {
@@ -541,6 +569,12 @@ monitor_anti_migration_brief() {
 
 main() {
     log "=== PHASE 5: ARDOUR STARTUP (Triple-Lock Mode) ==="
+    
+    # Check if we're already in headless mode and Ardour is already running
+    if [[ "${OLMS_MODE:-}" == "headless" ]]; then
+        log "✅ Headless mode detected - Ardour already started in headless mode, skipping main function"
+        return 0
+    fi
     
     # 1. SHM Preparation
     fix_shm_permissions_radical
