@@ -165,20 +165,23 @@ generate_jack_rules() {
     cat > "$jack_rules_file" << EOF
 # OLMS JACK Socket Permissions
 # Automatically generated for user $ACTUAL_USER
-# Allows user $ACTUAL_USER to manage JACK sockets without sudo
+# Allows both root and user $ACTUAL_USER to manage JACK sockets
 
 # Permissions for JACK sockets in /dev/shm (modern pattern)
-KERNEL=="jack_*", MODE="0666", OWNER="$ACTUAL_USER", GROUP="$ACTUAL_USER"
-KERNEL=="jack-shm-*", MODE="0666", OWNER="$ACTUAL_USER", GROUP="$ACTUAL_USER"
+KERNEL=="jack_*", MODE="0666", OWNER="root", GROUP="$ACTUAL_USER"
+KERNEL=="jack-shm-*", MODE="0666", OWNER="root", GROUP="$ACTUAL_USER"
 
 # Permissions for legacy JACK sockets (legacy pattern used by some JACK scripts)
-KERNEL=="jack-*", MODE="0666", OWNER="$ACTUAL_USER", GROUP="$ACTUAL_USER"
+KERNEL=="jack-*", MODE="0666", OWNER="root", GROUP="$ACTUAL_USER"
 
 # Permissions for JACK sockets in /tmp
-KERNEL=="jack_*", SUBSYSTEM=="misc", MODE="0666", OWNER="$ACTUAL_USER", GROUP="$ACTUAL_USER"
+KERNEL=="jack_*", SUBSYSTEM=="misc", MODE="0666", OWNER="root", GROUP="$ACTUAL_USER"
 
 # Permissions for JACK directory for compatibility
-KERNEL=="jack-*", SUBSYSTEM=="misc", MODE="0777", OWNER="$ACTUAL_USER", GROUP="$ACTUAL_USER"
+KERNEL=="jack-*", SUBSYSTEM=="misc", MODE="0666", OWNER="root", GROUP="$ACTUAL_USER"
+
+# Additional rule to allow user access to JACK processes
+KERNEL=="jackd", MODE="0666", OWNER="root", GROUP="$ACTUAL_USER"
 EOF
 
     log "JACK Udev rules generated in $jack_rules_file"
@@ -582,6 +585,84 @@ configure_audio_volume() {
     log "USB audio volume configuration completed"
 }
 
+# Fix JACK socket permissions for existing sockets
+fix_jack_socket_permissions() {
+    log "Fixing JACK socket permissions for existing sockets..."
+    
+    # Fix permissions for existing JACK sockets in /dev/shm
+    local jack_sockets=(
+        "/dev/shm/jack_olms_0"
+        "/dev/shm/jack_sem.olms_freewheel"
+        "/dev/shm/jack_sem.olms_system"
+        "/dev/shm/jack-shm-registry"
+    )
+    
+    for socket in "${jack_sockets[@]}"; do
+        if [[ -e "$socket" ]]; then
+            log "Setting permissions on $socket"
+            chmod 666 "$socket" 2>/dev/null || warn "Unable to set permissions on $socket"
+            chown root:"$ACTUAL_USER" "$socket" 2>/dev/null || warn "Unable to set owner on $socket"
+        fi
+    done
+    
+    # Fix permissions for JACK socket directories
+    local jack_dirs=(
+        "/dev/shm/jack-0"
+        "/dev/shm/jack_db-0"
+        "/dev/shm/jack_db-1000"
+    )
+    
+    for dir in "${jack_dirs[@]}"; do
+        if [[ -d "$dir" ]]; then
+            log "Setting permissions on $dir"
+            chmod 666 "$dir" 2>/dev/null || warn "Unable to set permissions on $dir"
+            chown root:"$ACTUAL_USER" "$dir" 2>/dev/null || warn "Unable to set owner on $dir"
+            
+            # Fix permissions for files in the directory
+            find "$dir" -type f -exec chmod 666 {} \; 2>/dev/null || warn "Unable to set permissions on files in $dir"
+            find "$dir" -type f -exec chown root:"$ACTUAL_USER" {} \; 2>/dev/null || warn "Unable to set owner on files in $dir"
+        fi
+    done
+    
+    log "JACK socket permissions fixed"
+}
+
+# Configure JACK for cross-user access
+configure_jack_cross_user_access() {
+    log "Configuring JACK for cross-user access..."
+    
+    # Add user to realtime group (already done, but ensure it's working)
+    if ! groups "$ACTUAL_USER" | grep -q "\brealtime\b"; then
+        usermod -a -G realtime "$ACTUAL_USER" 2>/dev/null || warn "Unable to add $ACTUAL_USER to realtime group"
+    fi
+    
+    # Create JACK configuration for user access
+    local jack_user_config="/home/$ACTUAL_USER/.jackdrc"
+    cat > "$jack_user_config" << EOF
+# OLMS JACK Configuration for User Access
+# Automatically generated for user $ACTUAL_USER
+
+# Force JACK to use the same server name and socket location
+export JACK_DEFAULT_SERVER="olms"
+export JACK_NO_START_SERVER=1
+export JACK_PROMISCUOUS_SERVER=1
+export JACK_SESSION_DIR="/dev/shm/jack_olms_0"
+
+# X11 environment for JACK
+export DISPLAY=":0"
+export XAUTHORITY="$ACTUAL_HOME/.Xauthority"
+export XDG_RUNTIME_DIR="/run/user/$ACTUAL_UID"
+export DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$ACTUAL_UID/bus"
+EOF
+    
+    # Use correct group for chown
+    local user_group=$(id -gn "$ACTUAL_USER")
+    chown "$ACTUAL_USER:$user_group" "$jack_user_config"
+    chmod 644 "$jack_user_config"
+    
+    log "JACK cross-user configuration created: $jack_user_config"
+}
+
 # Install Runtime Permission Manager
 install_runtime_permission_manager() {
     log "Installing Runtime Permission Manager..."
@@ -731,6 +812,12 @@ apply_configurations() {
     # Configure USB audio volume to 100% for complete signal pass-through
     configure_audio_volume
     
+    # Fix JACK socket permissions for existing sockets
+    fix_jack_socket_permissions
+    
+    # Configure JACK for cross-user access
+    configure_jack_cross_user_access
+    
     # Install Runtime Permission Manager
     install_runtime_permission_manager
     
@@ -789,7 +876,52 @@ EOF
     # Configure xhost permissions
     configure_xhost_permissions
     
+    # Configure XAUTHORITY and xhost for the actual user
+    configure_user_x11_access
+    
     log "X11 environment configured for root→user transition"
+}
+
+# Configure XAUTHORITY and xhost for the actual user
+configure_user_x11_access() {
+    log "Configuring XAUTHORITY and xhost for user $ACTUAL_USER..."
+    
+    local user_xauth="$ACTUAL_HOME/.Xauthority"
+    local root_xauth="/root/.Xauthority"
+    
+    # Get user's primary group
+    local user_group=$(id -gn "$ACTUAL_USER")
+    
+    # First, copy XAUTHORITY from root to user (if root has valid credentials)
+    if [[ -f "$root_xauth" ]]; then
+        local root_xauth_size=$(stat -c%s "$root_xauth" 2>/dev/null || echo "0")
+        if [[ $root_xauth_size -gt 0 ]]; then
+            log "Copying XAUTHORITY from root to user $ACTUAL_USER"
+            cp "$root_xauth" "$user_xauth"
+            chown "$ACTUAL_USER:$user_group" "$user_xauth"
+            chmod 600 "$user_xauth"
+            log "✅ XAUTHORITY configured for user $ACTUAL_USER"
+        fi
+    fi
+    
+    # Configure xhost permissions for the user
+    if command -v xhost >/dev/null 2>&1; then
+        log "Configuring xhost permissions for user $ACTUAL_USER..."
+        
+        # Authorize the user to access the display
+        if su - "$ACTUAL_USER" -c "DISPLAY=$DISPLAY xhost +si:localuser:$ACTUAL_USER" 2>&1; then
+            log "✅ xhost authorization for user $ACTUAL_USER successful"
+        else
+            log "⚠️ xhost authorization for user $ACTUAL_USER failed, trying xhost +local:..."
+            if su - "$ACTUAL_USER" -c "DISPLAY=$DISPLAY xhost +local:" 2>&1; then
+                log "✅ xhost +local: authorization for user $ACTUAL_USER successful"
+            else
+                warn "⚠️ xhost failed to authorize user $ACTUAL_USER"
+            fi
+        fi
+    else
+        log "⚠️ xhost command not available"
+    fi
 }
 
 # Configure XAUTHORITY for root
@@ -799,13 +931,92 @@ configure_xauthority_for_root() {
     local user_xauth="$ACTUAL_HOME/.Xauthority"
     local root_xauth="/root/.Xauthority"
     
-    # If user's .Xauthority exists, copy it for root
-    if [[ -f "$user_xauth" ]]; then
-        log "Copy .Xauthority from $user_xauth to $root_xauth"
-        cp "$user_xauth" "$root_xauth"
+    # First, check if there's a valid XAUTHORITY from LightDM
+    local lightdm_xauth="/run/lightdm/root/:0"
+    if [[ -f "$lightdm_xauth" ]]; then
+        log "Found XAUTHORITY from LightDM at $lightdm_xauth, copying to $root_xauth"
+        cp "$lightdm_xauth" "$root_xauth"
         chown root:root "$root_xauth"
         chmod 600 "$root_xauth"
-        log "✅ XAUTHORITY configured for root"
+        log "✅ XAUTHORITY configured for root from LightDM"
+        return 0
+    fi
+    
+    # Check if user's .Xauthority exists and has valid content
+    if [[ -f "$user_xauth" ]]; then
+        local file_size=$(stat -c%s "$user_xauth" 2>/dev/null || echo "0")
+        
+        if [[ $file_size -gt 0 ]]; then
+            # File exists and has content, copy it
+            log "Copy .Xauthority from $user_xauth to $root_xauth"
+            cp "$user_xauth" "$root_xauth"
+            chown root:root "$root_xauth"
+            chmod 600 "$root_xauth"
+            log "✅ XAUTHORITY configured for root"
+        else
+            # File exists but is empty, try to generate valid credentials
+            log "⚠️ User .Xauthority file is empty, attempting to generate valid credentials..."
+            
+            # Try to get display from environment or common values
+            local display_to_use=""
+            if [[ -n "${DISPLAY:-}" ]]; then
+                display_to_use="$DISPLAY"
+            elif [[ -S "/tmp/.X11-unix/X0" ]]; then
+                display_to_use=":0"
+            else
+                display_to_use=":0"
+            fi
+            
+            # Generate XAUTHORITY entry for the display
+            if command -v xauth >/dev/null 2>&1; then
+                # Create a temporary xauth file
+                local temp_xauth="/tmp/olms_xauth_temp"
+                xauth -f "$temp_xauth" generate "$display_to_use" . 2>/dev/null || true
+                
+                if [[ -f "$temp_xauth" ]] && [[ $(stat -c%s "$temp_xauth" 2>/dev/null || echo "0") -gt 0 ]]; then
+                    # Copy the generated credentials
+                    cp "$temp_xauth" "$root_xauth"
+                    chown root:root "$root_xauth"
+                    chmod 600 "$root_xauth"
+                    rm -f "$temp_xauth"
+                    log "✅ Generated and configured XAUTHORITY for root"
+                else
+                    # Try alternative method: copy from X server
+                    log "⚠️ xauth generate failed, trying alternative method..."
+                    
+                    # Try to extract from running X server
+                    if [[ -S "/tmp/.X11-unix/X0" ]]; then
+                        # Try to get credentials from the X server
+                        if xauth -f "$temp_xauth" nlist :0 2>/dev/null | grep -q "^"; then
+                            cp "$temp_xauth" "$root_xauth"
+                            chown root:root "$root_xauth"
+                            chmod 600 "$root_xauth"
+                            rm -f "$temp_xauth"
+                            log "✅ Extracted XAUTHORITY from X server"
+                        else
+                            # Last resort: create minimal XAUTHORITY
+                            log "⚠️ Creating minimal XAUTHORITY file..."
+                            touch "$root_xauth"
+                            chown root:root "$root_xauth"
+                            chmod 600 "$root_xauth"
+                            warn "⚠️ Created empty XAUTHORITY file as fallback"
+                        fi
+                    else
+                        # No X server available, create empty file
+                        touch "$root_xauth"
+                        chown root:root "$root_xauth"
+                        chmod 600 "$root_xauth"
+                        warn "⚠️ No X server available, created empty XAUTHORITY file"
+                    fi
+                fi
+            else
+                # xauth not available, copy empty file
+                cp "$user_xauth" "$root_xauth"
+                chown root:root "$root_xauth"
+                chmod 600 "$root_xauth"
+                warn "⚠️ xauth command not available, copied empty .Xauthority file"
+            fi
+        fi
     else
         warn "⚠️ User .Xauthority file not found: $user_xauth"
         warn "⚠️ Root may not have access to the X11 display"
@@ -819,11 +1030,94 @@ configure_xhost_permissions() {
     # Force DISPLAY if not set
     export DISPLAY=${DISPLAY:-:0}
     
-    # Attempt to authorize root to connect to user's X server
+    # Debug X11 environment
+    log "=== X11 DEBUG INFO ==="
+    log "DISPLAY: $DISPLAY"
+    log "XAUTHORITY: $XAUTHORITY"
+    log "ACTUAL_USER: $ACTUAL_USER"
+    log "ACTUAL_HOME: $ACTUAL_HOME"
+    
+    # Check if X server is running
+    if [[ -S "/tmp/.X11-unix/X0" ]]; then
+        log "✅ X server socket exists at /tmp/.X11-unix/X0"
+    else
+        log "⚠️ X server socket not found at /tmp/.X11-unix/X0"
+    fi
+    
+    # Check XAUTHORITY file
+    if [[ -f "$ACTUAL_HOME/.Xauthority" ]]; then
+        local xauth_size=$(stat -c%s "$ACTUAL_HOME/.Xauthority" 2>/dev/null || echo "0")
+        log "XAUTHORITY file exists: $ACTUAL_HOME/.Xauthority (size: ${xauth_size} bytes)"
+        
+        if [[ $xauth_size -gt 0 ]]; then
+            log "✅ XAUTHORITY file has content"
+            # Show xauth list for debugging
+            if command -v xauth >/dev/null 2>&1; then
+                log "XAUTHORITY entries:"
+                xauth -f "$ACTUAL_HOME/.Xauthority" list 2>&1 | head -5
+            fi
+        else
+            log "⚠️ XAUTHORITY file is empty"
+        fi
+    else
+        log "⚠️ XAUTHORITY file not found: $ACTUAL_HOME/.Xauthority"
+    fi
+    
+    # Check root XAUTHORITY
+    if [[ -f "/root/.Xauthority" ]]; then
+        local root_xauth_size=$(stat -c%s "/root/.Xauthority" 2>/dev/null || echo "0")
+        log "Root XAUTHORITY file exists: /root/.Xauthority (size: ${root_xauth_size} bytes)"
+    else
+        log "⚠️ Root XAUTHORITY file not found: /root/.Xauthority"
+    fi
+    
+    # Test xhost command with verbose output
+    if command -v xhost >/dev/null 2>&1; then
+        log "=== XHOST DEBUG ==="
+        log "Testing xhost command..."
+        
+        # Test current xhost status
+        log "Current xhost status:"
+        xhost 2>&1 || log "xhost command failed"
+        
+        # Test as user
+        log "Attempting to run xhost as user $ACTUAL_USER..."
+        if su - "$ACTUAL_USER" -c "DISPLAY=$DISPLAY xhost +si:localuser:root" 2>&1; then
+            log "✅ xhost authorization successful"
+        else
+            log "⚠️ xhost authorization failed"
+            log "Trying alternative xhost commands..."
+            
+            # Try different xhost commands
+            for cmd in "+si:localuser:root" "+SI:localuser:root" "+local:" "+"; do
+                log "Trying xhost $cmd..."
+                if su - "$ACTUAL_USER" -c "DISPLAY=$DISPLAY xhost $cmd" 2>&1; then
+                    log "✅ xhost $cmd successful"
+                    break
+                else
+                    log "⚠️ xhost $cmd failed"
+                fi
+            done
+        fi
+    else
+        log "⚠️ xhost command not available"
+    fi
+    
+    # Final fallback
+    log "=== FINAL XHOST ATTEMPT ==="
     if command -v xhost >/dev/null 2>&1; then
         # Run xhost as real user, not as root, to open the port
-        su - "$ACTUAL_USER" -c "DISPLAY=$DISPLAY xhost +si:localuser:root" || \
-        warn "xhost failed to authorize root. Try manually as user: xhost +si:localuser:root"
+        if su - "$ACTUAL_USER" -c "DISPLAY=$DISPLAY xhost +si:localuser:root" 2>&1; then
+            log "✅ xhost authorization completed successfully"
+        else
+            log "⚠️ xhost +si:localuser:root failed, trying xhost +local:..."
+            # Forzare accesso locale senza autenticazione
+            if su - "$ACTUAL_USER" -c "DISPLAY=$DISPLAY xhost +local:" 2>&1; then
+                log "✅ xhost +local: authorization successful"
+            else
+                warn "xhost failed to authorize root. Try manually as user: xhost +si:localuser:root or xhost +local:"
+            fi
+        fi
     fi
 }
 

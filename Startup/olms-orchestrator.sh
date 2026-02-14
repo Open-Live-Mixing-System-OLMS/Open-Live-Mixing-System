@@ -1,3 +1,4 @@
+
 # Copyright (C) 2026 Francesco Nano
 # 
 # This file is part of the Open Live Mixing System (OLMS).
@@ -132,27 +133,38 @@ init_olms_paths() {
 
 # === END OLMS PATH UTILITIES ===
 
-# Smart management of home path and log file to handle sudo execution
+# === RILEVAMENTO UTENTE AD ALTA AFFIDABILITÀ ===
 if [[ "$EUID" -eq 0 ]]; then
-    # If we are root, we need to determine the actual user
+    # 1. Prova immediata con SUDO_USER
     if [[ -n "${SUDO_USER:-}" ]]; then
-        # Executed with sudo, use original user
         ACTUAL_USER="$SUDO_USER"
-        ACTUAL_HOME=$(eval echo ~$SUDO_USER)
-    elif [[ -n "${USER:-}" ]] && [[ "$USER" != "root" ]]; then
-        # Executed as root but USER is set to a non-root user
-        ACTUAL_USER="$USER"
-        ACTUAL_HOME=$(eval echo ~$USER)
+    # 2. Prova con logname (interroga il database utente del terminale)
+    elif logname >/dev/null 2>&1; then
+        ACTUAL_USER=$(logname)
+    # 3. Prova con loginuid (metodo kernel)
     else
-        # Executed directly as root
-        ACTUAL_USER="root"
-        ACTUAL_HOME="/root"
+        local luid=$(cat /proc/self/loginuid 2>/dev/null || echo "-1")
+        if [[ "$luid" != "-1" && "$luid" != "4294967295" ]]; then
+            ACTUAL_USER=$(getent passwd "$luid" | cut -d: -f1)
+        else
+            # 4. Fallback estremo: guarda chi possiede la home più probabile 
+            # (evita root se possibile)
+            ACTUAL_USER=$(ls -ld /home/* 2>/dev/null | grep -v "root" | head -n 1 | awk '{print $3}')
+        fi
     fi
 else
-    # Executed as normal user
     ACTUAL_USER="$(whoami)"
-    ACTUAL_HOME="$HOME"
 fi
+
+# Sanity check: se ancora vuoto o root (e siamo in sudo), cerchiamo francesco_ssh
+if [[ "$ACTUAL_USER" == "root" || -z "$ACTUAL_USER" ]]; then
+    if id "francesco_ssh" >/dev/null 2>&1; then
+        ACTUAL_USER="francesco_ssh"
+    fi
+fi
+
+ACTUAL_HOME=$(eval echo "~$ACTUAL_USER")
+export ACTUAL_USER ACTUAL_HOME
 
 OLMS_HOME="$ACTUAL_HOME/.olms"
 mkdir -p "$OLMS_HOME"
@@ -653,6 +665,10 @@ main() {
     log "Log file: $LOG_FILE"
     log "Startup mode: $MODE"
     
+    # Create temporary file for ACTUAL_USER to be used by other phases
+    echo "$ACTUAL_USER" > "/tmp/olms-actual-user.txt"
+    log "Created /tmp/olms-actual-user.txt with user: $ACTUAL_USER"
+    
 # Initialize OLMS paths for relative path resolution
 init_olms_paths
 
@@ -707,7 +723,13 @@ fi
         export OLMS_MODE="headless"
         phase5_ardour_startup
     fi
-    phase6_final_report
+    # Execute Phase 6 as the actual user to avoid permission issues
+    log "Executing Phase 6 as user $ACTUAL_USER to avoid permission issues..."
+    if [[ "$ACTUAL_USER" != "root" ]]; then
+        sudo -u "$ACTUAL_USER" bash "$SCRIPT_DIR/phase6-final-report.sh"
+    else
+        bash "$SCRIPT_DIR/phase6-final-report.sh"
+    fi
     
     log "=== STARTUP COMPLETED SUCCESSFULLY ==="
     if [[ "$MODE" == "test" ]]; then

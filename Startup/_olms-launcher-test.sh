@@ -33,11 +33,11 @@ OLMS_AUDIO_DEVICE=""
 # Buffer configuration (e.g., "64:3", "32:2", "128:2")
 # Format: buffer_size:periods
 # Default: 64 samples, 3 cycles (periods)
-OLMS_BUFFER_CONFIG=""
+OLMS_BUFFER_CONFIG="64:3"
 
 # Bit depth (e.g., "24", "32", "16")
 # Default: 32-bit for optimal performance
-OLMS_BIT_DEPTH=""
+OLMS_BIT_DEPTH="32"
 
 # === END USER CONFIGURATION SECTION ===
 
