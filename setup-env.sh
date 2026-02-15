@@ -16,7 +16,7 @@
 
 #!/bin/bash
 
-# OLMS Bootstrap Script
+# OLMS Setup Environment Script
 # Universal configuration for any Linux user
 # Version: 1.0
 
@@ -199,7 +199,7 @@ generate_cpu_rules() {
 # Automatically generated for user $ACTUAL_USER
 # Allows user $ACTUAL_USER to manage CPU governors without sudo
 
-# Permissions for CPU governors
+# Permissions for CPU governors (using wildcard for all cores)
 KERNEL=="cpu*", SUBSYSTEM=="cpu", MODE="0666", OWNER="$ACTUAL_USER", GROUP="$ACTUAL_USER"
 KERNEL=="scaling_governor", SUBSYSTEM=="cpu", MODE="0666", OWNER="$ACTUAL_USER", GROUP="$ACTUAL_USER"
 KERNEL=="scaling_min_freq", SUBSYSTEM=="cpu", MODE="0666", OWNER="$ACTUAL_USER", GROUP="$ACTUAL_USER"
@@ -214,7 +214,7 @@ KERNEL=="no_turbo", SUBSYSTEM=="cpu", MODE="0666", OWNER="$ACTUAL_USER", GROUP="
 KERNEL=="smp_affinity", SUBSYSTEM=="cpu", MODE="0666", OWNER="$ACTUAL_USER", GROUP="$ACTUAL_USER"
 KERNEL=="smp_affinity_list", SUBSYSTEM=="cpu", MODE="0666", OWNER="$ACTUAL_USER", GROUP="$ACTUAL_USER"
 
-# Permissions for C-states
+# Permissions for C-states (using wildcard for all cores)
 KERNEL=="state*", SUBSYSTEM=="cpuidle", MODE="0666", OWNER="$ACTUAL_USER", GROUP="$ACTUAL_USER"
 KERNEL=="disable", SUBSYSTEM=="cpuidle", MODE="0666", OWNER="$ACTUAL_USER", GROUP="$ACTUAL_USER"
 EOF
@@ -250,6 +250,10 @@ generate_sysfs_rules() {
     # Get user's primary group
     local user_group=$(id -gn "$ACTUAL_USER")
     
+    # Get the number of CPU cores dynamically
+    local num_cores=$(nproc)
+    log "Detected $num_cores CPU cores"
+    
     # Creation of a configuration file for systemd-sysfs to manage sysfs permissions
     local sysfs_config_file="/etc/tmpfiles.d/olms-cpu.conf"
     
@@ -259,7 +263,7 @@ generate_sysfs_rules() {
 # Automatically generated for user $ACTUAL_USER
 # Allows user $ACTUAL_USER to manage CPU governors and C-states without sudo
 
-# Permissions for CPU governors
+# Permissions for CPU governors (using wildcard for all cores)
 f /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor 0666 $ACTUAL_USER $user_group -
 f /sys/devices/system/cpu/cpu*/cpufreq/scaling_min_freq 0666 $ACTUAL_USER $user_group -
 f /sys/devices/system/cpu/cpu*/cpufreq/scaling_max_freq 0666 $ACTUAL_USER $user_group -
@@ -269,7 +273,7 @@ f /sys/devices/system/cpu/cpu*/cpufreq/scaling_cur_freq 0666 $ACTUAL_USER $user_
 # Permissions for Turbo Boost
 f /sys/devices/system/cpu/intel_pstate/no_turbo 0666 $ACTUAL_USER $user_group -
 
-# Permissions for C-states
+# Permissions for C-states (using wildcard for all cores)
 f /sys/devices/system/cpu/cpu*/cpuidle/state*/disable 0666 $ACTUAL_USER $user_group -
 f /sys/devices/system/cpu/cpu*/cpuidle/state*/name 0666 $ACTUAL_USER $user_group -
 f /sys/devices/system/cpu/cpu*/cpuidle/state*/latency 0666 $ACTUAL_USER $user_group -
@@ -286,71 +290,75 @@ apply_sysfs_permissions() {
     # Get user's primary group
     local user_group=$(id -gn "$ACTUAL_USER")
     
-    # Apply direct permissions on existing sysfs files
-    local sysfs_files=(
-        "/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor"
-        "/sys/devices/system/cpu/cpu1/cpufreq/scaling_governor"
-        "/sys/devices/system/cpu/cpu2/cpufreq/scaling_governor"
-        "/sys/devices/system/cpu/cpu3/cpufreq/scaling_governor"
-        "/sys/devices/system/cpu/cpu0/cpufreq/scaling_min_freq"
-        "/sys/devices/system/cpu/cpu1/cpufreq/scaling_min_freq"
-        "/sys/devices/system/cpu/cpu2/cpufreq/scaling_min_freq"
-        "/sys/devices/system/cpu/cpu3/cpufreq/scaling_min_freq"
-        "/sys/devices/system/cpu/cpu0/cpufreq/scaling_max_freq"
-        "/sys/devices/system/cpu/cpu1/cpufreq/scaling_max_freq"
-        "/sys/devices/system/cpu/cpu2/cpufreq/scaling_max_freq"
-        "/sys/devices/system/cpu/cpu3/cpufreq/scaling_max_freq"
-        "/sys/devices/system/cpu/cpu0/cpufreq/scaling_setspeed"
-        "/sys/devices/system/cpu/cpu1/cpufreq/scaling_setspeed"
-        "/sys/devices/system/cpu/cpu2/cpufreq/scaling_setspeed"
-        "/sys/devices/system/cpu/cpu3/cpufreq/scaling_setspeed"
-        "/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq"
-        "/sys/devices/system/cpu/cpu1/cpufreq/scaling_cur_freq"
-        "/sys/devices/system/cpu/cpu2/cpufreq/scaling_cur_freq"
-        "/sys/devices/system/cpu/cpu3/cpufreq/scaling_cur_freq"
-        "/sys/devices/system/cpu/intel_pstate/no_turbo"
-    )
+    # Get the number of CPU cores dynamically
+    local num_cores=$(nproc)
+    log "Applying sysfs permissions for $num_cores CPU cores"
     
-    local cstate_files=(
-        "/sys/devices/system/cpu/cpu0/cpuidle/state0/disable"
-        "/sys/devices/system/cpu/cpu0/cpuidle/state1/disable"
-        "/sys/devices/system/cpu/cpu0/cpuidle/state2/disable"
-        "/sys/devices/system/cpu/cpu1/cpuidle/state0/disable"
-        "/sys/devices/system/cpu/cpu1/cpuidle/state1/disable"
-        "/sys/devices/system/cpu/cpu1/cpuidle/state2/disable"
-        "/sys/devices/system/cpu/cpu2/cpuidle/state0/disable"
-        "/sys/devices/system/cpu/cpu2/cpuidle/state1/disable"
-        "/sys/devices/system/cpu/cpu2/cpuidle/state2/disable"
-        "/sys/devices/system/cpu/cpu3/cpuidle/state0/disable"
-        "/sys/devices/system/cpu/cpu3/cpuidle/state1/disable"
-        "/sys/devices/system/cpu/cpu3/cpuidle/state2/disable"
-    )
+    # Apply permissions on governor and freq files for all cores
+    local applied_count=0
+    local total_count=0
     
-    # Apply permissions on governor and freq files
-    for file in "${sysfs_files[@]}"; do
-        if [[ -f "$file" ]]; then
-            log "Setting permissions on $file"
-            chmod 666 "$file" 2>/dev/null || warn "Unable to set permissions on $file"
-            chown "$ACTUAL_USER:$user_group" "$file" 2>/dev/null || warn "Unable to set owner on $file"
-        fi
-    done
-    
-    # Apply permissions on C-state files (only if they exist and are writable)
-    for file in "${cstate_files[@]}"; do
-        if [[ -f "$file" ]]; then
-            log "Verifying permissions on $file"
-            # Check if file is already writable
-            if [[ -w "$file" ]]; then
-                log "Permissions already correct on $file"
-            else
-                log "Setting permissions on $file"
-                chmod 666 "$file" 2>/dev/null || warn "Unable to set permissions on $file (might be read-only)"
-                chown "$ACTUAL_USER:$user_group" "$file" 2>/dev/null || warn "Unable to set owner on $file (might be read-only)"
+    for i in $(seq 0 $((num_cores - 1))); do
+        # Governor files
+        local governor_file="/sys/devices/system/cpu/cpu${i}/cpufreq/scaling_governor"
+        local min_freq_file="/sys/devices/system/cpu/cpu${i}/cpufreq/scaling_min_freq"
+        local max_freq_file="/sys/devices/system/cpu/cpu${i}/cpufreq/scaling_max_freq"
+        local setspeed_file="/sys/devices/system/cpu/cpu${i}/cpufreq/scaling_setspeed"
+        local cur_freq_file="/sys/devices/system/cpu/cpu${i}/cpufreq/scaling_cur_freq"
+        
+        # Apply permissions to each file
+        for file in "$governor_file" "$min_freq_file" "$max_freq_file" "$setspeed_file" "$cur_freq_file"; do
+            if [[ -f "$file" ]]; then
+                total_count=$((total_count + 1))
+                if chmod 666 "$file" 2>/dev/null && chown "$ACTUAL_USER:$user_group" "$file" 2>/dev/null; then
+                    log "Permissions applied to $file (666, $ACTUAL_USER:$user_group)"
+                    applied_count=$((applied_count + 1))
+                else
+                    warn "Unable to apply permissions to $file"
+                fi
             fi
-        fi
+        done
+        
+        # C-state files for this core
+        local cpu_path="/sys/devices/system/cpu/cpu${i}/cpuidle"
+        for state in 0 1 2 3 4 5 6; do
+            local disable_file="${cpu_path}/state${state}/disable"
+            if [[ -f "$disable_file" ]]; then
+                total_count=$((total_count + 1))
+                if chmod 666 "$disable_file" 2>/dev/null && chown "$ACTUAL_USER:$user_group" "$disable_file" 2>/dev/null; then
+                    log "Permissions applied to $disable_file (666, $ACTUAL_USER:$user_group)"
+                    applied_count=$((applied_count + 1))
+                else
+                    warn "Unable to apply permissions to $disable_file"
+                fi
+            fi
+        done
     done
     
-    log "Sysfs permissions applied"
+    # Apply permissions to Turbo Boost file
+    local turbo_file="/sys/devices/system/cpu/intel_pstate/no_turbo"
+    if [[ -f "$turbo_file" ]]; then
+        total_count=$((total_count + 1))
+        if chmod 666 "$turbo_file" 2>/dev/null && chown "$ACTUAL_USER:$user_group" "$turbo_file" 2>/dev/null; then
+            log "Permissions applied to $turbo_file (666, $ACTUAL_USER:$user_group)"
+            applied_count=$((applied_count + 1))
+        else
+            warn "Unable to apply permissions to $turbo_file"
+        fi
+    fi
+    
+    log "Sysfs permissions applied: $applied_count/$total_count files"
+    
+    # If not all permissions have been applied, try to run the Runtime Permission Manager
+    if [[ $applied_count -lt $total_count ]]; then
+        log "Some permissions were not applied, attempting with Runtime Permission Manager..."
+        if [[ -x "/usr/local/bin/olms-runtime-permissions" ]]; then
+            sudo /usr/local/bin/olms-runtime-permissions
+            log "Runtime Permission Manager executed"
+        else
+            warn "Runtime Permission Manager not found or not executable"
+        fi
+    fi
 }
 
 # Generate realtime limits configuration
@@ -1189,8 +1197,8 @@ verify_configuration() {
 
 # Main function
 main() {
-    log "=== OLMS BOOTSTRAP SCRIPT ==="
-    log "Universal configuration for any Linux user"
+log "=== OLMS SETUP ENVIRONMENT SCRIPT ==="
+log "Universal configuration for any Linux user"
     
     # Verify that the script is executed as root (required for system changes)
     if [[ "$EUID" -ne 0 ]]; then
@@ -1214,7 +1222,7 @@ main() {
     apply_configurations
     verify_configuration
     
-    log "=== BOOTSTRAP COMPLETED ==="
+    log "=== SETUP ENVIRONMENT COMPLETED ==="
     log "User $ACTUAL_USER is now configured for OLMS use"
     log "To activate all changes, run:"
     log "  - User session restart"

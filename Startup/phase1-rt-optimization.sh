@@ -266,29 +266,36 @@ disable_cstates() {
     local num_cores=$(nproc)
     local disabled_states=0
     
-    # Disable C3 and C6 for all cores (most problematic for latency)
+    # Disable problematic C-states for all cores (most problematic for latency)
     for i in $(seq 0 $((num_cores - 1))); do
         local cpu_path="/sys/devices/system/cpu/cpu${i}/cpuidle"
         
-        # Disable C3 state (if present)
-        if [[ -f "${cpu_path}/state3/disable" ]]; then
-            if echo 1 > "${cpu_path}/state3/disable" 2>/dev/null; then
-                log "C3 state disabled for CPU $i"
-                disabled_states=$((disabled_states + 1))
-            else
-                warn "Unable to disable C3 state for CPU $i (permissions)"
+        # Disable C-states with latency > 10 microseconds (configurable threshold)
+        # We'll disable states 3, 4, 5, 6 which are typically deep C-states
+        for state in 3 4 5 6; do
+            local disable_file="${cpu_path}/state${state}/disable"
+            local latency_file="${cpu_path}/state${state}/latency"
+            
+            if [[ -f "$disable_file" ]]; then
+                # Check if this is a deep C-state by checking latency (if available)
+                local latency=0
+                if [[ -f "$latency_file" ]]; then
+                    latency=$(cat "$latency_file" 2>/dev/null || echo "0")
+                fi
+                
+                # Disable deep C-states (latency > 10 microseconds)
+                if [[ $latency -gt 10 ]] || [[ $latency -eq 0 ]]; then
+                    if echo 1 > "$disable_file" 2>/dev/null; then
+                        log "C-state $state disabled for CPU $i (latency: ${latency}μs)"
+                        disabled_states=$((disabled_states + 1))
+                    else
+                        warn "Unable to disable C-state $state for CPU $i (permissions)"
+                    fi
+                else
+                    log "C-state $state for CPU $i has low latency (${latency}μs), keeping enabled"
+                fi
             fi
-        fi
-        
-        # Disable C6 state (if present)
-        if [[ -f "${cpu_path}/state4/disable" ]]; then
-            if echo 1 > "${cpu_path}/state4/disable" 2>/dev/null; then
-                log "C6 state disabled for CPU $i"
-                disabled_states=$((disabled_states + 1))
-            else
-                warn "Unable to disable C6 state for CPU $i (permissions)"
-            fi
-        fi
+        done
     done
     
     if [[ $disabled_states -gt 0 ]]; then
@@ -305,89 +312,89 @@ ensure_sysfs_permissions() {
     # Get the user's primary group
     local user_group=$(id -gn "$(whoami)")
     
-    # Sysfs files for CPU governor and frequencies
-    local cpu_files=(
-        "/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor"
-        "/sys/devices/system/cpu/cpu1/cpufreq/scaling_governor"
-        "/sys/devices/system/cpu/cpu2/cpufreq/scaling_governor"
-        "/sys/devices/system/cpu/cpu3/cpufreq/scaling_governor"
-        "/sys/devices/system/cpu/cpu0/cpufreq/scaling_min_freq"
-        "/sys/devices/system/cpu/cpu1/cpufreq/scaling_min_freq"
-        "/sys/devices/system/cpu/cpu2/cpufreq/scaling_min_freq"
-        "/sys/devices/system/cpu/cpu3/cpufreq/scaling_min_freq"
-        "/sys/devices/system/cpu/cpu0/cpufreq/scaling_max_freq"
-        "/sys/devices/system/cpu/cpu1/cpufreq/scaling_max_freq"
-        "/sys/devices/system/cpu/cpu2/cpufreq/scaling_max_freq"
-        "/sys/devices/system/cpu/cpu3/cpufreq/scaling_max_freq"
-        "/sys/devices/system/cpu/cpu0/cpufreq/scaling_setspeed"
-        "/sys/devices/system/cpu/cpu1/cpufreq/scaling_setspeed"
-        "/sys/devices/system/cpu/cpu2/cpufreq/scaling_setspeed"
-        "/sys/devices/system/cpu/cpu3/cpufreq/scaling_setspeed"
-        "/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq"
-        "/sys/devices/system/cpu/cpu1/cpufreq/scaling_cur_freq"
-        "/sys/devices/system/cpu/cpu2/cpufreq/scaling_cur_freq"
-        "/sys/devices/system/cpu/cpu3/cpufreq/scaling_cur_freq"
-        "/sys/devices/system/cpu/intel_pstate/no_turbo"
-    )
-    
-    # Sysfs files for C-states
-    local cstate_files=(
-        "/sys/devices/system/cpu/cpu0/cpuidle/state3/disable"
-        "/sys/devices/system/cpu/cpu0/cpuidle/state4/disable"
-        "/sys/devices/system/cpu/cpu1/cpuidle/state3/disable"
-        "/sys/devices/system/cpu/cpu1/cpuidle/state4/disable"
-        "/sys/devices/system/cpu/cpu2/cpuidle/state3/disable"
-        "/sys/devices/system/cpu/cpu2/cpuidle/state4/disable"
-        "/sys/devices/system/cpu/cpu3/cpuidle/state3/disable"
-        "/sys/devices/system/cpu/cpu3/cpuidle/state4/disable"
-    )
+    # Get the number of CPU cores dynamically
+    local num_cores=$(nproc)
+    log "Verifying sysfs permissions for $num_cores CPU cores"
     
     local applied_count=0
     local total_count=0
     
-    # Apply permissions to CPU files
-    for file in "${cpu_files[@]}"; do
-        if [[ -f "$file" ]]; then
-            total_count=$((total_count + 1))
-            local current_perms=$(stat -c "%a" "$file" 2>/dev/null || echo "0")
-            local current_owner=$(stat -c "%U:%G" "$file" 2>/dev/null || echo "unknown:unknown")
-            
-            # If permissions are not correct, apply them
-            if [[ "$current_perms" != "666" ]] || [[ "$current_owner" != "$(whoami):$user_group" ]]; then
-                if chmod 666 "$file" 2>/dev/null && chown "$(whoami):$user_group" "$file" 2>/dev/null; then
-                    log "Permissions applied to $file (666, $(whoami):$user_group)"
-                    applied_count=$((applied_count + 1))
+    # Apply permissions to CPU files for all cores
+    for i in $(seq 0 $((num_cores - 1))); do
+        # Governor and frequency files for this core
+        local governor_file="/sys/devices/system/cpu/cpu${i}/cpufreq/scaling_governor"
+        local min_freq_file="/sys/devices/system/cpu/cpu${i}/cpufreq/scaling_min_freq"
+        local max_freq_file="/sys/devices/system/cpu/cpu${i}/cpufreq/scaling_max_freq"
+        local setspeed_file="/sys/devices/system/cpu/cpu${i}/cpufreq/scaling_setspeed"
+        local cur_freq_file="/sys/devices/system/cpu/cpu${i}/cpufreq/scaling_cur_freq"
+        
+        # Apply permissions to each file
+        for file in "$governor_file" "$min_freq_file" "$max_freq_file" "$setspeed_file" "$cur_freq_file"; do
+            if [[ -f "$file" ]]; then
+                total_count=$((total_count + 1))
+                local current_perms=$(stat -c "%a" "$file" 2>/dev/null || echo "0")
+                local current_owner=$(stat -c "%U:%G" "$file" 2>/dev/null || echo "unknown:unknown")
+                
+                # If permissions are not correct, apply them
+                if [[ "$current_perms" != "666" ]] || [[ "$current_owner" != "$(whoami):$user_group" ]]; then
+                    if chmod 666 "$file" 2>/dev/null && chown "$(whoami):$user_group" "$file" 2>/dev/null; then
+                        log "Permissions applied to $file (666, $(whoami):$user_group)"
+                        applied_count=$((applied_count + 1))
+                    else
+                        warn "Unable to apply permissions to $file (permissions: $current_perms, owner: $current_owner)"
+                    fi
                 else
-                    warn "Unable to apply permissions to $file (permissions: $current_perms, owner: $current_owner)"
+                    log "Permissions already correct for $file"
+                    applied_count=$((applied_count + 1))
                 fi
-            else
-                log "Permissions already correct for $file"
-                applied_count=$((applied_count + 1))
             fi
-        fi
+        done
+        
+        # C-state files for this core
+        local cpu_path="/sys/devices/system/cpu/cpu${i}/cpuidle"
+        for state in 0 1 2 3 4 5 6; do
+            local disable_file="${cpu_path}/state${state}/disable"
+            if [[ -f "$disable_file" ]]; then
+                total_count=$((total_count + 1))
+                local current_perms=$(stat -c "%a" "$disable_file" 2>/dev/null || echo "0")
+                local current_owner=$(stat -c "%U:%G" "$disable_file" 2>/dev/null || echo "unknown:unknown")
+                
+                # If permissions are not correct, apply them
+                if [[ "$current_perms" != "666" ]] || [[ "$current_owner" != "$(whoami):$user_group" ]]; then
+                    if chmod 666 "$disable_file" 2>/dev/null && chown "$(whoami):$user_group" "$disable_file" 2>/dev/null; then
+                        log "Permissions applied to $disable_file (666, $(whoami):$user_group)"
+                        applied_count=$((applied_count + 1))
+                    else
+                        warn "Unable to apply permissions to $disable_file (permissions: $current_perms, owner: $current_owner)"
+                    fi
+                else
+                    log "Permissions already correct for $disable_file"
+                    applied_count=$((applied_count + 1))
+                fi
+            fi
+        done
     done
     
-    # Apply permissions to C-state files
-    for file in "${cstate_files[@]}"; do
-        if [[ -f "$file" ]]; then
-            total_count=$((total_count + 1))
-            local current_perms=$(stat -c "%a" "$file" 2>/dev/null || echo "0")
-            local current_owner=$(stat -c "%U:%G" "$file" 2>/dev/null || echo "unknown:unknown")
-            
-            # If permissions are not correct, apply them
-            if [[ "$current_perms" != "666" ]] || [[ "$current_owner" != "$(whoami):$user_group" ]]; then
-                if chmod 666 "$file" 2>/dev/null && chown "$(whoami):$user_group" "$file" 2>/dev/null; then
-                    log "Permissions applied to $file (666, $(whoami):$user_group)"
-                    applied_count=$((applied_count + 1))
-                else
-                    warn "Unable to apply permissions to $file (permissions: $current_perms, owner: $current_owner)"
-                fi
-            else
-                log "Permissions already correct for $file"
+    # Apply permissions to Turbo Boost file
+    local turbo_file="/sys/devices/system/cpu/intel_pstate/no_turbo"
+    if [[ -f "$turbo_file" ]]; then
+        total_count=$((total_count + 1))
+        local current_perms=$(stat -c "%a" "$turbo_file" 2>/dev/null || echo "0")
+        local current_owner=$(stat -c "%U:%G" "$turbo_file" 2>/dev/null || echo "unknown:unknown")
+        
+        # If permissions are not correct, apply them
+        if [[ "$current_perms" != "666" ]] || [[ "$current_owner" != "$(whoami):$user_group" ]]; then
+            if chmod 666 "$turbo_file" 2>/dev/null && chown "$(whoami):$user_group" "$turbo_file" 2>/dev/null; then
+                log "Permissions applied to $turbo_file (666, $(whoami):$user_group)"
                 applied_count=$((applied_count + 1))
+            else
+                warn "Unable to apply permissions to $turbo_file (permissions: $current_perms, owner: $current_owner)"
             fi
+        else
+            log "Permissions already correct for $turbo_file"
+            applied_count=$((applied_count + 1))
         fi
-    done
+    fi
     
     log "Sysfs permissions verified/applied: $applied_count/$total_count"
     

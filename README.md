@@ -161,7 +161,7 @@ OLMS follows a structured development roadmap with clear milestones. We are curr
 
 ---
 
-## 🚀 Quick Start
+## � Quick Start
 
 ### 0. Install OLMS (Arch Linux)
 
@@ -300,6 +300,24 @@ Our technology stack is built on solid open-source foundations:
 The entire critical part of the mixing system—the RT Kernel, JACK/ALSA configuration, Ardour Headless, Lua Scripts, the Web GUI, and the OSC Bridge Server—is **100% Open Source** and released under the **GPLv3 License**.
 
 Our path to sustainability is a **Hybrid Open Core Model**. The commercial strategy focuses on advanced, high-value features (e.g., Anti-Feedback System, Live Auto-Mixer) and the sale of **Service Level Agreements (SLA)** and **Officially Certified Hardware** (Mini-PCs guaranteed to meet RTL/X-run targets under full load). This model ensures stability and continuous development for the free core.
+
+### System Requirements
+
+**Minimum Hardware Requirements:**
+- **CPU:** 4-core processor (4+ cores required for real-time audio processing)
+- **RAM:** 8GB minimum (16GB recommended for professional use)
+- **Storage:** SSD recommended for audio performance
+- **Audio Interface:** USB 2.0+ compatible audio interface with UAC Class Compliant drivers
+- **Operating System:** Linux with real-time kernel support
+- **Network:** Wi-Fi capability for web interface control (optional)
+
+**Recommended Hardware:**
+- **CPU:** 6-core or higher processor for optimal performance
+- **RAM:** 16GB or more for complex sessions
+- **Audio Interface:** Professional USB audio interface with UAC Class Compliant drivers
+- **Storage:** NVMe SSD for best I/O performance
+
+**Important:** Audio interfaces must be UAC Class Compliant to ensure proper driver compatibility and real-time performance on Linux systems.
 
 ### The Final Validation: X-run Stability
 
