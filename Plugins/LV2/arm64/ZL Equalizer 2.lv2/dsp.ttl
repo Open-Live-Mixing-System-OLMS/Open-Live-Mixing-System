@@ -1,0 +1,10126 @@
+@prefix atom:  <http://lv2plug.in/ns/ext/atom#> .
+@prefix bufs:  <http://lv2plug.in/ns/ext/buf-size#> .
+@prefix doap:  <http://usefulinc.com/ns/doap#> .
+@prefix foaf:  <http://xmlns.com/foaf/0.1/> .
+@prefix lv2:   <http://lv2plug.in/ns/lv2core#> .
+@prefix midi:  <http://lv2plug.in/ns/ext/midi#> .
+@prefix opts:  <http://lv2plug.in/ns/ext/options#> .
+@prefix param: <http://lv2plug.in/ns/ext/parameters#> .
+@prefix patch: <http://lv2plug.in/ns/ext/patch#> .
+@prefix pg:    <http://lv2plug.in/ns/ext/port-groups#> .
+@prefix plug:  <https://github.com/ZL-Audio/ZLEqualizer2:> .
+@prefix pprop: <http://lv2plug.in/ns/ext/port-props#> .
+@prefix rdfs:  <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix rdf:   <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rsz:   <http://lv2plug.in/ns/ext/resize-port#> .
+@prefix state: <http://lv2plug.in/ns/ext/state#> .
+@prefix time:  <http://lv2plug.in/ns/ext/time#> .
+@prefix ui:    <http://lv2plug.in/ns/extensions/ui#> .
+@prefix units: <http://lv2plug.in/ns/extensions/units#> .
+@prefix urid:  <http://lv2plug.in/ns/ext/urid#> .
+@prefix xsd:   <http://www.w3.org/2001/XMLSchema#> .
+
+plug:total_filter_structure
+	a lv2:Parameter ;
+	rdfs:label "Filter Structure" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 5	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "Minimum Phase" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "State Variable" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "Parallel" ;
+		rdf:value 2 ;
+	], [
+		rdfs:label "Matched Phase" ;
+		rdf:value 3 ;
+	], [
+		rdfs:label "Mixed Phase" ;
+		rdf:value 4 ;
+	], [
+		rdfs:label "Zero Phase" ;
+		rdf:value 5 ;
+	] .
+
+plug:total_external_side
+	a lv2:Parameter ;
+	rdfs:label "External Side" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:total_bypass
+	a lv2:Parameter ;
+	rdfs:label "Bypass" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "On" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "Bypass" ;
+		rdf:value 1 ;
+	] .
+
+plug:total_output_gain
+	a lv2:Parameter ;
+	rdfs:label "Output Gain" ;
+	rdfs:range atom:Float ;
+	lv2:default -6.70552e-07 ;
+	lv2:minimum -30 ;
+	lv2:maximum 30 .
+
+plug:total_gain_scale
+	a lv2:Parameter ;
+	rdfs:label "Gain Scale" ;
+	rdfs:range atom:Float ;
+	lv2:default 100 ;
+	lv2:minimum -100 ;
+	lv2:maximum 200 .
+
+plug:total_auto_gain
+	a lv2:Parameter ;
+	rdfs:label "Auto Gain" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:total_static_gain
+	a lv2:Parameter ;
+	rdfs:label "Static Gain" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:total_phase_flip
+	a lv2:Parameter ;
+	rdfs:label "phase_flip" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:total_lookahead
+	a lv2:Parameter ;
+	rdfs:label "Lookahead" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 20 .
+
+plug:filter_status0
+	a lv2:Parameter ;
+	rdfs:label "Filter Status0" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 2	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "Bypass" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 2 ;
+	] .
+
+plug:filter_type0
+	a lv2:Parameter ;
+	rdfs:label "Filter Type0" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 7	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "Peak" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "Low Shelf" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "Low Pass" ;
+		rdf:value 2 ;
+	], [
+		rdfs:label "High Shelf" ;
+		rdf:value 3 ;
+	], [
+		rdfs:label "High Pass" ;
+		rdf:value 4 ;
+	], [
+		rdfs:label "Notch" ;
+		rdf:value 5 ;
+	], [
+		rdfs:label "Band Pass" ;
+		rdf:value 6 ;
+	], [
+		rdfs:label "Tilt Shelf" ;
+		rdf:value 7 ;
+	] .
+
+plug:order0
+	a lv2:Parameter ;
+	rdfs:label "Order0" ;
+	rdfs:range atom:Float ;
+	lv2:default 1 ;
+	lv2:minimum 0 ;
+	lv2:maximum 6	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "6 dB/oct" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "12 dB/oct" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "24 dB/oct" ;
+		rdf:value 2 ;
+	], [
+		rdfs:label "36 dB/oct" ;
+		rdf:value 3 ;
+	], [
+		rdfs:label "48 dB/oct" ;
+		rdf:value 4 ;
+	], [
+		rdfs:label "72 dB/oct" ;
+		rdf:value 5 ;
+	], [
+		rdfs:label "96 dB/oct" ;
+		rdf:value 6 ;
+	] .
+
+plug:lr_mode0
+	a lv2:Parameter ;
+	rdfs:label "LRMode0" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 4	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "Stereo" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "Left" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "Right" ;
+		rdf:value 2 ;
+	], [
+		rdfs:label "Mid" ;
+		rdf:value 3 ;
+	], [
+		rdfs:label "Side" ;
+		rdf:value 4 ;
+	] .
+
+plug:freq0
+	a lv2:Parameter ;
+	rdfs:label "Freq0" ;
+	rdfs:range atom:Float ;
+	lv2:default 1000 ;
+	lv2:minimum 10 ;
+	lv2:maximum 160000 .
+
+plug:gain0
+	a lv2:Parameter ;
+	rdfs:label "Gain0" ;
+	rdfs:range atom:Float ;
+	lv2:default -6.70552e-07 ;
+	lv2:minimum -30 ;
+	lv2:maximum 30 .
+
+plug:target_gain0
+	a lv2:Parameter ;
+	rdfs:label "Target Gain0" ;
+	rdfs:range atom:Float ;
+	lv2:default -6.70552e-07 ;
+	lv2:minimum -30 ;
+	lv2:maximum 30 .
+
+plug:q0
+	a lv2:Parameter ;
+	rdfs:label "Q0" ;
+	rdfs:range atom:Float ;
+	lv2:default 0.707 ;
+	lv2:minimum 0.025 ;
+	lv2:maximum 25 .
+
+plug:dynamic_on0
+	a lv2:Parameter ;
+	rdfs:label "Dynamic ON0" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:dynamic_learn0
+	a lv2:Parameter ;
+	rdfs:label "Dynamic Learn0" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:dynamic_bypass0
+	a lv2:Parameter ;
+	rdfs:label "Dynamic Bypass0" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:dynamic_relative0
+	a lv2:Parameter ;
+	rdfs:label "Dynamic Relative0" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:side_swap0
+	a lv2:Parameter ;
+	rdfs:label "Side Swap0" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:side_link0
+	a lv2:Parameter ;
+	rdfs:label "Side Link0" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:threshold0
+	a lv2:Parameter ;
+	rdfs:label "Threshold (dB)0" ;
+	rdfs:range atom:Float ;
+	lv2:default -40 ;
+	lv2:minimum -80 ;
+	lv2:maximum 0 .
+
+plug:knee_width0
+	a lv2:Parameter ;
+	rdfs:label "Knee Width0" ;
+	rdfs:range atom:Float ;
+	lv2:default 8 ;
+	lv2:minimum 0 ;
+	lv2:maximum 32 .
+
+plug:attack0
+	a lv2:Parameter ;
+	rdfs:label "Attack0" ;
+	rdfs:range atom:Float ;
+	lv2:default 100 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1000 .
+
+plug:release0
+	a lv2:Parameter ;
+	rdfs:label "Release0" ;
+	rdfs:range atom:Float ;
+	lv2:default 500 ;
+	lv2:minimum 0 ;
+	lv2:maximum 5000 .
+
+plug:dynamic_rms_length0
+	a lv2:Parameter ;
+	rdfs:label "Dynamic RMS Length0" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 40 .
+
+plug:dynamic_rms_mix0
+	a lv2:Parameter ;
+	rdfs:label "Dynamic RMS Mix0" ;
+	rdfs:range atom:Float ;
+	lv2:default 50 ;
+	lv2:minimum 0 ;
+	lv2:maximum 100 .
+
+plug:dynamic_smooth0
+	a lv2:Parameter ;
+	rdfs:label "Dynamic Smooth0" ;
+	rdfs:range atom:Float ;
+	lv2:default 100 ;
+	lv2:minimum 0 ;
+	lv2:maximum 100 .
+
+plug:side_filter_type0
+	a lv2:Parameter ;
+	rdfs:label "Side Filter Type0" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 2	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "BP" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "LP" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "HP" ;
+		rdf:value 2 ;
+	] .
+
+plug:side_order0
+	a lv2:Parameter ;
+	rdfs:label "Side Order0" ;
+	rdfs:range atom:Float ;
+	lv2:default 1 ;
+	lv2:minimum 0 ;
+	lv2:maximum 6	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "6 dB/oct" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "12 dB/oct" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "24 dB/oct" ;
+		rdf:value 2 ;
+	], [
+		rdfs:label "36 dB/oct" ;
+		rdf:value 3 ;
+	], [
+		rdfs:label "48 dB/oct" ;
+		rdf:value 4 ;
+	], [
+		rdfs:label "72 dB/oct" ;
+		rdf:value 5 ;
+	], [
+		rdfs:label "96 dB/oct" ;
+		rdf:value 6 ;
+	] .
+
+plug:side_freq0
+	a lv2:Parameter ;
+	rdfs:label "Side Freq0" ;
+	rdfs:range atom:Float ;
+	lv2:default 1000 ;
+	lv2:minimum 10 ;
+	lv2:maximum 160000 .
+
+plug:side_q0
+	a lv2:Parameter ;
+	rdfs:label "Side Q0" ;
+	rdfs:range atom:Float ;
+	lv2:default 0.707 ;
+	lv2:minimum 0.025 ;
+	lv2:maximum 25 .
+
+plug:filter_status1
+	a lv2:Parameter ;
+	rdfs:label "Filter Status1" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 2	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "Bypass" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 2 ;
+	] .
+
+plug:filter_type1
+	a lv2:Parameter ;
+	rdfs:label "Filter Type1" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 7	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "Peak" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "Low Shelf" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "Low Pass" ;
+		rdf:value 2 ;
+	], [
+		rdfs:label "High Shelf" ;
+		rdf:value 3 ;
+	], [
+		rdfs:label "High Pass" ;
+		rdf:value 4 ;
+	], [
+		rdfs:label "Notch" ;
+		rdf:value 5 ;
+	], [
+		rdfs:label "Band Pass" ;
+		rdf:value 6 ;
+	], [
+		rdfs:label "Tilt Shelf" ;
+		rdf:value 7 ;
+	] .
+
+plug:order1
+	a lv2:Parameter ;
+	rdfs:label "Order1" ;
+	rdfs:range atom:Float ;
+	lv2:default 1 ;
+	lv2:minimum 0 ;
+	lv2:maximum 6	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "6 dB/oct" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "12 dB/oct" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "24 dB/oct" ;
+		rdf:value 2 ;
+	], [
+		rdfs:label "36 dB/oct" ;
+		rdf:value 3 ;
+	], [
+		rdfs:label "48 dB/oct" ;
+		rdf:value 4 ;
+	], [
+		rdfs:label "72 dB/oct" ;
+		rdf:value 5 ;
+	], [
+		rdfs:label "96 dB/oct" ;
+		rdf:value 6 ;
+	] .
+
+plug:lr_mode1
+	a lv2:Parameter ;
+	rdfs:label "LRMode1" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 4	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "Stereo" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "Left" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "Right" ;
+		rdf:value 2 ;
+	], [
+		rdfs:label "Mid" ;
+		rdf:value 3 ;
+	], [
+		rdfs:label "Side" ;
+		rdf:value 4 ;
+	] .
+
+plug:freq1
+	a lv2:Parameter ;
+	rdfs:label "Freq1" ;
+	rdfs:range atom:Float ;
+	lv2:default 1000 ;
+	lv2:minimum 10 ;
+	lv2:maximum 160000 .
+
+plug:gain1
+	a lv2:Parameter ;
+	rdfs:label "Gain1" ;
+	rdfs:range atom:Float ;
+	lv2:default -6.70552e-07 ;
+	lv2:minimum -30 ;
+	lv2:maximum 30 .
+
+plug:target_gain1
+	a lv2:Parameter ;
+	rdfs:label "Target Gain1" ;
+	rdfs:range atom:Float ;
+	lv2:default -6.70552e-07 ;
+	lv2:minimum -30 ;
+	lv2:maximum 30 .
+
+plug:q1
+	a lv2:Parameter ;
+	rdfs:label "Q1" ;
+	rdfs:range atom:Float ;
+	lv2:default 0.707 ;
+	lv2:minimum 0.025 ;
+	lv2:maximum 25 .
+
+plug:dynamic_on1
+	a lv2:Parameter ;
+	rdfs:label "Dynamic ON1" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:dynamic_learn1
+	a lv2:Parameter ;
+	rdfs:label "Dynamic Learn1" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:dynamic_bypass1
+	a lv2:Parameter ;
+	rdfs:label "Dynamic Bypass1" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:dynamic_relative1
+	a lv2:Parameter ;
+	rdfs:label "Dynamic Relative1" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:side_swap1
+	a lv2:Parameter ;
+	rdfs:label "Side Swap1" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:side_link1
+	a lv2:Parameter ;
+	rdfs:label "Side Link1" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:threshold1
+	a lv2:Parameter ;
+	rdfs:label "Threshold (dB)1" ;
+	rdfs:range atom:Float ;
+	lv2:default -40 ;
+	lv2:minimum -80 ;
+	lv2:maximum 0 .
+
+plug:knee_width1
+	a lv2:Parameter ;
+	rdfs:label "Knee Width1" ;
+	rdfs:range atom:Float ;
+	lv2:default 8 ;
+	lv2:minimum 0 ;
+	lv2:maximum 32 .
+
+plug:attack1
+	a lv2:Parameter ;
+	rdfs:label "Attack1" ;
+	rdfs:range atom:Float ;
+	lv2:default 100 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1000 .
+
+plug:release1
+	a lv2:Parameter ;
+	rdfs:label "Release1" ;
+	rdfs:range atom:Float ;
+	lv2:default 500 ;
+	lv2:minimum 0 ;
+	lv2:maximum 5000 .
+
+plug:dynamic_rms_length1
+	a lv2:Parameter ;
+	rdfs:label "Dynamic RMS Length1" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 40 .
+
+plug:dynamic_rms_mix1
+	a lv2:Parameter ;
+	rdfs:label "Dynamic RMS Mix1" ;
+	rdfs:range atom:Float ;
+	lv2:default 50 ;
+	lv2:minimum 0 ;
+	lv2:maximum 100 .
+
+plug:dynamic_smooth1
+	a lv2:Parameter ;
+	rdfs:label "Dynamic Smooth1" ;
+	rdfs:range atom:Float ;
+	lv2:default 100 ;
+	lv2:minimum 0 ;
+	lv2:maximum 100 .
+
+plug:side_filter_type1
+	a lv2:Parameter ;
+	rdfs:label "Side Filter Type1" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 2	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "BP" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "LP" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "HP" ;
+		rdf:value 2 ;
+	] .
+
+plug:side_order1
+	a lv2:Parameter ;
+	rdfs:label "Side Order1" ;
+	rdfs:range atom:Float ;
+	lv2:default 1 ;
+	lv2:minimum 0 ;
+	lv2:maximum 6	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "6 dB/oct" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "12 dB/oct" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "24 dB/oct" ;
+		rdf:value 2 ;
+	], [
+		rdfs:label "36 dB/oct" ;
+		rdf:value 3 ;
+	], [
+		rdfs:label "48 dB/oct" ;
+		rdf:value 4 ;
+	], [
+		rdfs:label "72 dB/oct" ;
+		rdf:value 5 ;
+	], [
+		rdfs:label "96 dB/oct" ;
+		rdf:value 6 ;
+	] .
+
+plug:side_freq1
+	a lv2:Parameter ;
+	rdfs:label "Side Freq1" ;
+	rdfs:range atom:Float ;
+	lv2:default 1000 ;
+	lv2:minimum 10 ;
+	lv2:maximum 160000 .
+
+plug:side_q1
+	a lv2:Parameter ;
+	rdfs:label "Side Q1" ;
+	rdfs:range atom:Float ;
+	lv2:default 0.707 ;
+	lv2:minimum 0.025 ;
+	lv2:maximum 25 .
+
+plug:filter_status2
+	a lv2:Parameter ;
+	rdfs:label "Filter Status2" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 2	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "Bypass" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 2 ;
+	] .
+
+plug:filter_type2
+	a lv2:Parameter ;
+	rdfs:label "Filter Type2" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 7	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "Peak" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "Low Shelf" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "Low Pass" ;
+		rdf:value 2 ;
+	], [
+		rdfs:label "High Shelf" ;
+		rdf:value 3 ;
+	], [
+		rdfs:label "High Pass" ;
+		rdf:value 4 ;
+	], [
+		rdfs:label "Notch" ;
+		rdf:value 5 ;
+	], [
+		rdfs:label "Band Pass" ;
+		rdf:value 6 ;
+	], [
+		rdfs:label "Tilt Shelf" ;
+		rdf:value 7 ;
+	] .
+
+plug:order2
+	a lv2:Parameter ;
+	rdfs:label "Order2" ;
+	rdfs:range atom:Float ;
+	lv2:default 1 ;
+	lv2:minimum 0 ;
+	lv2:maximum 6	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "6 dB/oct" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "12 dB/oct" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "24 dB/oct" ;
+		rdf:value 2 ;
+	], [
+		rdfs:label "36 dB/oct" ;
+		rdf:value 3 ;
+	], [
+		rdfs:label "48 dB/oct" ;
+		rdf:value 4 ;
+	], [
+		rdfs:label "72 dB/oct" ;
+		rdf:value 5 ;
+	], [
+		rdfs:label "96 dB/oct" ;
+		rdf:value 6 ;
+	] .
+
+plug:lr_mode2
+	a lv2:Parameter ;
+	rdfs:label "LRMode2" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 4	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "Stereo" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "Left" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "Right" ;
+		rdf:value 2 ;
+	], [
+		rdfs:label "Mid" ;
+		rdf:value 3 ;
+	], [
+		rdfs:label "Side" ;
+		rdf:value 4 ;
+	] .
+
+plug:freq2
+	a lv2:Parameter ;
+	rdfs:label "Freq2" ;
+	rdfs:range atom:Float ;
+	lv2:default 1000 ;
+	lv2:minimum 10 ;
+	lv2:maximum 160000 .
+
+plug:gain2
+	a lv2:Parameter ;
+	rdfs:label "Gain2" ;
+	rdfs:range atom:Float ;
+	lv2:default -6.70552e-07 ;
+	lv2:minimum -30 ;
+	lv2:maximum 30 .
+
+plug:target_gain2
+	a lv2:Parameter ;
+	rdfs:label "Target Gain2" ;
+	rdfs:range atom:Float ;
+	lv2:default -6.70552e-07 ;
+	lv2:minimum -30 ;
+	lv2:maximum 30 .
+
+plug:q2
+	a lv2:Parameter ;
+	rdfs:label "Q2" ;
+	rdfs:range atom:Float ;
+	lv2:default 0.707 ;
+	lv2:minimum 0.025 ;
+	lv2:maximum 25 .
+
+plug:dynamic_on2
+	a lv2:Parameter ;
+	rdfs:label "Dynamic ON2" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:dynamic_learn2
+	a lv2:Parameter ;
+	rdfs:label "Dynamic Learn2" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:dynamic_bypass2
+	a lv2:Parameter ;
+	rdfs:label "Dynamic Bypass2" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:dynamic_relative2
+	a lv2:Parameter ;
+	rdfs:label "Dynamic Relative2" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:side_swap2
+	a lv2:Parameter ;
+	rdfs:label "Side Swap2" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:side_link2
+	a lv2:Parameter ;
+	rdfs:label "Side Link2" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:threshold2
+	a lv2:Parameter ;
+	rdfs:label "Threshold (dB)2" ;
+	rdfs:range atom:Float ;
+	lv2:default -40 ;
+	lv2:minimum -80 ;
+	lv2:maximum 0 .
+
+plug:knee_width2
+	a lv2:Parameter ;
+	rdfs:label "Knee Width2" ;
+	rdfs:range atom:Float ;
+	lv2:default 8 ;
+	lv2:minimum 0 ;
+	lv2:maximum 32 .
+
+plug:attack2
+	a lv2:Parameter ;
+	rdfs:label "Attack2" ;
+	rdfs:range atom:Float ;
+	lv2:default 100 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1000 .
+
+plug:release2
+	a lv2:Parameter ;
+	rdfs:label "Release2" ;
+	rdfs:range atom:Float ;
+	lv2:default 500 ;
+	lv2:minimum 0 ;
+	lv2:maximum 5000 .
+
+plug:dynamic_rms_length2
+	a lv2:Parameter ;
+	rdfs:label "Dynamic RMS Length2" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 40 .
+
+plug:dynamic_rms_mix2
+	a lv2:Parameter ;
+	rdfs:label "Dynamic RMS Mix2" ;
+	rdfs:range atom:Float ;
+	lv2:default 50 ;
+	lv2:minimum 0 ;
+	lv2:maximum 100 .
+
+plug:dynamic_smooth2
+	a lv2:Parameter ;
+	rdfs:label "Dynamic Smooth2" ;
+	rdfs:range atom:Float ;
+	lv2:default 100 ;
+	lv2:minimum 0 ;
+	lv2:maximum 100 .
+
+plug:side_filter_type2
+	a lv2:Parameter ;
+	rdfs:label "Side Filter Type2" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 2	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "BP" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "LP" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "HP" ;
+		rdf:value 2 ;
+	] .
+
+plug:side_order2
+	a lv2:Parameter ;
+	rdfs:label "Side Order2" ;
+	rdfs:range atom:Float ;
+	lv2:default 1 ;
+	lv2:minimum 0 ;
+	lv2:maximum 6	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "6 dB/oct" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "12 dB/oct" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "24 dB/oct" ;
+		rdf:value 2 ;
+	], [
+		rdfs:label "36 dB/oct" ;
+		rdf:value 3 ;
+	], [
+		rdfs:label "48 dB/oct" ;
+		rdf:value 4 ;
+	], [
+		rdfs:label "72 dB/oct" ;
+		rdf:value 5 ;
+	], [
+		rdfs:label "96 dB/oct" ;
+		rdf:value 6 ;
+	] .
+
+plug:side_freq2
+	a lv2:Parameter ;
+	rdfs:label "Side Freq2" ;
+	rdfs:range atom:Float ;
+	lv2:default 1000 ;
+	lv2:minimum 10 ;
+	lv2:maximum 160000 .
+
+plug:side_q2
+	a lv2:Parameter ;
+	rdfs:label "Side Q2" ;
+	rdfs:range atom:Float ;
+	lv2:default 0.707 ;
+	lv2:minimum 0.025 ;
+	lv2:maximum 25 .
+
+plug:filter_status3
+	a lv2:Parameter ;
+	rdfs:label "Filter Status3" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 2	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "Bypass" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 2 ;
+	] .
+
+plug:filter_type3
+	a lv2:Parameter ;
+	rdfs:label "Filter Type3" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 7	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "Peak" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "Low Shelf" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "Low Pass" ;
+		rdf:value 2 ;
+	], [
+		rdfs:label "High Shelf" ;
+		rdf:value 3 ;
+	], [
+		rdfs:label "High Pass" ;
+		rdf:value 4 ;
+	], [
+		rdfs:label "Notch" ;
+		rdf:value 5 ;
+	], [
+		rdfs:label "Band Pass" ;
+		rdf:value 6 ;
+	], [
+		rdfs:label "Tilt Shelf" ;
+		rdf:value 7 ;
+	] .
+
+plug:order3
+	a lv2:Parameter ;
+	rdfs:label "Order3" ;
+	rdfs:range atom:Float ;
+	lv2:default 1 ;
+	lv2:minimum 0 ;
+	lv2:maximum 6	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "6 dB/oct" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "12 dB/oct" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "24 dB/oct" ;
+		rdf:value 2 ;
+	], [
+		rdfs:label "36 dB/oct" ;
+		rdf:value 3 ;
+	], [
+		rdfs:label "48 dB/oct" ;
+		rdf:value 4 ;
+	], [
+		rdfs:label "72 dB/oct" ;
+		rdf:value 5 ;
+	], [
+		rdfs:label "96 dB/oct" ;
+		rdf:value 6 ;
+	] .
+
+plug:lr_mode3
+	a lv2:Parameter ;
+	rdfs:label "LRMode3" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 4	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "Stereo" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "Left" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "Right" ;
+		rdf:value 2 ;
+	], [
+		rdfs:label "Mid" ;
+		rdf:value 3 ;
+	], [
+		rdfs:label "Side" ;
+		rdf:value 4 ;
+	] .
+
+plug:freq3
+	a lv2:Parameter ;
+	rdfs:label "Freq3" ;
+	rdfs:range atom:Float ;
+	lv2:default 1000 ;
+	lv2:minimum 10 ;
+	lv2:maximum 160000 .
+
+plug:gain3
+	a lv2:Parameter ;
+	rdfs:label "Gain3" ;
+	rdfs:range atom:Float ;
+	lv2:default -6.70552e-07 ;
+	lv2:minimum -30 ;
+	lv2:maximum 30 .
+
+plug:target_gain3
+	a lv2:Parameter ;
+	rdfs:label "Target Gain3" ;
+	rdfs:range atom:Float ;
+	lv2:default -6.70552e-07 ;
+	lv2:minimum -30 ;
+	lv2:maximum 30 .
+
+plug:q3
+	a lv2:Parameter ;
+	rdfs:label "Q3" ;
+	rdfs:range atom:Float ;
+	lv2:default 0.707 ;
+	lv2:minimum 0.025 ;
+	lv2:maximum 25 .
+
+plug:dynamic_on3
+	a lv2:Parameter ;
+	rdfs:label "Dynamic ON3" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:dynamic_learn3
+	a lv2:Parameter ;
+	rdfs:label "Dynamic Learn3" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:dynamic_bypass3
+	a lv2:Parameter ;
+	rdfs:label "Dynamic Bypass3" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:dynamic_relative3
+	a lv2:Parameter ;
+	rdfs:label "Dynamic Relative3" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:side_swap3
+	a lv2:Parameter ;
+	rdfs:label "Side Swap3" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:side_link3
+	a lv2:Parameter ;
+	rdfs:label "Side Link3" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:threshold3
+	a lv2:Parameter ;
+	rdfs:label "Threshold (dB)3" ;
+	rdfs:range atom:Float ;
+	lv2:default -40 ;
+	lv2:minimum -80 ;
+	lv2:maximum 0 .
+
+plug:knee_width3
+	a lv2:Parameter ;
+	rdfs:label "Knee Width3" ;
+	rdfs:range atom:Float ;
+	lv2:default 8 ;
+	lv2:minimum 0 ;
+	lv2:maximum 32 .
+
+plug:attack3
+	a lv2:Parameter ;
+	rdfs:label "Attack3" ;
+	rdfs:range atom:Float ;
+	lv2:default 100 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1000 .
+
+plug:release3
+	a lv2:Parameter ;
+	rdfs:label "Release3" ;
+	rdfs:range atom:Float ;
+	lv2:default 500 ;
+	lv2:minimum 0 ;
+	lv2:maximum 5000 .
+
+plug:dynamic_rms_length3
+	a lv2:Parameter ;
+	rdfs:label "Dynamic RMS Length3" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 40 .
+
+plug:dynamic_rms_mix3
+	a lv2:Parameter ;
+	rdfs:label "Dynamic RMS Mix3" ;
+	rdfs:range atom:Float ;
+	lv2:default 50 ;
+	lv2:minimum 0 ;
+	lv2:maximum 100 .
+
+plug:dynamic_smooth3
+	a lv2:Parameter ;
+	rdfs:label "Dynamic Smooth3" ;
+	rdfs:range atom:Float ;
+	lv2:default 100 ;
+	lv2:minimum 0 ;
+	lv2:maximum 100 .
+
+plug:side_filter_type3
+	a lv2:Parameter ;
+	rdfs:label "Side Filter Type3" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 2	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "BP" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "LP" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "HP" ;
+		rdf:value 2 ;
+	] .
+
+plug:side_order3
+	a lv2:Parameter ;
+	rdfs:label "Side Order3" ;
+	rdfs:range atom:Float ;
+	lv2:default 1 ;
+	lv2:minimum 0 ;
+	lv2:maximum 6	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "6 dB/oct" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "12 dB/oct" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "24 dB/oct" ;
+		rdf:value 2 ;
+	], [
+		rdfs:label "36 dB/oct" ;
+		rdf:value 3 ;
+	], [
+		rdfs:label "48 dB/oct" ;
+		rdf:value 4 ;
+	], [
+		rdfs:label "72 dB/oct" ;
+		rdf:value 5 ;
+	], [
+		rdfs:label "96 dB/oct" ;
+		rdf:value 6 ;
+	] .
+
+plug:side_freq3
+	a lv2:Parameter ;
+	rdfs:label "Side Freq3" ;
+	rdfs:range atom:Float ;
+	lv2:default 1000 ;
+	lv2:minimum 10 ;
+	lv2:maximum 160000 .
+
+plug:side_q3
+	a lv2:Parameter ;
+	rdfs:label "Side Q3" ;
+	rdfs:range atom:Float ;
+	lv2:default 0.707 ;
+	lv2:minimum 0.025 ;
+	lv2:maximum 25 .
+
+plug:filter_status4
+	a lv2:Parameter ;
+	rdfs:label "Filter Status4" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 2	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "Bypass" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 2 ;
+	] .
+
+plug:filter_type4
+	a lv2:Parameter ;
+	rdfs:label "Filter Type4" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 7	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "Peak" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "Low Shelf" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "Low Pass" ;
+		rdf:value 2 ;
+	], [
+		rdfs:label "High Shelf" ;
+		rdf:value 3 ;
+	], [
+		rdfs:label "High Pass" ;
+		rdf:value 4 ;
+	], [
+		rdfs:label "Notch" ;
+		rdf:value 5 ;
+	], [
+		rdfs:label "Band Pass" ;
+		rdf:value 6 ;
+	], [
+		rdfs:label "Tilt Shelf" ;
+		rdf:value 7 ;
+	] .
+
+plug:order4
+	a lv2:Parameter ;
+	rdfs:label "Order4" ;
+	rdfs:range atom:Float ;
+	lv2:default 1 ;
+	lv2:minimum 0 ;
+	lv2:maximum 6	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "6 dB/oct" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "12 dB/oct" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "24 dB/oct" ;
+		rdf:value 2 ;
+	], [
+		rdfs:label "36 dB/oct" ;
+		rdf:value 3 ;
+	], [
+		rdfs:label "48 dB/oct" ;
+		rdf:value 4 ;
+	], [
+		rdfs:label "72 dB/oct" ;
+		rdf:value 5 ;
+	], [
+		rdfs:label "96 dB/oct" ;
+		rdf:value 6 ;
+	] .
+
+plug:lr_mode4
+	a lv2:Parameter ;
+	rdfs:label "LRMode4" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 4	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "Stereo" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "Left" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "Right" ;
+		rdf:value 2 ;
+	], [
+		rdfs:label "Mid" ;
+		rdf:value 3 ;
+	], [
+		rdfs:label "Side" ;
+		rdf:value 4 ;
+	] .
+
+plug:freq4
+	a lv2:Parameter ;
+	rdfs:label "Freq4" ;
+	rdfs:range atom:Float ;
+	lv2:default 1000 ;
+	lv2:minimum 10 ;
+	lv2:maximum 160000 .
+
+plug:gain4
+	a lv2:Parameter ;
+	rdfs:label "Gain4" ;
+	rdfs:range atom:Float ;
+	lv2:default -6.70552e-07 ;
+	lv2:minimum -30 ;
+	lv2:maximum 30 .
+
+plug:target_gain4
+	a lv2:Parameter ;
+	rdfs:label "Target Gain4" ;
+	rdfs:range atom:Float ;
+	lv2:default -6.70552e-07 ;
+	lv2:minimum -30 ;
+	lv2:maximum 30 .
+
+plug:q4
+	a lv2:Parameter ;
+	rdfs:label "Q4" ;
+	rdfs:range atom:Float ;
+	lv2:default 0.707 ;
+	lv2:minimum 0.025 ;
+	lv2:maximum 25 .
+
+plug:dynamic_on4
+	a lv2:Parameter ;
+	rdfs:label "Dynamic ON4" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:dynamic_learn4
+	a lv2:Parameter ;
+	rdfs:label "Dynamic Learn4" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:dynamic_bypass4
+	a lv2:Parameter ;
+	rdfs:label "Dynamic Bypass4" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:dynamic_relative4
+	a lv2:Parameter ;
+	rdfs:label "Dynamic Relative4" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:side_swap4
+	a lv2:Parameter ;
+	rdfs:label "Side Swap4" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:side_link4
+	a lv2:Parameter ;
+	rdfs:label "Side Link4" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:threshold4
+	a lv2:Parameter ;
+	rdfs:label "Threshold (dB)4" ;
+	rdfs:range atom:Float ;
+	lv2:default -40 ;
+	lv2:minimum -80 ;
+	lv2:maximum 0 .
+
+plug:knee_width4
+	a lv2:Parameter ;
+	rdfs:label "Knee Width4" ;
+	rdfs:range atom:Float ;
+	lv2:default 8 ;
+	lv2:minimum 0 ;
+	lv2:maximum 32 .
+
+plug:attack4
+	a lv2:Parameter ;
+	rdfs:label "Attack4" ;
+	rdfs:range atom:Float ;
+	lv2:default 100 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1000 .
+
+plug:release4
+	a lv2:Parameter ;
+	rdfs:label "Release4" ;
+	rdfs:range atom:Float ;
+	lv2:default 500 ;
+	lv2:minimum 0 ;
+	lv2:maximum 5000 .
+
+plug:dynamic_rms_length4
+	a lv2:Parameter ;
+	rdfs:label "Dynamic RMS Length4" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 40 .
+
+plug:dynamic_rms_mix4
+	a lv2:Parameter ;
+	rdfs:label "Dynamic RMS Mix4" ;
+	rdfs:range atom:Float ;
+	lv2:default 50 ;
+	lv2:minimum 0 ;
+	lv2:maximum 100 .
+
+plug:dynamic_smooth4
+	a lv2:Parameter ;
+	rdfs:label "Dynamic Smooth4" ;
+	rdfs:range atom:Float ;
+	lv2:default 100 ;
+	lv2:minimum 0 ;
+	lv2:maximum 100 .
+
+plug:side_filter_type4
+	a lv2:Parameter ;
+	rdfs:label "Side Filter Type4" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 2	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "BP" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "LP" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "HP" ;
+		rdf:value 2 ;
+	] .
+
+plug:side_order4
+	a lv2:Parameter ;
+	rdfs:label "Side Order4" ;
+	rdfs:range atom:Float ;
+	lv2:default 1 ;
+	lv2:minimum 0 ;
+	lv2:maximum 6	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "6 dB/oct" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "12 dB/oct" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "24 dB/oct" ;
+		rdf:value 2 ;
+	], [
+		rdfs:label "36 dB/oct" ;
+		rdf:value 3 ;
+	], [
+		rdfs:label "48 dB/oct" ;
+		rdf:value 4 ;
+	], [
+		rdfs:label "72 dB/oct" ;
+		rdf:value 5 ;
+	], [
+		rdfs:label "96 dB/oct" ;
+		rdf:value 6 ;
+	] .
+
+plug:side_freq4
+	a lv2:Parameter ;
+	rdfs:label "Side Freq4" ;
+	rdfs:range atom:Float ;
+	lv2:default 1000 ;
+	lv2:minimum 10 ;
+	lv2:maximum 160000 .
+
+plug:side_q4
+	a lv2:Parameter ;
+	rdfs:label "Side Q4" ;
+	rdfs:range atom:Float ;
+	lv2:default 0.707 ;
+	lv2:minimum 0.025 ;
+	lv2:maximum 25 .
+
+plug:filter_status5
+	a lv2:Parameter ;
+	rdfs:label "Filter Status5" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 2	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "Bypass" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 2 ;
+	] .
+
+plug:filter_type5
+	a lv2:Parameter ;
+	rdfs:label "Filter Type5" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 7	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "Peak" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "Low Shelf" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "Low Pass" ;
+		rdf:value 2 ;
+	], [
+		rdfs:label "High Shelf" ;
+		rdf:value 3 ;
+	], [
+		rdfs:label "High Pass" ;
+		rdf:value 4 ;
+	], [
+		rdfs:label "Notch" ;
+		rdf:value 5 ;
+	], [
+		rdfs:label "Band Pass" ;
+		rdf:value 6 ;
+	], [
+		rdfs:label "Tilt Shelf" ;
+		rdf:value 7 ;
+	] .
+
+plug:order5
+	a lv2:Parameter ;
+	rdfs:label "Order5" ;
+	rdfs:range atom:Float ;
+	lv2:default 1 ;
+	lv2:minimum 0 ;
+	lv2:maximum 6	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "6 dB/oct" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "12 dB/oct" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "24 dB/oct" ;
+		rdf:value 2 ;
+	], [
+		rdfs:label "36 dB/oct" ;
+		rdf:value 3 ;
+	], [
+		rdfs:label "48 dB/oct" ;
+		rdf:value 4 ;
+	], [
+		rdfs:label "72 dB/oct" ;
+		rdf:value 5 ;
+	], [
+		rdfs:label "96 dB/oct" ;
+		rdf:value 6 ;
+	] .
+
+plug:lr_mode5
+	a lv2:Parameter ;
+	rdfs:label "LRMode5" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 4	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "Stereo" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "Left" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "Right" ;
+		rdf:value 2 ;
+	], [
+		rdfs:label "Mid" ;
+		rdf:value 3 ;
+	], [
+		rdfs:label "Side" ;
+		rdf:value 4 ;
+	] .
+
+plug:freq5
+	a lv2:Parameter ;
+	rdfs:label "Freq5" ;
+	rdfs:range atom:Float ;
+	lv2:default 1000 ;
+	lv2:minimum 10 ;
+	lv2:maximum 160000 .
+
+plug:gain5
+	a lv2:Parameter ;
+	rdfs:label "Gain5" ;
+	rdfs:range atom:Float ;
+	lv2:default -6.70552e-07 ;
+	lv2:minimum -30 ;
+	lv2:maximum 30 .
+
+plug:target_gain5
+	a lv2:Parameter ;
+	rdfs:label "Target Gain5" ;
+	rdfs:range atom:Float ;
+	lv2:default -6.70552e-07 ;
+	lv2:minimum -30 ;
+	lv2:maximum 30 .
+
+plug:q5
+	a lv2:Parameter ;
+	rdfs:label "Q5" ;
+	rdfs:range atom:Float ;
+	lv2:default 0.707 ;
+	lv2:minimum 0.025 ;
+	lv2:maximum 25 .
+
+plug:dynamic_on5
+	a lv2:Parameter ;
+	rdfs:label "Dynamic ON5" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:dynamic_learn5
+	a lv2:Parameter ;
+	rdfs:label "Dynamic Learn5" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:dynamic_bypass5
+	a lv2:Parameter ;
+	rdfs:label "Dynamic Bypass5" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:dynamic_relative5
+	a lv2:Parameter ;
+	rdfs:label "Dynamic Relative5" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:side_swap5
+	a lv2:Parameter ;
+	rdfs:label "Side Swap5" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:side_link5
+	a lv2:Parameter ;
+	rdfs:label "Side Link5" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:threshold5
+	a lv2:Parameter ;
+	rdfs:label "Threshold (dB)5" ;
+	rdfs:range atom:Float ;
+	lv2:default -40 ;
+	lv2:minimum -80 ;
+	lv2:maximum 0 .
+
+plug:knee_width5
+	a lv2:Parameter ;
+	rdfs:label "Knee Width5" ;
+	rdfs:range atom:Float ;
+	lv2:default 8 ;
+	lv2:minimum 0 ;
+	lv2:maximum 32 .
+
+plug:attack5
+	a lv2:Parameter ;
+	rdfs:label "Attack5" ;
+	rdfs:range atom:Float ;
+	lv2:default 100 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1000 .
+
+plug:release5
+	a lv2:Parameter ;
+	rdfs:label "Release5" ;
+	rdfs:range atom:Float ;
+	lv2:default 500 ;
+	lv2:minimum 0 ;
+	lv2:maximum 5000 .
+
+plug:dynamic_rms_length5
+	a lv2:Parameter ;
+	rdfs:label "Dynamic RMS Length5" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 40 .
+
+plug:dynamic_rms_mix5
+	a lv2:Parameter ;
+	rdfs:label "Dynamic RMS Mix5" ;
+	rdfs:range atom:Float ;
+	lv2:default 50 ;
+	lv2:minimum 0 ;
+	lv2:maximum 100 .
+
+plug:dynamic_smooth5
+	a lv2:Parameter ;
+	rdfs:label "Dynamic Smooth5" ;
+	rdfs:range atom:Float ;
+	lv2:default 100 ;
+	lv2:minimum 0 ;
+	lv2:maximum 100 .
+
+plug:side_filter_type5
+	a lv2:Parameter ;
+	rdfs:label "Side Filter Type5" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 2	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "BP" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "LP" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "HP" ;
+		rdf:value 2 ;
+	] .
+
+plug:side_order5
+	a lv2:Parameter ;
+	rdfs:label "Side Order5" ;
+	rdfs:range atom:Float ;
+	lv2:default 1 ;
+	lv2:minimum 0 ;
+	lv2:maximum 6	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "6 dB/oct" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "12 dB/oct" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "24 dB/oct" ;
+		rdf:value 2 ;
+	], [
+		rdfs:label "36 dB/oct" ;
+		rdf:value 3 ;
+	], [
+		rdfs:label "48 dB/oct" ;
+		rdf:value 4 ;
+	], [
+		rdfs:label "72 dB/oct" ;
+		rdf:value 5 ;
+	], [
+		rdfs:label "96 dB/oct" ;
+		rdf:value 6 ;
+	] .
+
+plug:side_freq5
+	a lv2:Parameter ;
+	rdfs:label "Side Freq5" ;
+	rdfs:range atom:Float ;
+	lv2:default 1000 ;
+	lv2:minimum 10 ;
+	lv2:maximum 160000 .
+
+plug:side_q5
+	a lv2:Parameter ;
+	rdfs:label "Side Q5" ;
+	rdfs:range atom:Float ;
+	lv2:default 0.707 ;
+	lv2:minimum 0.025 ;
+	lv2:maximum 25 .
+
+plug:filter_status6
+	a lv2:Parameter ;
+	rdfs:label "Filter Status6" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 2	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "Bypass" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 2 ;
+	] .
+
+plug:filter_type6
+	a lv2:Parameter ;
+	rdfs:label "Filter Type6" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 7	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "Peak" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "Low Shelf" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "Low Pass" ;
+		rdf:value 2 ;
+	], [
+		rdfs:label "High Shelf" ;
+		rdf:value 3 ;
+	], [
+		rdfs:label "High Pass" ;
+		rdf:value 4 ;
+	], [
+		rdfs:label "Notch" ;
+		rdf:value 5 ;
+	], [
+		rdfs:label "Band Pass" ;
+		rdf:value 6 ;
+	], [
+		rdfs:label "Tilt Shelf" ;
+		rdf:value 7 ;
+	] .
+
+plug:order6
+	a lv2:Parameter ;
+	rdfs:label "Order6" ;
+	rdfs:range atom:Float ;
+	lv2:default 1 ;
+	lv2:minimum 0 ;
+	lv2:maximum 6	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "6 dB/oct" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "12 dB/oct" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "24 dB/oct" ;
+		rdf:value 2 ;
+	], [
+		rdfs:label "36 dB/oct" ;
+		rdf:value 3 ;
+	], [
+		rdfs:label "48 dB/oct" ;
+		rdf:value 4 ;
+	], [
+		rdfs:label "72 dB/oct" ;
+		rdf:value 5 ;
+	], [
+		rdfs:label "96 dB/oct" ;
+		rdf:value 6 ;
+	] .
+
+plug:lr_mode6
+	a lv2:Parameter ;
+	rdfs:label "LRMode6" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 4	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "Stereo" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "Left" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "Right" ;
+		rdf:value 2 ;
+	], [
+		rdfs:label "Mid" ;
+		rdf:value 3 ;
+	], [
+		rdfs:label "Side" ;
+		rdf:value 4 ;
+	] .
+
+plug:freq6
+	a lv2:Parameter ;
+	rdfs:label "Freq6" ;
+	rdfs:range atom:Float ;
+	lv2:default 1000 ;
+	lv2:minimum 10 ;
+	lv2:maximum 160000 .
+
+plug:gain6
+	a lv2:Parameter ;
+	rdfs:label "Gain6" ;
+	rdfs:range atom:Float ;
+	lv2:default -6.70552e-07 ;
+	lv2:minimum -30 ;
+	lv2:maximum 30 .
+
+plug:target_gain6
+	a lv2:Parameter ;
+	rdfs:label "Target Gain6" ;
+	rdfs:range atom:Float ;
+	lv2:default -6.70552e-07 ;
+	lv2:minimum -30 ;
+	lv2:maximum 30 .
+
+plug:q6
+	a lv2:Parameter ;
+	rdfs:label "Q6" ;
+	rdfs:range atom:Float ;
+	lv2:default 0.707 ;
+	lv2:minimum 0.025 ;
+	lv2:maximum 25 .
+
+plug:dynamic_on6
+	a lv2:Parameter ;
+	rdfs:label "Dynamic ON6" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:dynamic_learn6
+	a lv2:Parameter ;
+	rdfs:label "Dynamic Learn6" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:dynamic_bypass6
+	a lv2:Parameter ;
+	rdfs:label "Dynamic Bypass6" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:dynamic_relative6
+	a lv2:Parameter ;
+	rdfs:label "Dynamic Relative6" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:side_swap6
+	a lv2:Parameter ;
+	rdfs:label "Side Swap6" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:side_link6
+	a lv2:Parameter ;
+	rdfs:label "Side Link6" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:threshold6
+	a lv2:Parameter ;
+	rdfs:label "Threshold (dB)6" ;
+	rdfs:range atom:Float ;
+	lv2:default -40 ;
+	lv2:minimum -80 ;
+	lv2:maximum 0 .
+
+plug:knee_width6
+	a lv2:Parameter ;
+	rdfs:label "Knee Width6" ;
+	rdfs:range atom:Float ;
+	lv2:default 8 ;
+	lv2:minimum 0 ;
+	lv2:maximum 32 .
+
+plug:attack6
+	a lv2:Parameter ;
+	rdfs:label "Attack6" ;
+	rdfs:range atom:Float ;
+	lv2:default 100 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1000 .
+
+plug:release6
+	a lv2:Parameter ;
+	rdfs:label "Release6" ;
+	rdfs:range atom:Float ;
+	lv2:default 500 ;
+	lv2:minimum 0 ;
+	lv2:maximum 5000 .
+
+plug:dynamic_rms_length6
+	a lv2:Parameter ;
+	rdfs:label "Dynamic RMS Length6" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 40 .
+
+plug:dynamic_rms_mix6
+	a lv2:Parameter ;
+	rdfs:label "Dynamic RMS Mix6" ;
+	rdfs:range atom:Float ;
+	lv2:default 50 ;
+	lv2:minimum 0 ;
+	lv2:maximum 100 .
+
+plug:dynamic_smooth6
+	a lv2:Parameter ;
+	rdfs:label "Dynamic Smooth6" ;
+	rdfs:range atom:Float ;
+	lv2:default 100 ;
+	lv2:minimum 0 ;
+	lv2:maximum 100 .
+
+plug:side_filter_type6
+	a lv2:Parameter ;
+	rdfs:label "Side Filter Type6" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 2	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "BP" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "LP" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "HP" ;
+		rdf:value 2 ;
+	] .
+
+plug:side_order6
+	a lv2:Parameter ;
+	rdfs:label "Side Order6" ;
+	rdfs:range atom:Float ;
+	lv2:default 1 ;
+	lv2:minimum 0 ;
+	lv2:maximum 6	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "6 dB/oct" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "12 dB/oct" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "24 dB/oct" ;
+		rdf:value 2 ;
+	], [
+		rdfs:label "36 dB/oct" ;
+		rdf:value 3 ;
+	], [
+		rdfs:label "48 dB/oct" ;
+		rdf:value 4 ;
+	], [
+		rdfs:label "72 dB/oct" ;
+		rdf:value 5 ;
+	], [
+		rdfs:label "96 dB/oct" ;
+		rdf:value 6 ;
+	] .
+
+plug:side_freq6
+	a lv2:Parameter ;
+	rdfs:label "Side Freq6" ;
+	rdfs:range atom:Float ;
+	lv2:default 1000 ;
+	lv2:minimum 10 ;
+	lv2:maximum 160000 .
+
+plug:side_q6
+	a lv2:Parameter ;
+	rdfs:label "Side Q6" ;
+	rdfs:range atom:Float ;
+	lv2:default 0.707 ;
+	lv2:minimum 0.025 ;
+	lv2:maximum 25 .
+
+plug:filter_status7
+	a lv2:Parameter ;
+	rdfs:label "Filter Status7" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 2	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "Bypass" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 2 ;
+	] .
+
+plug:filter_type7
+	a lv2:Parameter ;
+	rdfs:label "Filter Type7" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 7	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "Peak" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "Low Shelf" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "Low Pass" ;
+		rdf:value 2 ;
+	], [
+		rdfs:label "High Shelf" ;
+		rdf:value 3 ;
+	], [
+		rdfs:label "High Pass" ;
+		rdf:value 4 ;
+	], [
+		rdfs:label "Notch" ;
+		rdf:value 5 ;
+	], [
+		rdfs:label "Band Pass" ;
+		rdf:value 6 ;
+	], [
+		rdfs:label "Tilt Shelf" ;
+		rdf:value 7 ;
+	] .
+
+plug:order7
+	a lv2:Parameter ;
+	rdfs:label "Order7" ;
+	rdfs:range atom:Float ;
+	lv2:default 1 ;
+	lv2:minimum 0 ;
+	lv2:maximum 6	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "6 dB/oct" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "12 dB/oct" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "24 dB/oct" ;
+		rdf:value 2 ;
+	], [
+		rdfs:label "36 dB/oct" ;
+		rdf:value 3 ;
+	], [
+		rdfs:label "48 dB/oct" ;
+		rdf:value 4 ;
+	], [
+		rdfs:label "72 dB/oct" ;
+		rdf:value 5 ;
+	], [
+		rdfs:label "96 dB/oct" ;
+		rdf:value 6 ;
+	] .
+
+plug:lr_mode7
+	a lv2:Parameter ;
+	rdfs:label "LRMode7" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 4	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "Stereo" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "Left" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "Right" ;
+		rdf:value 2 ;
+	], [
+		rdfs:label "Mid" ;
+		rdf:value 3 ;
+	], [
+		rdfs:label "Side" ;
+		rdf:value 4 ;
+	] .
+
+plug:freq7
+	a lv2:Parameter ;
+	rdfs:label "Freq7" ;
+	rdfs:range atom:Float ;
+	lv2:default 1000 ;
+	lv2:minimum 10 ;
+	lv2:maximum 160000 .
+
+plug:gain7
+	a lv2:Parameter ;
+	rdfs:label "Gain7" ;
+	rdfs:range atom:Float ;
+	lv2:default -6.70552e-07 ;
+	lv2:minimum -30 ;
+	lv2:maximum 30 .
+
+plug:target_gain7
+	a lv2:Parameter ;
+	rdfs:label "Target Gain7" ;
+	rdfs:range atom:Float ;
+	lv2:default -6.70552e-07 ;
+	lv2:minimum -30 ;
+	lv2:maximum 30 .
+
+plug:q7
+	a lv2:Parameter ;
+	rdfs:label "Q7" ;
+	rdfs:range atom:Float ;
+	lv2:default 0.707 ;
+	lv2:minimum 0.025 ;
+	lv2:maximum 25 .
+
+plug:dynamic_on7
+	a lv2:Parameter ;
+	rdfs:label "Dynamic ON7" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:dynamic_learn7
+	a lv2:Parameter ;
+	rdfs:label "Dynamic Learn7" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:dynamic_bypass7
+	a lv2:Parameter ;
+	rdfs:label "Dynamic Bypass7" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:dynamic_relative7
+	a lv2:Parameter ;
+	rdfs:label "Dynamic Relative7" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:side_swap7
+	a lv2:Parameter ;
+	rdfs:label "Side Swap7" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:side_link7
+	a lv2:Parameter ;
+	rdfs:label "Side Link7" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:threshold7
+	a lv2:Parameter ;
+	rdfs:label "Threshold (dB)7" ;
+	rdfs:range atom:Float ;
+	lv2:default -40 ;
+	lv2:minimum -80 ;
+	lv2:maximum 0 .
+
+plug:knee_width7
+	a lv2:Parameter ;
+	rdfs:label "Knee Width7" ;
+	rdfs:range atom:Float ;
+	lv2:default 8 ;
+	lv2:minimum 0 ;
+	lv2:maximum 32 .
+
+plug:attack7
+	a lv2:Parameter ;
+	rdfs:label "Attack7" ;
+	rdfs:range atom:Float ;
+	lv2:default 100 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1000 .
+
+plug:release7
+	a lv2:Parameter ;
+	rdfs:label "Release7" ;
+	rdfs:range atom:Float ;
+	lv2:default 500 ;
+	lv2:minimum 0 ;
+	lv2:maximum 5000 .
+
+plug:dynamic_rms_length7
+	a lv2:Parameter ;
+	rdfs:label "Dynamic RMS Length7" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 40 .
+
+plug:dynamic_rms_mix7
+	a lv2:Parameter ;
+	rdfs:label "Dynamic RMS Mix7" ;
+	rdfs:range atom:Float ;
+	lv2:default 50 ;
+	lv2:minimum 0 ;
+	lv2:maximum 100 .
+
+plug:dynamic_smooth7
+	a lv2:Parameter ;
+	rdfs:label "Dynamic Smooth7" ;
+	rdfs:range atom:Float ;
+	lv2:default 100 ;
+	lv2:minimum 0 ;
+	lv2:maximum 100 .
+
+plug:side_filter_type7
+	a lv2:Parameter ;
+	rdfs:label "Side Filter Type7" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 2	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "BP" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "LP" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "HP" ;
+		rdf:value 2 ;
+	] .
+
+plug:side_order7
+	a lv2:Parameter ;
+	rdfs:label "Side Order7" ;
+	rdfs:range atom:Float ;
+	lv2:default 1 ;
+	lv2:minimum 0 ;
+	lv2:maximum 6	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "6 dB/oct" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "12 dB/oct" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "24 dB/oct" ;
+		rdf:value 2 ;
+	], [
+		rdfs:label "36 dB/oct" ;
+		rdf:value 3 ;
+	], [
+		rdfs:label "48 dB/oct" ;
+		rdf:value 4 ;
+	], [
+		rdfs:label "72 dB/oct" ;
+		rdf:value 5 ;
+	], [
+		rdfs:label "96 dB/oct" ;
+		rdf:value 6 ;
+	] .
+
+plug:side_freq7
+	a lv2:Parameter ;
+	rdfs:label "Side Freq7" ;
+	rdfs:range atom:Float ;
+	lv2:default 1000 ;
+	lv2:minimum 10 ;
+	lv2:maximum 160000 .
+
+plug:side_q7
+	a lv2:Parameter ;
+	rdfs:label "Side Q7" ;
+	rdfs:range atom:Float ;
+	lv2:default 0.707 ;
+	lv2:minimum 0.025 ;
+	lv2:maximum 25 .
+
+plug:filter_status8
+	a lv2:Parameter ;
+	rdfs:label "Filter Status8" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 2	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "Bypass" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 2 ;
+	] .
+
+plug:filter_type8
+	a lv2:Parameter ;
+	rdfs:label "Filter Type8" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 7	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "Peak" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "Low Shelf" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "Low Pass" ;
+		rdf:value 2 ;
+	], [
+		rdfs:label "High Shelf" ;
+		rdf:value 3 ;
+	], [
+		rdfs:label "High Pass" ;
+		rdf:value 4 ;
+	], [
+		rdfs:label "Notch" ;
+		rdf:value 5 ;
+	], [
+		rdfs:label "Band Pass" ;
+		rdf:value 6 ;
+	], [
+		rdfs:label "Tilt Shelf" ;
+		rdf:value 7 ;
+	] .
+
+plug:order8
+	a lv2:Parameter ;
+	rdfs:label "Order8" ;
+	rdfs:range atom:Float ;
+	lv2:default 1 ;
+	lv2:minimum 0 ;
+	lv2:maximum 6	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "6 dB/oct" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "12 dB/oct" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "24 dB/oct" ;
+		rdf:value 2 ;
+	], [
+		rdfs:label "36 dB/oct" ;
+		rdf:value 3 ;
+	], [
+		rdfs:label "48 dB/oct" ;
+		rdf:value 4 ;
+	], [
+		rdfs:label "72 dB/oct" ;
+		rdf:value 5 ;
+	], [
+		rdfs:label "96 dB/oct" ;
+		rdf:value 6 ;
+	] .
+
+plug:lr_mode8
+	a lv2:Parameter ;
+	rdfs:label "LRMode8" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 4	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "Stereo" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "Left" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "Right" ;
+		rdf:value 2 ;
+	], [
+		rdfs:label "Mid" ;
+		rdf:value 3 ;
+	], [
+		rdfs:label "Side" ;
+		rdf:value 4 ;
+	] .
+
+plug:freq8
+	a lv2:Parameter ;
+	rdfs:label "Freq8" ;
+	rdfs:range atom:Float ;
+	lv2:default 1000 ;
+	lv2:minimum 10 ;
+	lv2:maximum 160000 .
+
+plug:gain8
+	a lv2:Parameter ;
+	rdfs:label "Gain8" ;
+	rdfs:range atom:Float ;
+	lv2:default -6.70552e-07 ;
+	lv2:minimum -30 ;
+	lv2:maximum 30 .
+
+plug:target_gain8
+	a lv2:Parameter ;
+	rdfs:label "Target Gain8" ;
+	rdfs:range atom:Float ;
+	lv2:default -6.70552e-07 ;
+	lv2:minimum -30 ;
+	lv2:maximum 30 .
+
+plug:q8
+	a lv2:Parameter ;
+	rdfs:label "Q8" ;
+	rdfs:range atom:Float ;
+	lv2:default 0.707 ;
+	lv2:minimum 0.025 ;
+	lv2:maximum 25 .
+
+plug:dynamic_on8
+	a lv2:Parameter ;
+	rdfs:label "Dynamic ON8" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:dynamic_learn8
+	a lv2:Parameter ;
+	rdfs:label "Dynamic Learn8" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:dynamic_bypass8
+	a lv2:Parameter ;
+	rdfs:label "Dynamic Bypass8" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:dynamic_relative8
+	a lv2:Parameter ;
+	rdfs:label "Dynamic Relative8" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:side_swap8
+	a lv2:Parameter ;
+	rdfs:label "Side Swap8" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:side_link8
+	a lv2:Parameter ;
+	rdfs:label "Side Link8" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:threshold8
+	a lv2:Parameter ;
+	rdfs:label "Threshold (dB)8" ;
+	rdfs:range atom:Float ;
+	lv2:default -40 ;
+	lv2:minimum -80 ;
+	lv2:maximum 0 .
+
+plug:knee_width8
+	a lv2:Parameter ;
+	rdfs:label "Knee Width8" ;
+	rdfs:range atom:Float ;
+	lv2:default 8 ;
+	lv2:minimum 0 ;
+	lv2:maximum 32 .
+
+plug:attack8
+	a lv2:Parameter ;
+	rdfs:label "Attack8" ;
+	rdfs:range atom:Float ;
+	lv2:default 100 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1000 .
+
+plug:release8
+	a lv2:Parameter ;
+	rdfs:label "Release8" ;
+	rdfs:range atom:Float ;
+	lv2:default 500 ;
+	lv2:minimum 0 ;
+	lv2:maximum 5000 .
+
+plug:dynamic_rms_length8
+	a lv2:Parameter ;
+	rdfs:label "Dynamic RMS Length8" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 40 .
+
+plug:dynamic_rms_mix8
+	a lv2:Parameter ;
+	rdfs:label "Dynamic RMS Mix8" ;
+	rdfs:range atom:Float ;
+	lv2:default 50 ;
+	lv2:minimum 0 ;
+	lv2:maximum 100 .
+
+plug:dynamic_smooth8
+	a lv2:Parameter ;
+	rdfs:label "Dynamic Smooth8" ;
+	rdfs:range atom:Float ;
+	lv2:default 100 ;
+	lv2:minimum 0 ;
+	lv2:maximum 100 .
+
+plug:side_filter_type8
+	a lv2:Parameter ;
+	rdfs:label "Side Filter Type8" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 2	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "BP" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "LP" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "HP" ;
+		rdf:value 2 ;
+	] .
+
+plug:side_order8
+	a lv2:Parameter ;
+	rdfs:label "Side Order8" ;
+	rdfs:range atom:Float ;
+	lv2:default 1 ;
+	lv2:minimum 0 ;
+	lv2:maximum 6	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "6 dB/oct" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "12 dB/oct" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "24 dB/oct" ;
+		rdf:value 2 ;
+	], [
+		rdfs:label "36 dB/oct" ;
+		rdf:value 3 ;
+	], [
+		rdfs:label "48 dB/oct" ;
+		rdf:value 4 ;
+	], [
+		rdfs:label "72 dB/oct" ;
+		rdf:value 5 ;
+	], [
+		rdfs:label "96 dB/oct" ;
+		rdf:value 6 ;
+	] .
+
+plug:side_freq8
+	a lv2:Parameter ;
+	rdfs:label "Side Freq8" ;
+	rdfs:range atom:Float ;
+	lv2:default 1000 ;
+	lv2:minimum 10 ;
+	lv2:maximum 160000 .
+
+plug:side_q8
+	a lv2:Parameter ;
+	rdfs:label "Side Q8" ;
+	rdfs:range atom:Float ;
+	lv2:default 0.707 ;
+	lv2:minimum 0.025 ;
+	lv2:maximum 25 .
+
+plug:filter_status9
+	a lv2:Parameter ;
+	rdfs:label "Filter Status9" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 2	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "Bypass" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 2 ;
+	] .
+
+plug:filter_type9
+	a lv2:Parameter ;
+	rdfs:label "Filter Type9" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 7	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "Peak" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "Low Shelf" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "Low Pass" ;
+		rdf:value 2 ;
+	], [
+		rdfs:label "High Shelf" ;
+		rdf:value 3 ;
+	], [
+		rdfs:label "High Pass" ;
+		rdf:value 4 ;
+	], [
+		rdfs:label "Notch" ;
+		rdf:value 5 ;
+	], [
+		rdfs:label "Band Pass" ;
+		rdf:value 6 ;
+	], [
+		rdfs:label "Tilt Shelf" ;
+		rdf:value 7 ;
+	] .
+
+plug:order9
+	a lv2:Parameter ;
+	rdfs:label "Order9" ;
+	rdfs:range atom:Float ;
+	lv2:default 1 ;
+	lv2:minimum 0 ;
+	lv2:maximum 6	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "6 dB/oct" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "12 dB/oct" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "24 dB/oct" ;
+		rdf:value 2 ;
+	], [
+		rdfs:label "36 dB/oct" ;
+		rdf:value 3 ;
+	], [
+		rdfs:label "48 dB/oct" ;
+		rdf:value 4 ;
+	], [
+		rdfs:label "72 dB/oct" ;
+		rdf:value 5 ;
+	], [
+		rdfs:label "96 dB/oct" ;
+		rdf:value 6 ;
+	] .
+
+plug:lr_mode9
+	a lv2:Parameter ;
+	rdfs:label "LRMode9" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 4	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "Stereo" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "Left" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "Right" ;
+		rdf:value 2 ;
+	], [
+		rdfs:label "Mid" ;
+		rdf:value 3 ;
+	], [
+		rdfs:label "Side" ;
+		rdf:value 4 ;
+	] .
+
+plug:freq9
+	a lv2:Parameter ;
+	rdfs:label "Freq9" ;
+	rdfs:range atom:Float ;
+	lv2:default 1000 ;
+	lv2:minimum 10 ;
+	lv2:maximum 160000 .
+
+plug:gain9
+	a lv2:Parameter ;
+	rdfs:label "Gain9" ;
+	rdfs:range atom:Float ;
+	lv2:default -6.70552e-07 ;
+	lv2:minimum -30 ;
+	lv2:maximum 30 .
+
+plug:target_gain9
+	a lv2:Parameter ;
+	rdfs:label "Target Gain9" ;
+	rdfs:range atom:Float ;
+	lv2:default -6.70552e-07 ;
+	lv2:minimum -30 ;
+	lv2:maximum 30 .
+
+plug:q9
+	a lv2:Parameter ;
+	rdfs:label "Q9" ;
+	rdfs:range atom:Float ;
+	lv2:default 0.707 ;
+	lv2:minimum 0.025 ;
+	lv2:maximum 25 .
+
+plug:dynamic_on9
+	a lv2:Parameter ;
+	rdfs:label "Dynamic ON9" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:dynamic_learn9
+	a lv2:Parameter ;
+	rdfs:label "Dynamic Learn9" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:dynamic_bypass9
+	a lv2:Parameter ;
+	rdfs:label "Dynamic Bypass9" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:dynamic_relative9
+	a lv2:Parameter ;
+	rdfs:label "Dynamic Relative9" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:side_swap9
+	a lv2:Parameter ;
+	rdfs:label "Side Swap9" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:side_link9
+	a lv2:Parameter ;
+	rdfs:label "Side Link9" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:threshold9
+	a lv2:Parameter ;
+	rdfs:label "Threshold (dB)9" ;
+	rdfs:range atom:Float ;
+	lv2:default -40 ;
+	lv2:minimum -80 ;
+	lv2:maximum 0 .
+
+plug:knee_width9
+	a lv2:Parameter ;
+	rdfs:label "Knee Width9" ;
+	rdfs:range atom:Float ;
+	lv2:default 8 ;
+	lv2:minimum 0 ;
+	lv2:maximum 32 .
+
+plug:attack9
+	a lv2:Parameter ;
+	rdfs:label "Attack9" ;
+	rdfs:range atom:Float ;
+	lv2:default 100 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1000 .
+
+plug:release9
+	a lv2:Parameter ;
+	rdfs:label "Release9" ;
+	rdfs:range atom:Float ;
+	lv2:default 500 ;
+	lv2:minimum 0 ;
+	lv2:maximum 5000 .
+
+plug:dynamic_rms_length9
+	a lv2:Parameter ;
+	rdfs:label "Dynamic RMS Length9" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 40 .
+
+plug:dynamic_rms_mix9
+	a lv2:Parameter ;
+	rdfs:label "Dynamic RMS Mix9" ;
+	rdfs:range atom:Float ;
+	lv2:default 50 ;
+	lv2:minimum 0 ;
+	lv2:maximum 100 .
+
+plug:dynamic_smooth9
+	a lv2:Parameter ;
+	rdfs:label "Dynamic Smooth9" ;
+	rdfs:range atom:Float ;
+	lv2:default 100 ;
+	lv2:minimum 0 ;
+	lv2:maximum 100 .
+
+plug:side_filter_type9
+	a lv2:Parameter ;
+	rdfs:label "Side Filter Type9" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 2	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "BP" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "LP" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "HP" ;
+		rdf:value 2 ;
+	] .
+
+plug:side_order9
+	a lv2:Parameter ;
+	rdfs:label "Side Order9" ;
+	rdfs:range atom:Float ;
+	lv2:default 1 ;
+	lv2:minimum 0 ;
+	lv2:maximum 6	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "6 dB/oct" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "12 dB/oct" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "24 dB/oct" ;
+		rdf:value 2 ;
+	], [
+		rdfs:label "36 dB/oct" ;
+		rdf:value 3 ;
+	], [
+		rdfs:label "48 dB/oct" ;
+		rdf:value 4 ;
+	], [
+		rdfs:label "72 dB/oct" ;
+		rdf:value 5 ;
+	], [
+		rdfs:label "96 dB/oct" ;
+		rdf:value 6 ;
+	] .
+
+plug:side_freq9
+	a lv2:Parameter ;
+	rdfs:label "Side Freq9" ;
+	rdfs:range atom:Float ;
+	lv2:default 1000 ;
+	lv2:minimum 10 ;
+	lv2:maximum 160000 .
+
+plug:side_q9
+	a lv2:Parameter ;
+	rdfs:label "Side Q9" ;
+	rdfs:range atom:Float ;
+	lv2:default 0.707 ;
+	lv2:minimum 0.025 ;
+	lv2:maximum 25 .
+
+plug:filter_status10
+	a lv2:Parameter ;
+	rdfs:label "Filter Status10" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 2	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "Bypass" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 2 ;
+	] .
+
+plug:filter_type10
+	a lv2:Parameter ;
+	rdfs:label "Filter Type10" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 7	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "Peak" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "Low Shelf" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "Low Pass" ;
+		rdf:value 2 ;
+	], [
+		rdfs:label "High Shelf" ;
+		rdf:value 3 ;
+	], [
+		rdfs:label "High Pass" ;
+		rdf:value 4 ;
+	], [
+		rdfs:label "Notch" ;
+		rdf:value 5 ;
+	], [
+		rdfs:label "Band Pass" ;
+		rdf:value 6 ;
+	], [
+		rdfs:label "Tilt Shelf" ;
+		rdf:value 7 ;
+	] .
+
+plug:order10
+	a lv2:Parameter ;
+	rdfs:label "Order10" ;
+	rdfs:range atom:Float ;
+	lv2:default 1 ;
+	lv2:minimum 0 ;
+	lv2:maximum 6	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "6 dB/oct" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "12 dB/oct" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "24 dB/oct" ;
+		rdf:value 2 ;
+	], [
+		rdfs:label "36 dB/oct" ;
+		rdf:value 3 ;
+	], [
+		rdfs:label "48 dB/oct" ;
+		rdf:value 4 ;
+	], [
+		rdfs:label "72 dB/oct" ;
+		rdf:value 5 ;
+	], [
+		rdfs:label "96 dB/oct" ;
+		rdf:value 6 ;
+	] .
+
+plug:lr_mode10
+	a lv2:Parameter ;
+	rdfs:label "LRMode10" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 4	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "Stereo" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "Left" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "Right" ;
+		rdf:value 2 ;
+	], [
+		rdfs:label "Mid" ;
+		rdf:value 3 ;
+	], [
+		rdfs:label "Side" ;
+		rdf:value 4 ;
+	] .
+
+plug:freq10
+	a lv2:Parameter ;
+	rdfs:label "Freq10" ;
+	rdfs:range atom:Float ;
+	lv2:default 1000 ;
+	lv2:minimum 10 ;
+	lv2:maximum 160000 .
+
+plug:gain10
+	a lv2:Parameter ;
+	rdfs:label "Gain10" ;
+	rdfs:range atom:Float ;
+	lv2:default -6.70552e-07 ;
+	lv2:minimum -30 ;
+	lv2:maximum 30 .
+
+plug:target_gain10
+	a lv2:Parameter ;
+	rdfs:label "Target Gain10" ;
+	rdfs:range atom:Float ;
+	lv2:default -6.70552e-07 ;
+	lv2:minimum -30 ;
+	lv2:maximum 30 .
+
+plug:q10
+	a lv2:Parameter ;
+	rdfs:label "Q10" ;
+	rdfs:range atom:Float ;
+	lv2:default 0.707 ;
+	lv2:minimum 0.025 ;
+	lv2:maximum 25 .
+
+plug:dynamic_on10
+	a lv2:Parameter ;
+	rdfs:label "Dynamic ON10" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:dynamic_learn10
+	a lv2:Parameter ;
+	rdfs:label "Dynamic Learn10" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:dynamic_bypass10
+	a lv2:Parameter ;
+	rdfs:label "Dynamic Bypass10" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:dynamic_relative10
+	a lv2:Parameter ;
+	rdfs:label "Dynamic Relative10" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:side_swap10
+	a lv2:Parameter ;
+	rdfs:label "Side Swap10" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:side_link10
+	a lv2:Parameter ;
+	rdfs:label "Side Link10" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:threshold10
+	a lv2:Parameter ;
+	rdfs:label "Threshold (dB)10" ;
+	rdfs:range atom:Float ;
+	lv2:default -40 ;
+	lv2:minimum -80 ;
+	lv2:maximum 0 .
+
+plug:knee_width10
+	a lv2:Parameter ;
+	rdfs:label "Knee Width10" ;
+	rdfs:range atom:Float ;
+	lv2:default 8 ;
+	lv2:minimum 0 ;
+	lv2:maximum 32 .
+
+plug:attack10
+	a lv2:Parameter ;
+	rdfs:label "Attack10" ;
+	rdfs:range atom:Float ;
+	lv2:default 100 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1000 .
+
+plug:release10
+	a lv2:Parameter ;
+	rdfs:label "Release10" ;
+	rdfs:range atom:Float ;
+	lv2:default 500 ;
+	lv2:minimum 0 ;
+	lv2:maximum 5000 .
+
+plug:dynamic_rms_length10
+	a lv2:Parameter ;
+	rdfs:label "Dynamic RMS Length10" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 40 .
+
+plug:dynamic_rms_mix10
+	a lv2:Parameter ;
+	rdfs:label "Dynamic RMS Mix10" ;
+	rdfs:range atom:Float ;
+	lv2:default 50 ;
+	lv2:minimum 0 ;
+	lv2:maximum 100 .
+
+plug:dynamic_smooth10
+	a lv2:Parameter ;
+	rdfs:label "Dynamic Smooth10" ;
+	rdfs:range atom:Float ;
+	lv2:default 100 ;
+	lv2:minimum 0 ;
+	lv2:maximum 100 .
+
+plug:side_filter_type10
+	a lv2:Parameter ;
+	rdfs:label "Side Filter Type10" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 2	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "BP" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "LP" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "HP" ;
+		rdf:value 2 ;
+	] .
+
+plug:side_order10
+	a lv2:Parameter ;
+	rdfs:label "Side Order10" ;
+	rdfs:range atom:Float ;
+	lv2:default 1 ;
+	lv2:minimum 0 ;
+	lv2:maximum 6	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "6 dB/oct" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "12 dB/oct" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "24 dB/oct" ;
+		rdf:value 2 ;
+	], [
+		rdfs:label "36 dB/oct" ;
+		rdf:value 3 ;
+	], [
+		rdfs:label "48 dB/oct" ;
+		rdf:value 4 ;
+	], [
+		rdfs:label "72 dB/oct" ;
+		rdf:value 5 ;
+	], [
+		rdfs:label "96 dB/oct" ;
+		rdf:value 6 ;
+	] .
+
+plug:side_freq10
+	a lv2:Parameter ;
+	rdfs:label "Side Freq10" ;
+	rdfs:range atom:Float ;
+	lv2:default 1000 ;
+	lv2:minimum 10 ;
+	lv2:maximum 160000 .
+
+plug:side_q10
+	a lv2:Parameter ;
+	rdfs:label "Side Q10" ;
+	rdfs:range atom:Float ;
+	lv2:default 0.707 ;
+	lv2:minimum 0.025 ;
+	lv2:maximum 25 .
+
+plug:filter_status11
+	a lv2:Parameter ;
+	rdfs:label "Filter Status11" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 2	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "Bypass" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 2 ;
+	] .
+
+plug:filter_type11
+	a lv2:Parameter ;
+	rdfs:label "Filter Type11" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 7	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "Peak" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "Low Shelf" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "Low Pass" ;
+		rdf:value 2 ;
+	], [
+		rdfs:label "High Shelf" ;
+		rdf:value 3 ;
+	], [
+		rdfs:label "High Pass" ;
+		rdf:value 4 ;
+	], [
+		rdfs:label "Notch" ;
+		rdf:value 5 ;
+	], [
+		rdfs:label "Band Pass" ;
+		rdf:value 6 ;
+	], [
+		rdfs:label "Tilt Shelf" ;
+		rdf:value 7 ;
+	] .
+
+plug:order11
+	a lv2:Parameter ;
+	rdfs:label "Order11" ;
+	rdfs:range atom:Float ;
+	lv2:default 1 ;
+	lv2:minimum 0 ;
+	lv2:maximum 6	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "6 dB/oct" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "12 dB/oct" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "24 dB/oct" ;
+		rdf:value 2 ;
+	], [
+		rdfs:label "36 dB/oct" ;
+		rdf:value 3 ;
+	], [
+		rdfs:label "48 dB/oct" ;
+		rdf:value 4 ;
+	], [
+		rdfs:label "72 dB/oct" ;
+		rdf:value 5 ;
+	], [
+		rdfs:label "96 dB/oct" ;
+		rdf:value 6 ;
+	] .
+
+plug:lr_mode11
+	a lv2:Parameter ;
+	rdfs:label "LRMode11" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 4	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "Stereo" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "Left" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "Right" ;
+		rdf:value 2 ;
+	], [
+		rdfs:label "Mid" ;
+		rdf:value 3 ;
+	], [
+		rdfs:label "Side" ;
+		rdf:value 4 ;
+	] .
+
+plug:freq11
+	a lv2:Parameter ;
+	rdfs:label "Freq11" ;
+	rdfs:range atom:Float ;
+	lv2:default 1000 ;
+	lv2:minimum 10 ;
+	lv2:maximum 160000 .
+
+plug:gain11
+	a lv2:Parameter ;
+	rdfs:label "Gain11" ;
+	rdfs:range atom:Float ;
+	lv2:default -6.70552e-07 ;
+	lv2:minimum -30 ;
+	lv2:maximum 30 .
+
+plug:target_gain11
+	a lv2:Parameter ;
+	rdfs:label "Target Gain11" ;
+	rdfs:range atom:Float ;
+	lv2:default -6.70552e-07 ;
+	lv2:minimum -30 ;
+	lv2:maximum 30 .
+
+plug:q11
+	a lv2:Parameter ;
+	rdfs:label "Q11" ;
+	rdfs:range atom:Float ;
+	lv2:default 0.707 ;
+	lv2:minimum 0.025 ;
+	lv2:maximum 25 .
+
+plug:dynamic_on11
+	a lv2:Parameter ;
+	rdfs:label "Dynamic ON11" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:dynamic_learn11
+	a lv2:Parameter ;
+	rdfs:label "Dynamic Learn11" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:dynamic_bypass11
+	a lv2:Parameter ;
+	rdfs:label "Dynamic Bypass11" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:dynamic_relative11
+	a lv2:Parameter ;
+	rdfs:label "Dynamic Relative11" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:side_swap11
+	a lv2:Parameter ;
+	rdfs:label "Side Swap11" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:side_link11
+	a lv2:Parameter ;
+	rdfs:label "Side Link11" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:threshold11
+	a lv2:Parameter ;
+	rdfs:label "Threshold (dB)11" ;
+	rdfs:range atom:Float ;
+	lv2:default -40 ;
+	lv2:minimum -80 ;
+	lv2:maximum 0 .
+
+plug:knee_width11
+	a lv2:Parameter ;
+	rdfs:label "Knee Width11" ;
+	rdfs:range atom:Float ;
+	lv2:default 8 ;
+	lv2:minimum 0 ;
+	lv2:maximum 32 .
+
+plug:attack11
+	a lv2:Parameter ;
+	rdfs:label "Attack11" ;
+	rdfs:range atom:Float ;
+	lv2:default 100 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1000 .
+
+plug:release11
+	a lv2:Parameter ;
+	rdfs:label "Release11" ;
+	rdfs:range atom:Float ;
+	lv2:default 500 ;
+	lv2:minimum 0 ;
+	lv2:maximum 5000 .
+
+plug:dynamic_rms_length11
+	a lv2:Parameter ;
+	rdfs:label "Dynamic RMS Length11" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 40 .
+
+plug:dynamic_rms_mix11
+	a lv2:Parameter ;
+	rdfs:label "Dynamic RMS Mix11" ;
+	rdfs:range atom:Float ;
+	lv2:default 50 ;
+	lv2:minimum 0 ;
+	lv2:maximum 100 .
+
+plug:dynamic_smooth11
+	a lv2:Parameter ;
+	rdfs:label "Dynamic Smooth11" ;
+	rdfs:range atom:Float ;
+	lv2:default 100 ;
+	lv2:minimum 0 ;
+	lv2:maximum 100 .
+
+plug:side_filter_type11
+	a lv2:Parameter ;
+	rdfs:label "Side Filter Type11" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 2	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "BP" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "LP" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "HP" ;
+		rdf:value 2 ;
+	] .
+
+plug:side_order11
+	a lv2:Parameter ;
+	rdfs:label "Side Order11" ;
+	rdfs:range atom:Float ;
+	lv2:default 1 ;
+	lv2:minimum 0 ;
+	lv2:maximum 6	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "6 dB/oct" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "12 dB/oct" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "24 dB/oct" ;
+		rdf:value 2 ;
+	], [
+		rdfs:label "36 dB/oct" ;
+		rdf:value 3 ;
+	], [
+		rdfs:label "48 dB/oct" ;
+		rdf:value 4 ;
+	], [
+		rdfs:label "72 dB/oct" ;
+		rdf:value 5 ;
+	], [
+		rdfs:label "96 dB/oct" ;
+		rdf:value 6 ;
+	] .
+
+plug:side_freq11
+	a lv2:Parameter ;
+	rdfs:label "Side Freq11" ;
+	rdfs:range atom:Float ;
+	lv2:default 1000 ;
+	lv2:minimum 10 ;
+	lv2:maximum 160000 .
+
+plug:side_q11
+	a lv2:Parameter ;
+	rdfs:label "Side Q11" ;
+	rdfs:range atom:Float ;
+	lv2:default 0.707 ;
+	lv2:minimum 0.025 ;
+	lv2:maximum 25 .
+
+plug:filter_status12
+	a lv2:Parameter ;
+	rdfs:label "Filter Status12" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 2	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "Bypass" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 2 ;
+	] .
+
+plug:filter_type12
+	a lv2:Parameter ;
+	rdfs:label "Filter Type12" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 7	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "Peak" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "Low Shelf" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "Low Pass" ;
+		rdf:value 2 ;
+	], [
+		rdfs:label "High Shelf" ;
+		rdf:value 3 ;
+	], [
+		rdfs:label "High Pass" ;
+		rdf:value 4 ;
+	], [
+		rdfs:label "Notch" ;
+		rdf:value 5 ;
+	], [
+		rdfs:label "Band Pass" ;
+		rdf:value 6 ;
+	], [
+		rdfs:label "Tilt Shelf" ;
+		rdf:value 7 ;
+	] .
+
+plug:order12
+	a lv2:Parameter ;
+	rdfs:label "Order12" ;
+	rdfs:range atom:Float ;
+	lv2:default 1 ;
+	lv2:minimum 0 ;
+	lv2:maximum 6	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "6 dB/oct" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "12 dB/oct" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "24 dB/oct" ;
+		rdf:value 2 ;
+	], [
+		rdfs:label "36 dB/oct" ;
+		rdf:value 3 ;
+	], [
+		rdfs:label "48 dB/oct" ;
+		rdf:value 4 ;
+	], [
+		rdfs:label "72 dB/oct" ;
+		rdf:value 5 ;
+	], [
+		rdfs:label "96 dB/oct" ;
+		rdf:value 6 ;
+	] .
+
+plug:lr_mode12
+	a lv2:Parameter ;
+	rdfs:label "LRMode12" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 4	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "Stereo" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "Left" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "Right" ;
+		rdf:value 2 ;
+	], [
+		rdfs:label "Mid" ;
+		rdf:value 3 ;
+	], [
+		rdfs:label "Side" ;
+		rdf:value 4 ;
+	] .
+
+plug:freq12
+	a lv2:Parameter ;
+	rdfs:label "Freq12" ;
+	rdfs:range atom:Float ;
+	lv2:default 1000 ;
+	lv2:minimum 10 ;
+	lv2:maximum 160000 .
+
+plug:gain12
+	a lv2:Parameter ;
+	rdfs:label "Gain12" ;
+	rdfs:range atom:Float ;
+	lv2:default -6.70552e-07 ;
+	lv2:minimum -30 ;
+	lv2:maximum 30 .
+
+plug:target_gain12
+	a lv2:Parameter ;
+	rdfs:label "Target Gain12" ;
+	rdfs:range atom:Float ;
+	lv2:default -6.70552e-07 ;
+	lv2:minimum -30 ;
+	lv2:maximum 30 .
+
+plug:q12
+	a lv2:Parameter ;
+	rdfs:label "Q12" ;
+	rdfs:range atom:Float ;
+	lv2:default 0.707 ;
+	lv2:minimum 0.025 ;
+	lv2:maximum 25 .
+
+plug:dynamic_on12
+	a lv2:Parameter ;
+	rdfs:label "Dynamic ON12" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:dynamic_learn12
+	a lv2:Parameter ;
+	rdfs:label "Dynamic Learn12" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:dynamic_bypass12
+	a lv2:Parameter ;
+	rdfs:label "Dynamic Bypass12" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:dynamic_relative12
+	a lv2:Parameter ;
+	rdfs:label "Dynamic Relative12" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:side_swap12
+	a lv2:Parameter ;
+	rdfs:label "Side Swap12" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:side_link12
+	a lv2:Parameter ;
+	rdfs:label "Side Link12" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:threshold12
+	a lv2:Parameter ;
+	rdfs:label "Threshold (dB)12" ;
+	rdfs:range atom:Float ;
+	lv2:default -40 ;
+	lv2:minimum -80 ;
+	lv2:maximum 0 .
+
+plug:knee_width12
+	a lv2:Parameter ;
+	rdfs:label "Knee Width12" ;
+	rdfs:range atom:Float ;
+	lv2:default 8 ;
+	lv2:minimum 0 ;
+	lv2:maximum 32 .
+
+plug:attack12
+	a lv2:Parameter ;
+	rdfs:label "Attack12" ;
+	rdfs:range atom:Float ;
+	lv2:default 100 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1000 .
+
+plug:release12
+	a lv2:Parameter ;
+	rdfs:label "Release12" ;
+	rdfs:range atom:Float ;
+	lv2:default 500 ;
+	lv2:minimum 0 ;
+	lv2:maximum 5000 .
+
+plug:dynamic_rms_length12
+	a lv2:Parameter ;
+	rdfs:label "Dynamic RMS Length12" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 40 .
+
+plug:dynamic_rms_mix12
+	a lv2:Parameter ;
+	rdfs:label "Dynamic RMS Mix12" ;
+	rdfs:range atom:Float ;
+	lv2:default 50 ;
+	lv2:minimum 0 ;
+	lv2:maximum 100 .
+
+plug:dynamic_smooth12
+	a lv2:Parameter ;
+	rdfs:label "Dynamic Smooth12" ;
+	rdfs:range atom:Float ;
+	lv2:default 100 ;
+	lv2:minimum 0 ;
+	lv2:maximum 100 .
+
+plug:side_filter_type12
+	a lv2:Parameter ;
+	rdfs:label "Side Filter Type12" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 2	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "BP" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "LP" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "HP" ;
+		rdf:value 2 ;
+	] .
+
+plug:side_order12
+	a lv2:Parameter ;
+	rdfs:label "Side Order12" ;
+	rdfs:range atom:Float ;
+	lv2:default 1 ;
+	lv2:minimum 0 ;
+	lv2:maximum 6	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "6 dB/oct" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "12 dB/oct" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "24 dB/oct" ;
+		rdf:value 2 ;
+	], [
+		rdfs:label "36 dB/oct" ;
+		rdf:value 3 ;
+	], [
+		rdfs:label "48 dB/oct" ;
+		rdf:value 4 ;
+	], [
+		rdfs:label "72 dB/oct" ;
+		rdf:value 5 ;
+	], [
+		rdfs:label "96 dB/oct" ;
+		rdf:value 6 ;
+	] .
+
+plug:side_freq12
+	a lv2:Parameter ;
+	rdfs:label "Side Freq12" ;
+	rdfs:range atom:Float ;
+	lv2:default 1000 ;
+	lv2:minimum 10 ;
+	lv2:maximum 160000 .
+
+plug:side_q12
+	a lv2:Parameter ;
+	rdfs:label "Side Q12" ;
+	rdfs:range atom:Float ;
+	lv2:default 0.707 ;
+	lv2:minimum 0.025 ;
+	lv2:maximum 25 .
+
+plug:filter_status13
+	a lv2:Parameter ;
+	rdfs:label "Filter Status13" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 2	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "Bypass" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 2 ;
+	] .
+
+plug:filter_type13
+	a lv2:Parameter ;
+	rdfs:label "Filter Type13" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 7	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "Peak" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "Low Shelf" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "Low Pass" ;
+		rdf:value 2 ;
+	], [
+		rdfs:label "High Shelf" ;
+		rdf:value 3 ;
+	], [
+		rdfs:label "High Pass" ;
+		rdf:value 4 ;
+	], [
+		rdfs:label "Notch" ;
+		rdf:value 5 ;
+	], [
+		rdfs:label "Band Pass" ;
+		rdf:value 6 ;
+	], [
+		rdfs:label "Tilt Shelf" ;
+		rdf:value 7 ;
+	] .
+
+plug:order13
+	a lv2:Parameter ;
+	rdfs:label "Order13" ;
+	rdfs:range atom:Float ;
+	lv2:default 1 ;
+	lv2:minimum 0 ;
+	lv2:maximum 6	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "6 dB/oct" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "12 dB/oct" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "24 dB/oct" ;
+		rdf:value 2 ;
+	], [
+		rdfs:label "36 dB/oct" ;
+		rdf:value 3 ;
+	], [
+		rdfs:label "48 dB/oct" ;
+		rdf:value 4 ;
+	], [
+		rdfs:label "72 dB/oct" ;
+		rdf:value 5 ;
+	], [
+		rdfs:label "96 dB/oct" ;
+		rdf:value 6 ;
+	] .
+
+plug:lr_mode13
+	a lv2:Parameter ;
+	rdfs:label "LRMode13" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 4	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "Stereo" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "Left" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "Right" ;
+		rdf:value 2 ;
+	], [
+		rdfs:label "Mid" ;
+		rdf:value 3 ;
+	], [
+		rdfs:label "Side" ;
+		rdf:value 4 ;
+	] .
+
+plug:freq13
+	a lv2:Parameter ;
+	rdfs:label "Freq13" ;
+	rdfs:range atom:Float ;
+	lv2:default 1000 ;
+	lv2:minimum 10 ;
+	lv2:maximum 160000 .
+
+plug:gain13
+	a lv2:Parameter ;
+	rdfs:label "Gain13" ;
+	rdfs:range atom:Float ;
+	lv2:default -6.70552e-07 ;
+	lv2:minimum -30 ;
+	lv2:maximum 30 .
+
+plug:target_gain13
+	a lv2:Parameter ;
+	rdfs:label "Target Gain13" ;
+	rdfs:range atom:Float ;
+	lv2:default -6.70552e-07 ;
+	lv2:minimum -30 ;
+	lv2:maximum 30 .
+
+plug:q13
+	a lv2:Parameter ;
+	rdfs:label "Q13" ;
+	rdfs:range atom:Float ;
+	lv2:default 0.707 ;
+	lv2:minimum 0.025 ;
+	lv2:maximum 25 .
+
+plug:dynamic_on13
+	a lv2:Parameter ;
+	rdfs:label "Dynamic ON13" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:dynamic_learn13
+	a lv2:Parameter ;
+	rdfs:label "Dynamic Learn13" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:dynamic_bypass13
+	a lv2:Parameter ;
+	rdfs:label "Dynamic Bypass13" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:dynamic_relative13
+	a lv2:Parameter ;
+	rdfs:label "Dynamic Relative13" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:side_swap13
+	a lv2:Parameter ;
+	rdfs:label "Side Swap13" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:side_link13
+	a lv2:Parameter ;
+	rdfs:label "Side Link13" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:threshold13
+	a lv2:Parameter ;
+	rdfs:label "Threshold (dB)13" ;
+	rdfs:range atom:Float ;
+	lv2:default -40 ;
+	lv2:minimum -80 ;
+	lv2:maximum 0 .
+
+plug:knee_width13
+	a lv2:Parameter ;
+	rdfs:label "Knee Width13" ;
+	rdfs:range atom:Float ;
+	lv2:default 8 ;
+	lv2:minimum 0 ;
+	lv2:maximum 32 .
+
+plug:attack13
+	a lv2:Parameter ;
+	rdfs:label "Attack13" ;
+	rdfs:range atom:Float ;
+	lv2:default 100 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1000 .
+
+plug:release13
+	a lv2:Parameter ;
+	rdfs:label "Release13" ;
+	rdfs:range atom:Float ;
+	lv2:default 500 ;
+	lv2:minimum 0 ;
+	lv2:maximum 5000 .
+
+plug:dynamic_rms_length13
+	a lv2:Parameter ;
+	rdfs:label "Dynamic RMS Length13" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 40 .
+
+plug:dynamic_rms_mix13
+	a lv2:Parameter ;
+	rdfs:label "Dynamic RMS Mix13" ;
+	rdfs:range atom:Float ;
+	lv2:default 50 ;
+	lv2:minimum 0 ;
+	lv2:maximum 100 .
+
+plug:dynamic_smooth13
+	a lv2:Parameter ;
+	rdfs:label "Dynamic Smooth13" ;
+	rdfs:range atom:Float ;
+	lv2:default 100 ;
+	lv2:minimum 0 ;
+	lv2:maximum 100 .
+
+plug:side_filter_type13
+	a lv2:Parameter ;
+	rdfs:label "Side Filter Type13" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 2	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "BP" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "LP" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "HP" ;
+		rdf:value 2 ;
+	] .
+
+plug:side_order13
+	a lv2:Parameter ;
+	rdfs:label "Side Order13" ;
+	rdfs:range atom:Float ;
+	lv2:default 1 ;
+	lv2:minimum 0 ;
+	lv2:maximum 6	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "6 dB/oct" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "12 dB/oct" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "24 dB/oct" ;
+		rdf:value 2 ;
+	], [
+		rdfs:label "36 dB/oct" ;
+		rdf:value 3 ;
+	], [
+		rdfs:label "48 dB/oct" ;
+		rdf:value 4 ;
+	], [
+		rdfs:label "72 dB/oct" ;
+		rdf:value 5 ;
+	], [
+		rdfs:label "96 dB/oct" ;
+		rdf:value 6 ;
+	] .
+
+plug:side_freq13
+	a lv2:Parameter ;
+	rdfs:label "Side Freq13" ;
+	rdfs:range atom:Float ;
+	lv2:default 1000 ;
+	lv2:minimum 10 ;
+	lv2:maximum 160000 .
+
+plug:side_q13
+	a lv2:Parameter ;
+	rdfs:label "Side Q13" ;
+	rdfs:range atom:Float ;
+	lv2:default 0.707 ;
+	lv2:minimum 0.025 ;
+	lv2:maximum 25 .
+
+plug:filter_status14
+	a lv2:Parameter ;
+	rdfs:label "Filter Status14" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 2	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "Bypass" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 2 ;
+	] .
+
+plug:filter_type14
+	a lv2:Parameter ;
+	rdfs:label "Filter Type14" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 7	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "Peak" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "Low Shelf" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "Low Pass" ;
+		rdf:value 2 ;
+	], [
+		rdfs:label "High Shelf" ;
+		rdf:value 3 ;
+	], [
+		rdfs:label "High Pass" ;
+		rdf:value 4 ;
+	], [
+		rdfs:label "Notch" ;
+		rdf:value 5 ;
+	], [
+		rdfs:label "Band Pass" ;
+		rdf:value 6 ;
+	], [
+		rdfs:label "Tilt Shelf" ;
+		rdf:value 7 ;
+	] .
+
+plug:order14
+	a lv2:Parameter ;
+	rdfs:label "Order14" ;
+	rdfs:range atom:Float ;
+	lv2:default 1 ;
+	lv2:minimum 0 ;
+	lv2:maximum 6	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "6 dB/oct" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "12 dB/oct" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "24 dB/oct" ;
+		rdf:value 2 ;
+	], [
+		rdfs:label "36 dB/oct" ;
+		rdf:value 3 ;
+	], [
+		rdfs:label "48 dB/oct" ;
+		rdf:value 4 ;
+	], [
+		rdfs:label "72 dB/oct" ;
+		rdf:value 5 ;
+	], [
+		rdfs:label "96 dB/oct" ;
+		rdf:value 6 ;
+	] .
+
+plug:lr_mode14
+	a lv2:Parameter ;
+	rdfs:label "LRMode14" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 4	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "Stereo" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "Left" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "Right" ;
+		rdf:value 2 ;
+	], [
+		rdfs:label "Mid" ;
+		rdf:value 3 ;
+	], [
+		rdfs:label "Side" ;
+		rdf:value 4 ;
+	] .
+
+plug:freq14
+	a lv2:Parameter ;
+	rdfs:label "Freq14" ;
+	rdfs:range atom:Float ;
+	lv2:default 1000 ;
+	lv2:minimum 10 ;
+	lv2:maximum 160000 .
+
+plug:gain14
+	a lv2:Parameter ;
+	rdfs:label "Gain14" ;
+	rdfs:range atom:Float ;
+	lv2:default -6.70552e-07 ;
+	lv2:minimum -30 ;
+	lv2:maximum 30 .
+
+plug:target_gain14
+	a lv2:Parameter ;
+	rdfs:label "Target Gain14" ;
+	rdfs:range atom:Float ;
+	lv2:default -6.70552e-07 ;
+	lv2:minimum -30 ;
+	lv2:maximum 30 .
+
+plug:q14
+	a lv2:Parameter ;
+	rdfs:label "Q14" ;
+	rdfs:range atom:Float ;
+	lv2:default 0.707 ;
+	lv2:minimum 0.025 ;
+	lv2:maximum 25 .
+
+plug:dynamic_on14
+	a lv2:Parameter ;
+	rdfs:label "Dynamic ON14" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:dynamic_learn14
+	a lv2:Parameter ;
+	rdfs:label "Dynamic Learn14" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:dynamic_bypass14
+	a lv2:Parameter ;
+	rdfs:label "Dynamic Bypass14" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:dynamic_relative14
+	a lv2:Parameter ;
+	rdfs:label "Dynamic Relative14" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:side_swap14
+	a lv2:Parameter ;
+	rdfs:label "Side Swap14" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:side_link14
+	a lv2:Parameter ;
+	rdfs:label "Side Link14" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:threshold14
+	a lv2:Parameter ;
+	rdfs:label "Threshold (dB)14" ;
+	rdfs:range atom:Float ;
+	lv2:default -40 ;
+	lv2:minimum -80 ;
+	lv2:maximum 0 .
+
+plug:knee_width14
+	a lv2:Parameter ;
+	rdfs:label "Knee Width14" ;
+	rdfs:range atom:Float ;
+	lv2:default 8 ;
+	lv2:minimum 0 ;
+	lv2:maximum 32 .
+
+plug:attack14
+	a lv2:Parameter ;
+	rdfs:label "Attack14" ;
+	rdfs:range atom:Float ;
+	lv2:default 100 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1000 .
+
+plug:release14
+	a lv2:Parameter ;
+	rdfs:label "Release14" ;
+	rdfs:range atom:Float ;
+	lv2:default 500 ;
+	lv2:minimum 0 ;
+	lv2:maximum 5000 .
+
+plug:dynamic_rms_length14
+	a lv2:Parameter ;
+	rdfs:label "Dynamic RMS Length14" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 40 .
+
+plug:dynamic_rms_mix14
+	a lv2:Parameter ;
+	rdfs:label "Dynamic RMS Mix14" ;
+	rdfs:range atom:Float ;
+	lv2:default 50 ;
+	lv2:minimum 0 ;
+	lv2:maximum 100 .
+
+plug:dynamic_smooth14
+	a lv2:Parameter ;
+	rdfs:label "Dynamic Smooth14" ;
+	rdfs:range atom:Float ;
+	lv2:default 100 ;
+	lv2:minimum 0 ;
+	lv2:maximum 100 .
+
+plug:side_filter_type14
+	a lv2:Parameter ;
+	rdfs:label "Side Filter Type14" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 2	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "BP" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "LP" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "HP" ;
+		rdf:value 2 ;
+	] .
+
+plug:side_order14
+	a lv2:Parameter ;
+	rdfs:label "Side Order14" ;
+	rdfs:range atom:Float ;
+	lv2:default 1 ;
+	lv2:minimum 0 ;
+	lv2:maximum 6	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "6 dB/oct" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "12 dB/oct" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "24 dB/oct" ;
+		rdf:value 2 ;
+	], [
+		rdfs:label "36 dB/oct" ;
+		rdf:value 3 ;
+	], [
+		rdfs:label "48 dB/oct" ;
+		rdf:value 4 ;
+	], [
+		rdfs:label "72 dB/oct" ;
+		rdf:value 5 ;
+	], [
+		rdfs:label "96 dB/oct" ;
+		rdf:value 6 ;
+	] .
+
+plug:side_freq14
+	a lv2:Parameter ;
+	rdfs:label "Side Freq14" ;
+	rdfs:range atom:Float ;
+	lv2:default 1000 ;
+	lv2:minimum 10 ;
+	lv2:maximum 160000 .
+
+plug:side_q14
+	a lv2:Parameter ;
+	rdfs:label "Side Q14" ;
+	rdfs:range atom:Float ;
+	lv2:default 0.707 ;
+	lv2:minimum 0.025 ;
+	lv2:maximum 25 .
+
+plug:filter_status15
+	a lv2:Parameter ;
+	rdfs:label "Filter Status15" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 2	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "Bypass" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 2 ;
+	] .
+
+plug:filter_type15
+	a lv2:Parameter ;
+	rdfs:label "Filter Type15" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 7	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "Peak" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "Low Shelf" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "Low Pass" ;
+		rdf:value 2 ;
+	], [
+		rdfs:label "High Shelf" ;
+		rdf:value 3 ;
+	], [
+		rdfs:label "High Pass" ;
+		rdf:value 4 ;
+	], [
+		rdfs:label "Notch" ;
+		rdf:value 5 ;
+	], [
+		rdfs:label "Band Pass" ;
+		rdf:value 6 ;
+	], [
+		rdfs:label "Tilt Shelf" ;
+		rdf:value 7 ;
+	] .
+
+plug:order15
+	a lv2:Parameter ;
+	rdfs:label "Order15" ;
+	rdfs:range atom:Float ;
+	lv2:default 1 ;
+	lv2:minimum 0 ;
+	lv2:maximum 6	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "6 dB/oct" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "12 dB/oct" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "24 dB/oct" ;
+		rdf:value 2 ;
+	], [
+		rdfs:label "36 dB/oct" ;
+		rdf:value 3 ;
+	], [
+		rdfs:label "48 dB/oct" ;
+		rdf:value 4 ;
+	], [
+		rdfs:label "72 dB/oct" ;
+		rdf:value 5 ;
+	], [
+		rdfs:label "96 dB/oct" ;
+		rdf:value 6 ;
+	] .
+
+plug:lr_mode15
+	a lv2:Parameter ;
+	rdfs:label "LRMode15" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 4	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "Stereo" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "Left" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "Right" ;
+		rdf:value 2 ;
+	], [
+		rdfs:label "Mid" ;
+		rdf:value 3 ;
+	], [
+		rdfs:label "Side" ;
+		rdf:value 4 ;
+	] .
+
+plug:freq15
+	a lv2:Parameter ;
+	rdfs:label "Freq15" ;
+	rdfs:range atom:Float ;
+	lv2:default 1000 ;
+	lv2:minimum 10 ;
+	lv2:maximum 160000 .
+
+plug:gain15
+	a lv2:Parameter ;
+	rdfs:label "Gain15" ;
+	rdfs:range atom:Float ;
+	lv2:default -6.70552e-07 ;
+	lv2:minimum -30 ;
+	lv2:maximum 30 .
+
+plug:target_gain15
+	a lv2:Parameter ;
+	rdfs:label "Target Gain15" ;
+	rdfs:range atom:Float ;
+	lv2:default -6.70552e-07 ;
+	lv2:minimum -30 ;
+	lv2:maximum 30 .
+
+plug:q15
+	a lv2:Parameter ;
+	rdfs:label "Q15" ;
+	rdfs:range atom:Float ;
+	lv2:default 0.707 ;
+	lv2:minimum 0.025 ;
+	lv2:maximum 25 .
+
+plug:dynamic_on15
+	a lv2:Parameter ;
+	rdfs:label "Dynamic ON15" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:dynamic_learn15
+	a lv2:Parameter ;
+	rdfs:label "Dynamic Learn15" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:dynamic_bypass15
+	a lv2:Parameter ;
+	rdfs:label "Dynamic Bypass15" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:dynamic_relative15
+	a lv2:Parameter ;
+	rdfs:label "Dynamic Relative15" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:side_swap15
+	a lv2:Parameter ;
+	rdfs:label "Side Swap15" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:side_link15
+	a lv2:Parameter ;
+	rdfs:label "Side Link15" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:threshold15
+	a lv2:Parameter ;
+	rdfs:label "Threshold (dB)15" ;
+	rdfs:range atom:Float ;
+	lv2:default -40 ;
+	lv2:minimum -80 ;
+	lv2:maximum 0 .
+
+plug:knee_width15
+	a lv2:Parameter ;
+	rdfs:label "Knee Width15" ;
+	rdfs:range atom:Float ;
+	lv2:default 8 ;
+	lv2:minimum 0 ;
+	lv2:maximum 32 .
+
+plug:attack15
+	a lv2:Parameter ;
+	rdfs:label "Attack15" ;
+	rdfs:range atom:Float ;
+	lv2:default 100 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1000 .
+
+plug:release15
+	a lv2:Parameter ;
+	rdfs:label "Release15" ;
+	rdfs:range atom:Float ;
+	lv2:default 500 ;
+	lv2:minimum 0 ;
+	lv2:maximum 5000 .
+
+plug:dynamic_rms_length15
+	a lv2:Parameter ;
+	rdfs:label "Dynamic RMS Length15" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 40 .
+
+plug:dynamic_rms_mix15
+	a lv2:Parameter ;
+	rdfs:label "Dynamic RMS Mix15" ;
+	rdfs:range atom:Float ;
+	lv2:default 50 ;
+	lv2:minimum 0 ;
+	lv2:maximum 100 .
+
+plug:dynamic_smooth15
+	a lv2:Parameter ;
+	rdfs:label "Dynamic Smooth15" ;
+	rdfs:range atom:Float ;
+	lv2:default 100 ;
+	lv2:minimum 0 ;
+	lv2:maximum 100 .
+
+plug:side_filter_type15
+	a lv2:Parameter ;
+	rdfs:label "Side Filter Type15" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 2	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "BP" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "LP" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "HP" ;
+		rdf:value 2 ;
+	] .
+
+plug:side_order15
+	a lv2:Parameter ;
+	rdfs:label "Side Order15" ;
+	rdfs:range atom:Float ;
+	lv2:default 1 ;
+	lv2:minimum 0 ;
+	lv2:maximum 6	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "6 dB/oct" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "12 dB/oct" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "24 dB/oct" ;
+		rdf:value 2 ;
+	], [
+		rdfs:label "36 dB/oct" ;
+		rdf:value 3 ;
+	], [
+		rdfs:label "48 dB/oct" ;
+		rdf:value 4 ;
+	], [
+		rdfs:label "72 dB/oct" ;
+		rdf:value 5 ;
+	], [
+		rdfs:label "96 dB/oct" ;
+		rdf:value 6 ;
+	] .
+
+plug:side_freq15
+	a lv2:Parameter ;
+	rdfs:label "Side Freq15" ;
+	rdfs:range atom:Float ;
+	lv2:default 1000 ;
+	lv2:minimum 10 ;
+	lv2:maximum 160000 .
+
+plug:side_q15
+	a lv2:Parameter ;
+	rdfs:label "Side Q15" ;
+	rdfs:range atom:Float ;
+	lv2:default 0.707 ;
+	lv2:minimum 0.025 ;
+	lv2:maximum 25 .
+
+plug:filter_status16
+	a lv2:Parameter ;
+	rdfs:label "Filter Status16" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 2	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "Bypass" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 2 ;
+	] .
+
+plug:filter_type16
+	a lv2:Parameter ;
+	rdfs:label "Filter Type16" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 7	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "Peak" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "Low Shelf" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "Low Pass" ;
+		rdf:value 2 ;
+	], [
+		rdfs:label "High Shelf" ;
+		rdf:value 3 ;
+	], [
+		rdfs:label "High Pass" ;
+		rdf:value 4 ;
+	], [
+		rdfs:label "Notch" ;
+		rdf:value 5 ;
+	], [
+		rdfs:label "Band Pass" ;
+		rdf:value 6 ;
+	], [
+		rdfs:label "Tilt Shelf" ;
+		rdf:value 7 ;
+	] .
+
+plug:order16
+	a lv2:Parameter ;
+	rdfs:label "Order16" ;
+	rdfs:range atom:Float ;
+	lv2:default 1 ;
+	lv2:minimum 0 ;
+	lv2:maximum 6	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "6 dB/oct" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "12 dB/oct" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "24 dB/oct" ;
+		rdf:value 2 ;
+	], [
+		rdfs:label "36 dB/oct" ;
+		rdf:value 3 ;
+	], [
+		rdfs:label "48 dB/oct" ;
+		rdf:value 4 ;
+	], [
+		rdfs:label "72 dB/oct" ;
+		rdf:value 5 ;
+	], [
+		rdfs:label "96 dB/oct" ;
+		rdf:value 6 ;
+	] .
+
+plug:lr_mode16
+	a lv2:Parameter ;
+	rdfs:label "LRMode16" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 4	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "Stereo" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "Left" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "Right" ;
+		rdf:value 2 ;
+	], [
+		rdfs:label "Mid" ;
+		rdf:value 3 ;
+	], [
+		rdfs:label "Side" ;
+		rdf:value 4 ;
+	] .
+
+plug:freq16
+	a lv2:Parameter ;
+	rdfs:label "Freq16" ;
+	rdfs:range atom:Float ;
+	lv2:default 1000 ;
+	lv2:minimum 10 ;
+	lv2:maximum 160000 .
+
+plug:gain16
+	a lv2:Parameter ;
+	rdfs:label "Gain16" ;
+	rdfs:range atom:Float ;
+	lv2:default -6.70552e-07 ;
+	lv2:minimum -30 ;
+	lv2:maximum 30 .
+
+plug:target_gain16
+	a lv2:Parameter ;
+	rdfs:label "Target Gain16" ;
+	rdfs:range atom:Float ;
+	lv2:default -6.70552e-07 ;
+	lv2:minimum -30 ;
+	lv2:maximum 30 .
+
+plug:q16
+	a lv2:Parameter ;
+	rdfs:label "Q16" ;
+	rdfs:range atom:Float ;
+	lv2:default 0.707 ;
+	lv2:minimum 0.025 ;
+	lv2:maximum 25 .
+
+plug:dynamic_on16
+	a lv2:Parameter ;
+	rdfs:label "Dynamic ON16" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:dynamic_learn16
+	a lv2:Parameter ;
+	rdfs:label "Dynamic Learn16" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:dynamic_bypass16
+	a lv2:Parameter ;
+	rdfs:label "Dynamic Bypass16" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:dynamic_relative16
+	a lv2:Parameter ;
+	rdfs:label "Dynamic Relative16" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:side_swap16
+	a lv2:Parameter ;
+	rdfs:label "Side Swap16" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:side_link16
+	a lv2:Parameter ;
+	rdfs:label "Side Link16" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:threshold16
+	a lv2:Parameter ;
+	rdfs:label "Threshold (dB)16" ;
+	rdfs:range atom:Float ;
+	lv2:default -40 ;
+	lv2:minimum -80 ;
+	lv2:maximum 0 .
+
+plug:knee_width16
+	a lv2:Parameter ;
+	rdfs:label "Knee Width16" ;
+	rdfs:range atom:Float ;
+	lv2:default 8 ;
+	lv2:minimum 0 ;
+	lv2:maximum 32 .
+
+plug:attack16
+	a lv2:Parameter ;
+	rdfs:label "Attack16" ;
+	rdfs:range atom:Float ;
+	lv2:default 100 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1000 .
+
+plug:release16
+	a lv2:Parameter ;
+	rdfs:label "Release16" ;
+	rdfs:range atom:Float ;
+	lv2:default 500 ;
+	lv2:minimum 0 ;
+	lv2:maximum 5000 .
+
+plug:dynamic_rms_length16
+	a lv2:Parameter ;
+	rdfs:label "Dynamic RMS Length16" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 40 .
+
+plug:dynamic_rms_mix16
+	a lv2:Parameter ;
+	rdfs:label "Dynamic RMS Mix16" ;
+	rdfs:range atom:Float ;
+	lv2:default 50 ;
+	lv2:minimum 0 ;
+	lv2:maximum 100 .
+
+plug:dynamic_smooth16
+	a lv2:Parameter ;
+	rdfs:label "Dynamic Smooth16" ;
+	rdfs:range atom:Float ;
+	lv2:default 100 ;
+	lv2:minimum 0 ;
+	lv2:maximum 100 .
+
+plug:side_filter_type16
+	a lv2:Parameter ;
+	rdfs:label "Side Filter Type16" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 2	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "BP" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "LP" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "HP" ;
+		rdf:value 2 ;
+	] .
+
+plug:side_order16
+	a lv2:Parameter ;
+	rdfs:label "Side Order16" ;
+	rdfs:range atom:Float ;
+	lv2:default 1 ;
+	lv2:minimum 0 ;
+	lv2:maximum 6	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "6 dB/oct" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "12 dB/oct" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "24 dB/oct" ;
+		rdf:value 2 ;
+	], [
+		rdfs:label "36 dB/oct" ;
+		rdf:value 3 ;
+	], [
+		rdfs:label "48 dB/oct" ;
+		rdf:value 4 ;
+	], [
+		rdfs:label "72 dB/oct" ;
+		rdf:value 5 ;
+	], [
+		rdfs:label "96 dB/oct" ;
+		rdf:value 6 ;
+	] .
+
+plug:side_freq16
+	a lv2:Parameter ;
+	rdfs:label "Side Freq16" ;
+	rdfs:range atom:Float ;
+	lv2:default 1000 ;
+	lv2:minimum 10 ;
+	lv2:maximum 160000 .
+
+plug:side_q16
+	a lv2:Parameter ;
+	rdfs:label "Side Q16" ;
+	rdfs:range atom:Float ;
+	lv2:default 0.707 ;
+	lv2:minimum 0.025 ;
+	lv2:maximum 25 .
+
+plug:filter_status17
+	a lv2:Parameter ;
+	rdfs:label "Filter Status17" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 2	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "Bypass" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 2 ;
+	] .
+
+plug:filter_type17
+	a lv2:Parameter ;
+	rdfs:label "Filter Type17" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 7	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "Peak" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "Low Shelf" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "Low Pass" ;
+		rdf:value 2 ;
+	], [
+		rdfs:label "High Shelf" ;
+		rdf:value 3 ;
+	], [
+		rdfs:label "High Pass" ;
+		rdf:value 4 ;
+	], [
+		rdfs:label "Notch" ;
+		rdf:value 5 ;
+	], [
+		rdfs:label "Band Pass" ;
+		rdf:value 6 ;
+	], [
+		rdfs:label "Tilt Shelf" ;
+		rdf:value 7 ;
+	] .
+
+plug:order17
+	a lv2:Parameter ;
+	rdfs:label "Order17" ;
+	rdfs:range atom:Float ;
+	lv2:default 1 ;
+	lv2:minimum 0 ;
+	lv2:maximum 6	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "6 dB/oct" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "12 dB/oct" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "24 dB/oct" ;
+		rdf:value 2 ;
+	], [
+		rdfs:label "36 dB/oct" ;
+		rdf:value 3 ;
+	], [
+		rdfs:label "48 dB/oct" ;
+		rdf:value 4 ;
+	], [
+		rdfs:label "72 dB/oct" ;
+		rdf:value 5 ;
+	], [
+		rdfs:label "96 dB/oct" ;
+		rdf:value 6 ;
+	] .
+
+plug:lr_mode17
+	a lv2:Parameter ;
+	rdfs:label "LRMode17" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 4	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "Stereo" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "Left" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "Right" ;
+		rdf:value 2 ;
+	], [
+		rdfs:label "Mid" ;
+		rdf:value 3 ;
+	], [
+		rdfs:label "Side" ;
+		rdf:value 4 ;
+	] .
+
+plug:freq17
+	a lv2:Parameter ;
+	rdfs:label "Freq17" ;
+	rdfs:range atom:Float ;
+	lv2:default 1000 ;
+	lv2:minimum 10 ;
+	lv2:maximum 160000 .
+
+plug:gain17
+	a lv2:Parameter ;
+	rdfs:label "Gain17" ;
+	rdfs:range atom:Float ;
+	lv2:default -6.70552e-07 ;
+	lv2:minimum -30 ;
+	lv2:maximum 30 .
+
+plug:target_gain17
+	a lv2:Parameter ;
+	rdfs:label "Target Gain17" ;
+	rdfs:range atom:Float ;
+	lv2:default -6.70552e-07 ;
+	lv2:minimum -30 ;
+	lv2:maximum 30 .
+
+plug:q17
+	a lv2:Parameter ;
+	rdfs:label "Q17" ;
+	rdfs:range atom:Float ;
+	lv2:default 0.707 ;
+	lv2:minimum 0.025 ;
+	lv2:maximum 25 .
+
+plug:dynamic_on17
+	a lv2:Parameter ;
+	rdfs:label "Dynamic ON17" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:dynamic_learn17
+	a lv2:Parameter ;
+	rdfs:label "Dynamic Learn17" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:dynamic_bypass17
+	a lv2:Parameter ;
+	rdfs:label "Dynamic Bypass17" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:dynamic_relative17
+	a lv2:Parameter ;
+	rdfs:label "Dynamic Relative17" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:side_swap17
+	a lv2:Parameter ;
+	rdfs:label "Side Swap17" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:side_link17
+	a lv2:Parameter ;
+	rdfs:label "Side Link17" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:threshold17
+	a lv2:Parameter ;
+	rdfs:label "Threshold (dB)17" ;
+	rdfs:range atom:Float ;
+	lv2:default -40 ;
+	lv2:minimum -80 ;
+	lv2:maximum 0 .
+
+plug:knee_width17
+	a lv2:Parameter ;
+	rdfs:label "Knee Width17" ;
+	rdfs:range atom:Float ;
+	lv2:default 8 ;
+	lv2:minimum 0 ;
+	lv2:maximum 32 .
+
+plug:attack17
+	a lv2:Parameter ;
+	rdfs:label "Attack17" ;
+	rdfs:range atom:Float ;
+	lv2:default 100 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1000 .
+
+plug:release17
+	a lv2:Parameter ;
+	rdfs:label "Release17" ;
+	rdfs:range atom:Float ;
+	lv2:default 500 ;
+	lv2:minimum 0 ;
+	lv2:maximum 5000 .
+
+plug:dynamic_rms_length17
+	a lv2:Parameter ;
+	rdfs:label "Dynamic RMS Length17" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 40 .
+
+plug:dynamic_rms_mix17
+	a lv2:Parameter ;
+	rdfs:label "Dynamic RMS Mix17" ;
+	rdfs:range atom:Float ;
+	lv2:default 50 ;
+	lv2:minimum 0 ;
+	lv2:maximum 100 .
+
+plug:dynamic_smooth17
+	a lv2:Parameter ;
+	rdfs:label "Dynamic Smooth17" ;
+	rdfs:range atom:Float ;
+	lv2:default 100 ;
+	lv2:minimum 0 ;
+	lv2:maximum 100 .
+
+plug:side_filter_type17
+	a lv2:Parameter ;
+	rdfs:label "Side Filter Type17" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 2	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "BP" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "LP" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "HP" ;
+		rdf:value 2 ;
+	] .
+
+plug:side_order17
+	a lv2:Parameter ;
+	rdfs:label "Side Order17" ;
+	rdfs:range atom:Float ;
+	lv2:default 1 ;
+	lv2:minimum 0 ;
+	lv2:maximum 6	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "6 dB/oct" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "12 dB/oct" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "24 dB/oct" ;
+		rdf:value 2 ;
+	], [
+		rdfs:label "36 dB/oct" ;
+		rdf:value 3 ;
+	], [
+		rdfs:label "48 dB/oct" ;
+		rdf:value 4 ;
+	], [
+		rdfs:label "72 dB/oct" ;
+		rdf:value 5 ;
+	], [
+		rdfs:label "96 dB/oct" ;
+		rdf:value 6 ;
+	] .
+
+plug:side_freq17
+	a lv2:Parameter ;
+	rdfs:label "Side Freq17" ;
+	rdfs:range atom:Float ;
+	lv2:default 1000 ;
+	lv2:minimum 10 ;
+	lv2:maximum 160000 .
+
+plug:side_q17
+	a lv2:Parameter ;
+	rdfs:label "Side Q17" ;
+	rdfs:range atom:Float ;
+	lv2:default 0.707 ;
+	lv2:minimum 0.025 ;
+	lv2:maximum 25 .
+
+plug:filter_status18
+	a lv2:Parameter ;
+	rdfs:label "Filter Status18" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 2	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "Bypass" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 2 ;
+	] .
+
+plug:filter_type18
+	a lv2:Parameter ;
+	rdfs:label "Filter Type18" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 7	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "Peak" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "Low Shelf" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "Low Pass" ;
+		rdf:value 2 ;
+	], [
+		rdfs:label "High Shelf" ;
+		rdf:value 3 ;
+	], [
+		rdfs:label "High Pass" ;
+		rdf:value 4 ;
+	], [
+		rdfs:label "Notch" ;
+		rdf:value 5 ;
+	], [
+		rdfs:label "Band Pass" ;
+		rdf:value 6 ;
+	], [
+		rdfs:label "Tilt Shelf" ;
+		rdf:value 7 ;
+	] .
+
+plug:order18
+	a lv2:Parameter ;
+	rdfs:label "Order18" ;
+	rdfs:range atom:Float ;
+	lv2:default 1 ;
+	lv2:minimum 0 ;
+	lv2:maximum 6	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "6 dB/oct" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "12 dB/oct" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "24 dB/oct" ;
+		rdf:value 2 ;
+	], [
+		rdfs:label "36 dB/oct" ;
+		rdf:value 3 ;
+	], [
+		rdfs:label "48 dB/oct" ;
+		rdf:value 4 ;
+	], [
+		rdfs:label "72 dB/oct" ;
+		rdf:value 5 ;
+	], [
+		rdfs:label "96 dB/oct" ;
+		rdf:value 6 ;
+	] .
+
+plug:lr_mode18
+	a lv2:Parameter ;
+	rdfs:label "LRMode18" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 4	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "Stereo" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "Left" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "Right" ;
+		rdf:value 2 ;
+	], [
+		rdfs:label "Mid" ;
+		rdf:value 3 ;
+	], [
+		rdfs:label "Side" ;
+		rdf:value 4 ;
+	] .
+
+plug:freq18
+	a lv2:Parameter ;
+	rdfs:label "Freq18" ;
+	rdfs:range atom:Float ;
+	lv2:default 1000 ;
+	lv2:minimum 10 ;
+	lv2:maximum 160000 .
+
+plug:gain18
+	a lv2:Parameter ;
+	rdfs:label "Gain18" ;
+	rdfs:range atom:Float ;
+	lv2:default -6.70552e-07 ;
+	lv2:minimum -30 ;
+	lv2:maximum 30 .
+
+plug:target_gain18
+	a lv2:Parameter ;
+	rdfs:label "Target Gain18" ;
+	rdfs:range atom:Float ;
+	lv2:default -6.70552e-07 ;
+	lv2:minimum -30 ;
+	lv2:maximum 30 .
+
+plug:q18
+	a lv2:Parameter ;
+	rdfs:label "Q18" ;
+	rdfs:range atom:Float ;
+	lv2:default 0.707 ;
+	lv2:minimum 0.025 ;
+	lv2:maximum 25 .
+
+plug:dynamic_on18
+	a lv2:Parameter ;
+	rdfs:label "Dynamic ON18" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:dynamic_learn18
+	a lv2:Parameter ;
+	rdfs:label "Dynamic Learn18" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:dynamic_bypass18
+	a lv2:Parameter ;
+	rdfs:label "Dynamic Bypass18" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:dynamic_relative18
+	a lv2:Parameter ;
+	rdfs:label "Dynamic Relative18" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:side_swap18
+	a lv2:Parameter ;
+	rdfs:label "Side Swap18" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:side_link18
+	a lv2:Parameter ;
+	rdfs:label "Side Link18" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:threshold18
+	a lv2:Parameter ;
+	rdfs:label "Threshold (dB)18" ;
+	rdfs:range atom:Float ;
+	lv2:default -40 ;
+	lv2:minimum -80 ;
+	lv2:maximum 0 .
+
+plug:knee_width18
+	a lv2:Parameter ;
+	rdfs:label "Knee Width18" ;
+	rdfs:range atom:Float ;
+	lv2:default 8 ;
+	lv2:minimum 0 ;
+	lv2:maximum 32 .
+
+plug:attack18
+	a lv2:Parameter ;
+	rdfs:label "Attack18" ;
+	rdfs:range atom:Float ;
+	lv2:default 100 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1000 .
+
+plug:release18
+	a lv2:Parameter ;
+	rdfs:label "Release18" ;
+	rdfs:range atom:Float ;
+	lv2:default 500 ;
+	lv2:minimum 0 ;
+	lv2:maximum 5000 .
+
+plug:dynamic_rms_length18
+	a lv2:Parameter ;
+	rdfs:label "Dynamic RMS Length18" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 40 .
+
+plug:dynamic_rms_mix18
+	a lv2:Parameter ;
+	rdfs:label "Dynamic RMS Mix18" ;
+	rdfs:range atom:Float ;
+	lv2:default 50 ;
+	lv2:minimum 0 ;
+	lv2:maximum 100 .
+
+plug:dynamic_smooth18
+	a lv2:Parameter ;
+	rdfs:label "Dynamic Smooth18" ;
+	rdfs:range atom:Float ;
+	lv2:default 100 ;
+	lv2:minimum 0 ;
+	lv2:maximum 100 .
+
+plug:side_filter_type18
+	a lv2:Parameter ;
+	rdfs:label "Side Filter Type18" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 2	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "BP" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "LP" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "HP" ;
+		rdf:value 2 ;
+	] .
+
+plug:side_order18
+	a lv2:Parameter ;
+	rdfs:label "Side Order18" ;
+	rdfs:range atom:Float ;
+	lv2:default 1 ;
+	lv2:minimum 0 ;
+	lv2:maximum 6	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "6 dB/oct" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "12 dB/oct" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "24 dB/oct" ;
+		rdf:value 2 ;
+	], [
+		rdfs:label "36 dB/oct" ;
+		rdf:value 3 ;
+	], [
+		rdfs:label "48 dB/oct" ;
+		rdf:value 4 ;
+	], [
+		rdfs:label "72 dB/oct" ;
+		rdf:value 5 ;
+	], [
+		rdfs:label "96 dB/oct" ;
+		rdf:value 6 ;
+	] .
+
+plug:side_freq18
+	a lv2:Parameter ;
+	rdfs:label "Side Freq18" ;
+	rdfs:range atom:Float ;
+	lv2:default 1000 ;
+	lv2:minimum 10 ;
+	lv2:maximum 160000 .
+
+plug:side_q18
+	a lv2:Parameter ;
+	rdfs:label "Side Q18" ;
+	rdfs:range atom:Float ;
+	lv2:default 0.707 ;
+	lv2:minimum 0.025 ;
+	lv2:maximum 25 .
+
+plug:filter_status19
+	a lv2:Parameter ;
+	rdfs:label "Filter Status19" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 2	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "Bypass" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 2 ;
+	] .
+
+plug:filter_type19
+	a lv2:Parameter ;
+	rdfs:label "Filter Type19" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 7	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "Peak" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "Low Shelf" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "Low Pass" ;
+		rdf:value 2 ;
+	], [
+		rdfs:label "High Shelf" ;
+		rdf:value 3 ;
+	], [
+		rdfs:label "High Pass" ;
+		rdf:value 4 ;
+	], [
+		rdfs:label "Notch" ;
+		rdf:value 5 ;
+	], [
+		rdfs:label "Band Pass" ;
+		rdf:value 6 ;
+	], [
+		rdfs:label "Tilt Shelf" ;
+		rdf:value 7 ;
+	] .
+
+plug:order19
+	a lv2:Parameter ;
+	rdfs:label "Order19" ;
+	rdfs:range atom:Float ;
+	lv2:default 1 ;
+	lv2:minimum 0 ;
+	lv2:maximum 6	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "6 dB/oct" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "12 dB/oct" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "24 dB/oct" ;
+		rdf:value 2 ;
+	], [
+		rdfs:label "36 dB/oct" ;
+		rdf:value 3 ;
+	], [
+		rdfs:label "48 dB/oct" ;
+		rdf:value 4 ;
+	], [
+		rdfs:label "72 dB/oct" ;
+		rdf:value 5 ;
+	], [
+		rdfs:label "96 dB/oct" ;
+		rdf:value 6 ;
+	] .
+
+plug:lr_mode19
+	a lv2:Parameter ;
+	rdfs:label "LRMode19" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 4	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "Stereo" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "Left" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "Right" ;
+		rdf:value 2 ;
+	], [
+		rdfs:label "Mid" ;
+		rdf:value 3 ;
+	], [
+		rdfs:label "Side" ;
+		rdf:value 4 ;
+	] .
+
+plug:freq19
+	a lv2:Parameter ;
+	rdfs:label "Freq19" ;
+	rdfs:range atom:Float ;
+	lv2:default 1000 ;
+	lv2:minimum 10 ;
+	lv2:maximum 160000 .
+
+plug:gain19
+	a lv2:Parameter ;
+	rdfs:label "Gain19" ;
+	rdfs:range atom:Float ;
+	lv2:default -6.70552e-07 ;
+	lv2:minimum -30 ;
+	lv2:maximum 30 .
+
+plug:target_gain19
+	a lv2:Parameter ;
+	rdfs:label "Target Gain19" ;
+	rdfs:range atom:Float ;
+	lv2:default -6.70552e-07 ;
+	lv2:minimum -30 ;
+	lv2:maximum 30 .
+
+plug:q19
+	a lv2:Parameter ;
+	rdfs:label "Q19" ;
+	rdfs:range atom:Float ;
+	lv2:default 0.707 ;
+	lv2:minimum 0.025 ;
+	lv2:maximum 25 .
+
+plug:dynamic_on19
+	a lv2:Parameter ;
+	rdfs:label "Dynamic ON19" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:dynamic_learn19
+	a lv2:Parameter ;
+	rdfs:label "Dynamic Learn19" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:dynamic_bypass19
+	a lv2:Parameter ;
+	rdfs:label "Dynamic Bypass19" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:dynamic_relative19
+	a lv2:Parameter ;
+	rdfs:label "Dynamic Relative19" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:side_swap19
+	a lv2:Parameter ;
+	rdfs:label "Side Swap19" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:side_link19
+	a lv2:Parameter ;
+	rdfs:label "Side Link19" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:threshold19
+	a lv2:Parameter ;
+	rdfs:label "Threshold (dB)19" ;
+	rdfs:range atom:Float ;
+	lv2:default -40 ;
+	lv2:minimum -80 ;
+	lv2:maximum 0 .
+
+plug:knee_width19
+	a lv2:Parameter ;
+	rdfs:label "Knee Width19" ;
+	rdfs:range atom:Float ;
+	lv2:default 8 ;
+	lv2:minimum 0 ;
+	lv2:maximum 32 .
+
+plug:attack19
+	a lv2:Parameter ;
+	rdfs:label "Attack19" ;
+	rdfs:range atom:Float ;
+	lv2:default 100 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1000 .
+
+plug:release19
+	a lv2:Parameter ;
+	rdfs:label "Release19" ;
+	rdfs:range atom:Float ;
+	lv2:default 500 ;
+	lv2:minimum 0 ;
+	lv2:maximum 5000 .
+
+plug:dynamic_rms_length19
+	a lv2:Parameter ;
+	rdfs:label "Dynamic RMS Length19" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 40 .
+
+plug:dynamic_rms_mix19
+	a lv2:Parameter ;
+	rdfs:label "Dynamic RMS Mix19" ;
+	rdfs:range atom:Float ;
+	lv2:default 50 ;
+	lv2:minimum 0 ;
+	lv2:maximum 100 .
+
+plug:dynamic_smooth19
+	a lv2:Parameter ;
+	rdfs:label "Dynamic Smooth19" ;
+	rdfs:range atom:Float ;
+	lv2:default 100 ;
+	lv2:minimum 0 ;
+	lv2:maximum 100 .
+
+plug:side_filter_type19
+	a lv2:Parameter ;
+	rdfs:label "Side Filter Type19" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 2	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "BP" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "LP" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "HP" ;
+		rdf:value 2 ;
+	] .
+
+plug:side_order19
+	a lv2:Parameter ;
+	rdfs:label "Side Order19" ;
+	rdfs:range atom:Float ;
+	lv2:default 1 ;
+	lv2:minimum 0 ;
+	lv2:maximum 6	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "6 dB/oct" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "12 dB/oct" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "24 dB/oct" ;
+		rdf:value 2 ;
+	], [
+		rdfs:label "36 dB/oct" ;
+		rdf:value 3 ;
+	], [
+		rdfs:label "48 dB/oct" ;
+		rdf:value 4 ;
+	], [
+		rdfs:label "72 dB/oct" ;
+		rdf:value 5 ;
+	], [
+		rdfs:label "96 dB/oct" ;
+		rdf:value 6 ;
+	] .
+
+plug:side_freq19
+	a lv2:Parameter ;
+	rdfs:label "Side Freq19" ;
+	rdfs:range atom:Float ;
+	lv2:default 1000 ;
+	lv2:minimum 10 ;
+	lv2:maximum 160000 .
+
+plug:side_q19
+	a lv2:Parameter ;
+	rdfs:label "Side Q19" ;
+	rdfs:range atom:Float ;
+	lv2:default 0.707 ;
+	lv2:minimum 0.025 ;
+	lv2:maximum 25 .
+
+plug:filter_status20
+	a lv2:Parameter ;
+	rdfs:label "Filter Status20" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 2	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "Bypass" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 2 ;
+	] .
+
+plug:filter_type20
+	a lv2:Parameter ;
+	rdfs:label "Filter Type20" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 7	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "Peak" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "Low Shelf" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "Low Pass" ;
+		rdf:value 2 ;
+	], [
+		rdfs:label "High Shelf" ;
+		rdf:value 3 ;
+	], [
+		rdfs:label "High Pass" ;
+		rdf:value 4 ;
+	], [
+		rdfs:label "Notch" ;
+		rdf:value 5 ;
+	], [
+		rdfs:label "Band Pass" ;
+		rdf:value 6 ;
+	], [
+		rdfs:label "Tilt Shelf" ;
+		rdf:value 7 ;
+	] .
+
+plug:order20
+	a lv2:Parameter ;
+	rdfs:label "Order20" ;
+	rdfs:range atom:Float ;
+	lv2:default 1 ;
+	lv2:minimum 0 ;
+	lv2:maximum 6	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "6 dB/oct" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "12 dB/oct" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "24 dB/oct" ;
+		rdf:value 2 ;
+	], [
+		rdfs:label "36 dB/oct" ;
+		rdf:value 3 ;
+	], [
+		rdfs:label "48 dB/oct" ;
+		rdf:value 4 ;
+	], [
+		rdfs:label "72 dB/oct" ;
+		rdf:value 5 ;
+	], [
+		rdfs:label "96 dB/oct" ;
+		rdf:value 6 ;
+	] .
+
+plug:lr_mode20
+	a lv2:Parameter ;
+	rdfs:label "LRMode20" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 4	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "Stereo" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "Left" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "Right" ;
+		rdf:value 2 ;
+	], [
+		rdfs:label "Mid" ;
+		rdf:value 3 ;
+	], [
+		rdfs:label "Side" ;
+		rdf:value 4 ;
+	] .
+
+plug:freq20
+	a lv2:Parameter ;
+	rdfs:label "Freq20" ;
+	rdfs:range atom:Float ;
+	lv2:default 1000 ;
+	lv2:minimum 10 ;
+	lv2:maximum 160000 .
+
+plug:gain20
+	a lv2:Parameter ;
+	rdfs:label "Gain20" ;
+	rdfs:range atom:Float ;
+	lv2:default -6.70552e-07 ;
+	lv2:minimum -30 ;
+	lv2:maximum 30 .
+
+plug:target_gain20
+	a lv2:Parameter ;
+	rdfs:label "Target Gain20" ;
+	rdfs:range atom:Float ;
+	lv2:default -6.70552e-07 ;
+	lv2:minimum -30 ;
+	lv2:maximum 30 .
+
+plug:q20
+	a lv2:Parameter ;
+	rdfs:label "Q20" ;
+	rdfs:range atom:Float ;
+	lv2:default 0.707 ;
+	lv2:minimum 0.025 ;
+	lv2:maximum 25 .
+
+plug:dynamic_on20
+	a lv2:Parameter ;
+	rdfs:label "Dynamic ON20" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:dynamic_learn20
+	a lv2:Parameter ;
+	rdfs:label "Dynamic Learn20" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:dynamic_bypass20
+	a lv2:Parameter ;
+	rdfs:label "Dynamic Bypass20" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:dynamic_relative20
+	a lv2:Parameter ;
+	rdfs:label "Dynamic Relative20" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:side_swap20
+	a lv2:Parameter ;
+	rdfs:label "Side Swap20" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:side_link20
+	a lv2:Parameter ;
+	rdfs:label "Side Link20" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:threshold20
+	a lv2:Parameter ;
+	rdfs:label "Threshold (dB)20" ;
+	rdfs:range atom:Float ;
+	lv2:default -40 ;
+	lv2:minimum -80 ;
+	lv2:maximum 0 .
+
+plug:knee_width20
+	a lv2:Parameter ;
+	rdfs:label "Knee Width20" ;
+	rdfs:range atom:Float ;
+	lv2:default 8 ;
+	lv2:minimum 0 ;
+	lv2:maximum 32 .
+
+plug:attack20
+	a lv2:Parameter ;
+	rdfs:label "Attack20" ;
+	rdfs:range atom:Float ;
+	lv2:default 100 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1000 .
+
+plug:release20
+	a lv2:Parameter ;
+	rdfs:label "Release20" ;
+	rdfs:range atom:Float ;
+	lv2:default 500 ;
+	lv2:minimum 0 ;
+	lv2:maximum 5000 .
+
+plug:dynamic_rms_length20
+	a lv2:Parameter ;
+	rdfs:label "Dynamic RMS Length20" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 40 .
+
+plug:dynamic_rms_mix20
+	a lv2:Parameter ;
+	rdfs:label "Dynamic RMS Mix20" ;
+	rdfs:range atom:Float ;
+	lv2:default 50 ;
+	lv2:minimum 0 ;
+	lv2:maximum 100 .
+
+plug:dynamic_smooth20
+	a lv2:Parameter ;
+	rdfs:label "Dynamic Smooth20" ;
+	rdfs:range atom:Float ;
+	lv2:default 100 ;
+	lv2:minimum 0 ;
+	lv2:maximum 100 .
+
+plug:side_filter_type20
+	a lv2:Parameter ;
+	rdfs:label "Side Filter Type20" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 2	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "BP" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "LP" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "HP" ;
+		rdf:value 2 ;
+	] .
+
+plug:side_order20
+	a lv2:Parameter ;
+	rdfs:label "Side Order20" ;
+	rdfs:range atom:Float ;
+	lv2:default 1 ;
+	lv2:minimum 0 ;
+	lv2:maximum 6	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "6 dB/oct" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "12 dB/oct" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "24 dB/oct" ;
+		rdf:value 2 ;
+	], [
+		rdfs:label "36 dB/oct" ;
+		rdf:value 3 ;
+	], [
+		rdfs:label "48 dB/oct" ;
+		rdf:value 4 ;
+	], [
+		rdfs:label "72 dB/oct" ;
+		rdf:value 5 ;
+	], [
+		rdfs:label "96 dB/oct" ;
+		rdf:value 6 ;
+	] .
+
+plug:side_freq20
+	a lv2:Parameter ;
+	rdfs:label "Side Freq20" ;
+	rdfs:range atom:Float ;
+	lv2:default 1000 ;
+	lv2:minimum 10 ;
+	lv2:maximum 160000 .
+
+plug:side_q20
+	a lv2:Parameter ;
+	rdfs:label "Side Q20" ;
+	rdfs:range atom:Float ;
+	lv2:default 0.707 ;
+	lv2:minimum 0.025 ;
+	lv2:maximum 25 .
+
+plug:filter_status21
+	a lv2:Parameter ;
+	rdfs:label "Filter Status21" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 2	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "Bypass" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 2 ;
+	] .
+
+plug:filter_type21
+	a lv2:Parameter ;
+	rdfs:label "Filter Type21" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 7	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "Peak" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "Low Shelf" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "Low Pass" ;
+		rdf:value 2 ;
+	], [
+		rdfs:label "High Shelf" ;
+		rdf:value 3 ;
+	], [
+		rdfs:label "High Pass" ;
+		rdf:value 4 ;
+	], [
+		rdfs:label "Notch" ;
+		rdf:value 5 ;
+	], [
+		rdfs:label "Band Pass" ;
+		rdf:value 6 ;
+	], [
+		rdfs:label "Tilt Shelf" ;
+		rdf:value 7 ;
+	] .
+
+plug:order21
+	a lv2:Parameter ;
+	rdfs:label "Order21" ;
+	rdfs:range atom:Float ;
+	lv2:default 1 ;
+	lv2:minimum 0 ;
+	lv2:maximum 6	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "6 dB/oct" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "12 dB/oct" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "24 dB/oct" ;
+		rdf:value 2 ;
+	], [
+		rdfs:label "36 dB/oct" ;
+		rdf:value 3 ;
+	], [
+		rdfs:label "48 dB/oct" ;
+		rdf:value 4 ;
+	], [
+		rdfs:label "72 dB/oct" ;
+		rdf:value 5 ;
+	], [
+		rdfs:label "96 dB/oct" ;
+		rdf:value 6 ;
+	] .
+
+plug:lr_mode21
+	a lv2:Parameter ;
+	rdfs:label "LRMode21" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 4	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "Stereo" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "Left" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "Right" ;
+		rdf:value 2 ;
+	], [
+		rdfs:label "Mid" ;
+		rdf:value 3 ;
+	], [
+		rdfs:label "Side" ;
+		rdf:value 4 ;
+	] .
+
+plug:freq21
+	a lv2:Parameter ;
+	rdfs:label "Freq21" ;
+	rdfs:range atom:Float ;
+	lv2:default 1000 ;
+	lv2:minimum 10 ;
+	lv2:maximum 160000 .
+
+plug:gain21
+	a lv2:Parameter ;
+	rdfs:label "Gain21" ;
+	rdfs:range atom:Float ;
+	lv2:default -6.70552e-07 ;
+	lv2:minimum -30 ;
+	lv2:maximum 30 .
+
+plug:target_gain21
+	a lv2:Parameter ;
+	rdfs:label "Target Gain21" ;
+	rdfs:range atom:Float ;
+	lv2:default -6.70552e-07 ;
+	lv2:minimum -30 ;
+	lv2:maximum 30 .
+
+plug:q21
+	a lv2:Parameter ;
+	rdfs:label "Q21" ;
+	rdfs:range atom:Float ;
+	lv2:default 0.707 ;
+	lv2:minimum 0.025 ;
+	lv2:maximum 25 .
+
+plug:dynamic_on21
+	a lv2:Parameter ;
+	rdfs:label "Dynamic ON21" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:dynamic_learn21
+	a lv2:Parameter ;
+	rdfs:label "Dynamic Learn21" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:dynamic_bypass21
+	a lv2:Parameter ;
+	rdfs:label "Dynamic Bypass21" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:dynamic_relative21
+	a lv2:Parameter ;
+	rdfs:label "Dynamic Relative21" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:side_swap21
+	a lv2:Parameter ;
+	rdfs:label "Side Swap21" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:side_link21
+	a lv2:Parameter ;
+	rdfs:label "Side Link21" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:threshold21
+	a lv2:Parameter ;
+	rdfs:label "Threshold (dB)21" ;
+	rdfs:range atom:Float ;
+	lv2:default -40 ;
+	lv2:minimum -80 ;
+	lv2:maximum 0 .
+
+plug:knee_width21
+	a lv2:Parameter ;
+	rdfs:label "Knee Width21" ;
+	rdfs:range atom:Float ;
+	lv2:default 8 ;
+	lv2:minimum 0 ;
+	lv2:maximum 32 .
+
+plug:attack21
+	a lv2:Parameter ;
+	rdfs:label "Attack21" ;
+	rdfs:range atom:Float ;
+	lv2:default 100 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1000 .
+
+plug:release21
+	a lv2:Parameter ;
+	rdfs:label "Release21" ;
+	rdfs:range atom:Float ;
+	lv2:default 500 ;
+	lv2:minimum 0 ;
+	lv2:maximum 5000 .
+
+plug:dynamic_rms_length21
+	a lv2:Parameter ;
+	rdfs:label "Dynamic RMS Length21" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 40 .
+
+plug:dynamic_rms_mix21
+	a lv2:Parameter ;
+	rdfs:label "Dynamic RMS Mix21" ;
+	rdfs:range atom:Float ;
+	lv2:default 50 ;
+	lv2:minimum 0 ;
+	lv2:maximum 100 .
+
+plug:dynamic_smooth21
+	a lv2:Parameter ;
+	rdfs:label "Dynamic Smooth21" ;
+	rdfs:range atom:Float ;
+	lv2:default 100 ;
+	lv2:minimum 0 ;
+	lv2:maximum 100 .
+
+plug:side_filter_type21
+	a lv2:Parameter ;
+	rdfs:label "Side Filter Type21" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 2	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "BP" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "LP" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "HP" ;
+		rdf:value 2 ;
+	] .
+
+plug:side_order21
+	a lv2:Parameter ;
+	rdfs:label "Side Order21" ;
+	rdfs:range atom:Float ;
+	lv2:default 1 ;
+	lv2:minimum 0 ;
+	lv2:maximum 6	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "6 dB/oct" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "12 dB/oct" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "24 dB/oct" ;
+		rdf:value 2 ;
+	], [
+		rdfs:label "36 dB/oct" ;
+		rdf:value 3 ;
+	], [
+		rdfs:label "48 dB/oct" ;
+		rdf:value 4 ;
+	], [
+		rdfs:label "72 dB/oct" ;
+		rdf:value 5 ;
+	], [
+		rdfs:label "96 dB/oct" ;
+		rdf:value 6 ;
+	] .
+
+plug:side_freq21
+	a lv2:Parameter ;
+	rdfs:label "Side Freq21" ;
+	rdfs:range atom:Float ;
+	lv2:default 1000 ;
+	lv2:minimum 10 ;
+	lv2:maximum 160000 .
+
+plug:side_q21
+	a lv2:Parameter ;
+	rdfs:label "Side Q21" ;
+	rdfs:range atom:Float ;
+	lv2:default 0.707 ;
+	lv2:minimum 0.025 ;
+	lv2:maximum 25 .
+
+plug:filter_status22
+	a lv2:Parameter ;
+	rdfs:label "Filter Status22" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 2	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "Bypass" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 2 ;
+	] .
+
+plug:filter_type22
+	a lv2:Parameter ;
+	rdfs:label "Filter Type22" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 7	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "Peak" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "Low Shelf" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "Low Pass" ;
+		rdf:value 2 ;
+	], [
+		rdfs:label "High Shelf" ;
+		rdf:value 3 ;
+	], [
+		rdfs:label "High Pass" ;
+		rdf:value 4 ;
+	], [
+		rdfs:label "Notch" ;
+		rdf:value 5 ;
+	], [
+		rdfs:label "Band Pass" ;
+		rdf:value 6 ;
+	], [
+		rdfs:label "Tilt Shelf" ;
+		rdf:value 7 ;
+	] .
+
+plug:order22
+	a lv2:Parameter ;
+	rdfs:label "Order22" ;
+	rdfs:range atom:Float ;
+	lv2:default 1 ;
+	lv2:minimum 0 ;
+	lv2:maximum 6	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "6 dB/oct" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "12 dB/oct" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "24 dB/oct" ;
+		rdf:value 2 ;
+	], [
+		rdfs:label "36 dB/oct" ;
+		rdf:value 3 ;
+	], [
+		rdfs:label "48 dB/oct" ;
+		rdf:value 4 ;
+	], [
+		rdfs:label "72 dB/oct" ;
+		rdf:value 5 ;
+	], [
+		rdfs:label "96 dB/oct" ;
+		rdf:value 6 ;
+	] .
+
+plug:lr_mode22
+	a lv2:Parameter ;
+	rdfs:label "LRMode22" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 4	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "Stereo" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "Left" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "Right" ;
+		rdf:value 2 ;
+	], [
+		rdfs:label "Mid" ;
+		rdf:value 3 ;
+	], [
+		rdfs:label "Side" ;
+		rdf:value 4 ;
+	] .
+
+plug:freq22
+	a lv2:Parameter ;
+	rdfs:label "Freq22" ;
+	rdfs:range atom:Float ;
+	lv2:default 1000 ;
+	lv2:minimum 10 ;
+	lv2:maximum 160000 .
+
+plug:gain22
+	a lv2:Parameter ;
+	rdfs:label "Gain22" ;
+	rdfs:range atom:Float ;
+	lv2:default -6.70552e-07 ;
+	lv2:minimum -30 ;
+	lv2:maximum 30 .
+
+plug:target_gain22
+	a lv2:Parameter ;
+	rdfs:label "Target Gain22" ;
+	rdfs:range atom:Float ;
+	lv2:default -6.70552e-07 ;
+	lv2:minimum -30 ;
+	lv2:maximum 30 .
+
+plug:q22
+	a lv2:Parameter ;
+	rdfs:label "Q22" ;
+	rdfs:range atom:Float ;
+	lv2:default 0.707 ;
+	lv2:minimum 0.025 ;
+	lv2:maximum 25 .
+
+plug:dynamic_on22
+	a lv2:Parameter ;
+	rdfs:label "Dynamic ON22" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:dynamic_learn22
+	a lv2:Parameter ;
+	rdfs:label "Dynamic Learn22" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:dynamic_bypass22
+	a lv2:Parameter ;
+	rdfs:label "Dynamic Bypass22" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:dynamic_relative22
+	a lv2:Parameter ;
+	rdfs:label "Dynamic Relative22" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:side_swap22
+	a lv2:Parameter ;
+	rdfs:label "Side Swap22" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:side_link22
+	a lv2:Parameter ;
+	rdfs:label "Side Link22" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:threshold22
+	a lv2:Parameter ;
+	rdfs:label "Threshold (dB)22" ;
+	rdfs:range atom:Float ;
+	lv2:default -40 ;
+	lv2:minimum -80 ;
+	lv2:maximum 0 .
+
+plug:knee_width22
+	a lv2:Parameter ;
+	rdfs:label "Knee Width22" ;
+	rdfs:range atom:Float ;
+	lv2:default 8 ;
+	lv2:minimum 0 ;
+	lv2:maximum 32 .
+
+plug:attack22
+	a lv2:Parameter ;
+	rdfs:label "Attack22" ;
+	rdfs:range atom:Float ;
+	lv2:default 100 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1000 .
+
+plug:release22
+	a lv2:Parameter ;
+	rdfs:label "Release22" ;
+	rdfs:range atom:Float ;
+	lv2:default 500 ;
+	lv2:minimum 0 ;
+	lv2:maximum 5000 .
+
+plug:dynamic_rms_length22
+	a lv2:Parameter ;
+	rdfs:label "Dynamic RMS Length22" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 40 .
+
+plug:dynamic_rms_mix22
+	a lv2:Parameter ;
+	rdfs:label "Dynamic RMS Mix22" ;
+	rdfs:range atom:Float ;
+	lv2:default 50 ;
+	lv2:minimum 0 ;
+	lv2:maximum 100 .
+
+plug:dynamic_smooth22
+	a lv2:Parameter ;
+	rdfs:label "Dynamic Smooth22" ;
+	rdfs:range atom:Float ;
+	lv2:default 100 ;
+	lv2:minimum 0 ;
+	lv2:maximum 100 .
+
+plug:side_filter_type22
+	a lv2:Parameter ;
+	rdfs:label "Side Filter Type22" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 2	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "BP" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "LP" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "HP" ;
+		rdf:value 2 ;
+	] .
+
+plug:side_order22
+	a lv2:Parameter ;
+	rdfs:label "Side Order22" ;
+	rdfs:range atom:Float ;
+	lv2:default 1 ;
+	lv2:minimum 0 ;
+	lv2:maximum 6	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "6 dB/oct" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "12 dB/oct" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "24 dB/oct" ;
+		rdf:value 2 ;
+	], [
+		rdfs:label "36 dB/oct" ;
+		rdf:value 3 ;
+	], [
+		rdfs:label "48 dB/oct" ;
+		rdf:value 4 ;
+	], [
+		rdfs:label "72 dB/oct" ;
+		rdf:value 5 ;
+	], [
+		rdfs:label "96 dB/oct" ;
+		rdf:value 6 ;
+	] .
+
+plug:side_freq22
+	a lv2:Parameter ;
+	rdfs:label "Side Freq22" ;
+	rdfs:range atom:Float ;
+	lv2:default 1000 ;
+	lv2:minimum 10 ;
+	lv2:maximum 160000 .
+
+plug:side_q22
+	a lv2:Parameter ;
+	rdfs:label "Side Q22" ;
+	rdfs:range atom:Float ;
+	lv2:default 0.707 ;
+	lv2:minimum 0.025 ;
+	lv2:maximum 25 .
+
+plug:filter_status23
+	a lv2:Parameter ;
+	rdfs:label "Filter Status23" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 2	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "Bypass" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 2 ;
+	] .
+
+plug:filter_type23
+	a lv2:Parameter ;
+	rdfs:label "Filter Type23" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 7	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "Peak" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "Low Shelf" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "Low Pass" ;
+		rdf:value 2 ;
+	], [
+		rdfs:label "High Shelf" ;
+		rdf:value 3 ;
+	], [
+		rdfs:label "High Pass" ;
+		rdf:value 4 ;
+	], [
+		rdfs:label "Notch" ;
+		rdf:value 5 ;
+	], [
+		rdfs:label "Band Pass" ;
+		rdf:value 6 ;
+	], [
+		rdfs:label "Tilt Shelf" ;
+		rdf:value 7 ;
+	] .
+
+plug:order23
+	a lv2:Parameter ;
+	rdfs:label "Order23" ;
+	rdfs:range atom:Float ;
+	lv2:default 1 ;
+	lv2:minimum 0 ;
+	lv2:maximum 6	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "6 dB/oct" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "12 dB/oct" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "24 dB/oct" ;
+		rdf:value 2 ;
+	], [
+		rdfs:label "36 dB/oct" ;
+		rdf:value 3 ;
+	], [
+		rdfs:label "48 dB/oct" ;
+		rdf:value 4 ;
+	], [
+		rdfs:label "72 dB/oct" ;
+		rdf:value 5 ;
+	], [
+		rdfs:label "96 dB/oct" ;
+		rdf:value 6 ;
+	] .
+
+plug:lr_mode23
+	a lv2:Parameter ;
+	rdfs:label "LRMode23" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 4	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "Stereo" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "Left" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "Right" ;
+		rdf:value 2 ;
+	], [
+		rdfs:label "Mid" ;
+		rdf:value 3 ;
+	], [
+		rdfs:label "Side" ;
+		rdf:value 4 ;
+	] .
+
+plug:freq23
+	a lv2:Parameter ;
+	rdfs:label "Freq23" ;
+	rdfs:range atom:Float ;
+	lv2:default 1000 ;
+	lv2:minimum 10 ;
+	lv2:maximum 160000 .
+
+plug:gain23
+	a lv2:Parameter ;
+	rdfs:label "Gain23" ;
+	rdfs:range atom:Float ;
+	lv2:default -6.70552e-07 ;
+	lv2:minimum -30 ;
+	lv2:maximum 30 .
+
+plug:target_gain23
+	a lv2:Parameter ;
+	rdfs:label "Target Gain23" ;
+	rdfs:range atom:Float ;
+	lv2:default -6.70552e-07 ;
+	lv2:minimum -30 ;
+	lv2:maximum 30 .
+
+plug:q23
+	a lv2:Parameter ;
+	rdfs:label "Q23" ;
+	rdfs:range atom:Float ;
+	lv2:default 0.707 ;
+	lv2:minimum 0.025 ;
+	lv2:maximum 25 .
+
+plug:dynamic_on23
+	a lv2:Parameter ;
+	rdfs:label "Dynamic ON23" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:dynamic_learn23
+	a lv2:Parameter ;
+	rdfs:label "Dynamic Learn23" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:dynamic_bypass23
+	a lv2:Parameter ;
+	rdfs:label "Dynamic Bypass23" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:dynamic_relative23
+	a lv2:Parameter ;
+	rdfs:label "Dynamic Relative23" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:side_swap23
+	a lv2:Parameter ;
+	rdfs:label "Side Swap23" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:side_link23
+	a lv2:Parameter ;
+	rdfs:label "Side Link23" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1	 ;
+	lv2:portProperty lv2:enumeration , lv2:toggled ;
+	lv2:scalePoint [
+		rdfs:label "Off" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "On" ;
+		rdf:value 1 ;
+	] .
+
+plug:threshold23
+	a lv2:Parameter ;
+	rdfs:label "Threshold (dB)23" ;
+	rdfs:range atom:Float ;
+	lv2:default -40 ;
+	lv2:minimum -80 ;
+	lv2:maximum 0 .
+
+plug:knee_width23
+	a lv2:Parameter ;
+	rdfs:label "Knee Width23" ;
+	rdfs:range atom:Float ;
+	lv2:default 8 ;
+	lv2:minimum 0 ;
+	lv2:maximum 32 .
+
+plug:attack23
+	a lv2:Parameter ;
+	rdfs:label "Attack23" ;
+	rdfs:range atom:Float ;
+	lv2:default 100 ;
+	lv2:minimum 0 ;
+	lv2:maximum 1000 .
+
+plug:release23
+	a lv2:Parameter ;
+	rdfs:label "Release23" ;
+	rdfs:range atom:Float ;
+	lv2:default 500 ;
+	lv2:minimum 0 ;
+	lv2:maximum 5000 .
+
+plug:dynamic_rms_length23
+	a lv2:Parameter ;
+	rdfs:label "Dynamic RMS Length23" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 40 .
+
+plug:dynamic_rms_mix23
+	a lv2:Parameter ;
+	rdfs:label "Dynamic RMS Mix23" ;
+	rdfs:range atom:Float ;
+	lv2:default 50 ;
+	lv2:minimum 0 ;
+	lv2:maximum 100 .
+
+plug:dynamic_smooth23
+	a lv2:Parameter ;
+	rdfs:label "Dynamic Smooth23" ;
+	rdfs:range atom:Float ;
+	lv2:default 100 ;
+	lv2:minimum 0 ;
+	lv2:maximum 100 .
+
+plug:side_filter_type23
+	a lv2:Parameter ;
+	rdfs:label "Side Filter Type23" ;
+	rdfs:range atom:Float ;
+	lv2:default 0 ;
+	lv2:minimum 0 ;
+	lv2:maximum 2	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "BP" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "LP" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "HP" ;
+		rdf:value 2 ;
+	] .
+
+plug:side_order23
+	a lv2:Parameter ;
+	rdfs:label "Side Order23" ;
+	rdfs:range atom:Float ;
+	lv2:default 1 ;
+	lv2:minimum 0 ;
+	lv2:maximum 6	 ;
+	lv2:portProperty lv2:enumeration ;
+	lv2:scalePoint [
+		rdfs:label "6 dB/oct" ;
+		rdf:value 0 ;
+	], [
+		rdfs:label "12 dB/oct" ;
+		rdf:value 1 ;
+	], [
+		rdfs:label "24 dB/oct" ;
+		rdf:value 2 ;
+	], [
+		rdfs:label "36 dB/oct" ;
+		rdf:value 3 ;
+	], [
+		rdfs:label "48 dB/oct" ;
+		rdf:value 4 ;
+	], [
+		rdfs:label "72 dB/oct" ;
+		rdf:value 5 ;
+	], [
+		rdfs:label "96 dB/oct" ;
+		rdf:value 6 ;
+	] .
+
+plug:side_freq23
+	a lv2:Parameter ;
+	rdfs:label "Side Freq23" ;
+	rdfs:range atom:Float ;
+	lv2:default 1000 ;
+	lv2:minimum 10 ;
+	lv2:maximum 160000 .
+
+plug:side_q23
+	a lv2:Parameter ;
+	rdfs:label "Side Q23" ;
+	rdfs:range atom:Float ;
+	lv2:default 0.707 ;
+	lv2:minimum 0.025 ;
+	lv2:maximum 25 .
+
+plug:input_group_1
+	a pg:InputGroup ;
+	lv2:name "Input" ;
+	lv2:symbol "input_group_1" .
+
+plug:input_group_2
+	a pg:InputGroup ;
+	lv2:name "Aux" ;
+	lv2:symbol "input_group_2" .
+
+plug:output_group_1
+	a pg:OutputGroup ;
+	lv2:name "Output" ;
+	lv2:symbol "output_group_1" .
+
+<https://github.com/ZL-Audio/ZLEqualizer2>
+	ui:ui <https://github.com/ZL-Audio/ZLEqualizer2:UI> ;
+	a lv2:Plugin ;
+	doap:name "ZL Equalizer 2" ;
+	doap:description "ZL Equalizer 2" ;
+	lv2:minorVersion 1 ;
+	lv2:microVersion 0 ;
+	doap:maintainer [
+		a foaf:Person ;
+		foaf:name "ZL" ;
+		foaf:homepage <> ;
+		foaf:mbox <> ;
+	] ;
+	doap:release [
+		a doap:Version ;
+		doap:revision "1.1.0" ;
+	] ;
+	lv2:optionalFeature
+		lv2:hardRTCapable ;
+	lv2:extensionData
+		state:interface ;
+	lv2:requiredFeature
+		urid:map ,
+		opts:options ,
+		bufs:boundedBlockLength ;
+	pg:mainInput plug:input_group_1 ;
+	pg:mainOutput plug:output_group_1 ;
+	patch:writable
+		plug:total_filter_structure ,
+		plug:total_external_side ,
+		plug:total_bypass ,
+		plug:total_output_gain ,
+		plug:total_gain_scale ,
+		plug:total_auto_gain ,
+		plug:total_static_gain ,
+		plug:total_phase_flip ,
+		plug:total_lookahead ,
+		plug:filter_status0 ,
+		plug:filter_type0 ,
+		plug:order0 ,
+		plug:lr_mode0 ,
+		plug:freq0 ,
+		plug:gain0 ,
+		plug:target_gain0 ,
+		plug:q0 ,
+		plug:dynamic_on0 ,
+		plug:dynamic_learn0 ,
+		plug:dynamic_bypass0 ,
+		plug:dynamic_relative0 ,
+		plug:side_swap0 ,
+		plug:side_link0 ,
+		plug:threshold0 ,
+		plug:knee_width0 ,
+		plug:attack0 ,
+		plug:release0 ,
+		plug:dynamic_rms_length0 ,
+		plug:dynamic_rms_mix0 ,
+		plug:dynamic_smooth0 ,
+		plug:side_filter_type0 ,
+		plug:side_order0 ,
+		plug:side_freq0 ,
+		plug:side_q0 ,
+		plug:filter_status1 ,
+		plug:filter_type1 ,
+		plug:order1 ,
+		plug:lr_mode1 ,
+		plug:freq1 ,
+		plug:gain1 ,
+		plug:target_gain1 ,
+		plug:q1 ,
+		plug:dynamic_on1 ,
+		plug:dynamic_learn1 ,
+		plug:dynamic_bypass1 ,
+		plug:dynamic_relative1 ,
+		plug:side_swap1 ,
+		plug:side_link1 ,
+		plug:threshold1 ,
+		plug:knee_width1 ,
+		plug:attack1 ,
+		plug:release1 ,
+		plug:dynamic_rms_length1 ,
+		plug:dynamic_rms_mix1 ,
+		plug:dynamic_smooth1 ,
+		plug:side_filter_type1 ,
+		plug:side_order1 ,
+		plug:side_freq1 ,
+		plug:side_q1 ,
+		plug:filter_status2 ,
+		plug:filter_type2 ,
+		plug:order2 ,
+		plug:lr_mode2 ,
+		plug:freq2 ,
+		plug:gain2 ,
+		plug:target_gain2 ,
+		plug:q2 ,
+		plug:dynamic_on2 ,
+		plug:dynamic_learn2 ,
+		plug:dynamic_bypass2 ,
+		plug:dynamic_relative2 ,
+		plug:side_swap2 ,
+		plug:side_link2 ,
+		plug:threshold2 ,
+		plug:knee_width2 ,
+		plug:attack2 ,
+		plug:release2 ,
+		plug:dynamic_rms_length2 ,
+		plug:dynamic_rms_mix2 ,
+		plug:dynamic_smooth2 ,
+		plug:side_filter_type2 ,
+		plug:side_order2 ,
+		plug:side_freq2 ,
+		plug:side_q2 ,
+		plug:filter_status3 ,
+		plug:filter_type3 ,
+		plug:order3 ,
+		plug:lr_mode3 ,
+		plug:freq3 ,
+		plug:gain3 ,
+		plug:target_gain3 ,
+		plug:q3 ,
+		plug:dynamic_on3 ,
+		plug:dynamic_learn3 ,
+		plug:dynamic_bypass3 ,
+		plug:dynamic_relative3 ,
+		plug:side_swap3 ,
+		plug:side_link3 ,
+		plug:threshold3 ,
+		plug:knee_width3 ,
+		plug:attack3 ,
+		plug:release3 ,
+		plug:dynamic_rms_length3 ,
+		plug:dynamic_rms_mix3 ,
+		plug:dynamic_smooth3 ,
+		plug:side_filter_type3 ,
+		plug:side_order3 ,
+		plug:side_freq3 ,
+		plug:side_q3 ,
+		plug:filter_status4 ,
+		plug:filter_type4 ,
+		plug:order4 ,
+		plug:lr_mode4 ,
+		plug:freq4 ,
+		plug:gain4 ,
+		plug:target_gain4 ,
+		plug:q4 ,
+		plug:dynamic_on4 ,
+		plug:dynamic_learn4 ,
+		plug:dynamic_bypass4 ,
+		plug:dynamic_relative4 ,
+		plug:side_swap4 ,
+		plug:side_link4 ,
+		plug:threshold4 ,
+		plug:knee_width4 ,
+		plug:attack4 ,
+		plug:release4 ,
+		plug:dynamic_rms_length4 ,
+		plug:dynamic_rms_mix4 ,
+		plug:dynamic_smooth4 ,
+		plug:side_filter_type4 ,
+		plug:side_order4 ,
+		plug:side_freq4 ,
+		plug:side_q4 ,
+		plug:filter_status5 ,
+		plug:filter_type5 ,
+		plug:order5 ,
+		plug:lr_mode5 ,
+		plug:freq5 ,
+		plug:gain5 ,
+		plug:target_gain5 ,
+		plug:q5 ,
+		plug:dynamic_on5 ,
+		plug:dynamic_learn5 ,
+		plug:dynamic_bypass5 ,
+		plug:dynamic_relative5 ,
+		plug:side_swap5 ,
+		plug:side_link5 ,
+		plug:threshold5 ,
+		plug:knee_width5 ,
+		plug:attack5 ,
+		plug:release5 ,
+		plug:dynamic_rms_length5 ,
+		plug:dynamic_rms_mix5 ,
+		plug:dynamic_smooth5 ,
+		plug:side_filter_type5 ,
+		plug:side_order5 ,
+		plug:side_freq5 ,
+		plug:side_q5 ,
+		plug:filter_status6 ,
+		plug:filter_type6 ,
+		plug:order6 ,
+		plug:lr_mode6 ,
+		plug:freq6 ,
+		plug:gain6 ,
+		plug:target_gain6 ,
+		plug:q6 ,
+		plug:dynamic_on6 ,
+		plug:dynamic_learn6 ,
+		plug:dynamic_bypass6 ,
+		plug:dynamic_relative6 ,
+		plug:side_swap6 ,
+		plug:side_link6 ,
+		plug:threshold6 ,
+		plug:knee_width6 ,
+		plug:attack6 ,
+		plug:release6 ,
+		plug:dynamic_rms_length6 ,
+		plug:dynamic_rms_mix6 ,
+		plug:dynamic_smooth6 ,
+		plug:side_filter_type6 ,
+		plug:side_order6 ,
+		plug:side_freq6 ,
+		plug:side_q6 ,
+		plug:filter_status7 ,
+		plug:filter_type7 ,
+		plug:order7 ,
+		plug:lr_mode7 ,
+		plug:freq7 ,
+		plug:gain7 ,
+		plug:target_gain7 ,
+		plug:q7 ,
+		plug:dynamic_on7 ,
+		plug:dynamic_learn7 ,
+		plug:dynamic_bypass7 ,
+		plug:dynamic_relative7 ,
+		plug:side_swap7 ,
+		plug:side_link7 ,
+		plug:threshold7 ,
+		plug:knee_width7 ,
+		plug:attack7 ,
+		plug:release7 ,
+		plug:dynamic_rms_length7 ,
+		plug:dynamic_rms_mix7 ,
+		plug:dynamic_smooth7 ,
+		plug:side_filter_type7 ,
+		plug:side_order7 ,
+		plug:side_freq7 ,
+		plug:side_q7 ,
+		plug:filter_status8 ,
+		plug:filter_type8 ,
+		plug:order8 ,
+		plug:lr_mode8 ,
+		plug:freq8 ,
+		plug:gain8 ,
+		plug:target_gain8 ,
+		plug:q8 ,
+		plug:dynamic_on8 ,
+		plug:dynamic_learn8 ,
+		plug:dynamic_bypass8 ,
+		plug:dynamic_relative8 ,
+		plug:side_swap8 ,
+		plug:side_link8 ,
+		plug:threshold8 ,
+		plug:knee_width8 ,
+		plug:attack8 ,
+		plug:release8 ,
+		plug:dynamic_rms_length8 ,
+		plug:dynamic_rms_mix8 ,
+		plug:dynamic_smooth8 ,
+		plug:side_filter_type8 ,
+		plug:side_order8 ,
+		plug:side_freq8 ,
+		plug:side_q8 ,
+		plug:filter_status9 ,
+		plug:filter_type9 ,
+		plug:order9 ,
+		plug:lr_mode9 ,
+		plug:freq9 ,
+		plug:gain9 ,
+		plug:target_gain9 ,
+		plug:q9 ,
+		plug:dynamic_on9 ,
+		plug:dynamic_learn9 ,
+		plug:dynamic_bypass9 ,
+		plug:dynamic_relative9 ,
+		plug:side_swap9 ,
+		plug:side_link9 ,
+		plug:threshold9 ,
+		plug:knee_width9 ,
+		plug:attack9 ,
+		plug:release9 ,
+		plug:dynamic_rms_length9 ,
+		plug:dynamic_rms_mix9 ,
+		plug:dynamic_smooth9 ,
+		plug:side_filter_type9 ,
+		plug:side_order9 ,
+		plug:side_freq9 ,
+		plug:side_q9 ,
+		plug:filter_status10 ,
+		plug:filter_type10 ,
+		plug:order10 ,
+		plug:lr_mode10 ,
+		plug:freq10 ,
+		plug:gain10 ,
+		plug:target_gain10 ,
+		plug:q10 ,
+		plug:dynamic_on10 ,
+		plug:dynamic_learn10 ,
+		plug:dynamic_bypass10 ,
+		plug:dynamic_relative10 ,
+		plug:side_swap10 ,
+		plug:side_link10 ,
+		plug:threshold10 ,
+		plug:knee_width10 ,
+		plug:attack10 ,
+		plug:release10 ,
+		plug:dynamic_rms_length10 ,
+		plug:dynamic_rms_mix10 ,
+		plug:dynamic_smooth10 ,
+		plug:side_filter_type10 ,
+		plug:side_order10 ,
+		plug:side_freq10 ,
+		plug:side_q10 ,
+		plug:filter_status11 ,
+		plug:filter_type11 ,
+		plug:order11 ,
+		plug:lr_mode11 ,
+		plug:freq11 ,
+		plug:gain11 ,
+		plug:target_gain11 ,
+		plug:q11 ,
+		plug:dynamic_on11 ,
+		plug:dynamic_learn11 ,
+		plug:dynamic_bypass11 ,
+		plug:dynamic_relative11 ,
+		plug:side_swap11 ,
+		plug:side_link11 ,
+		plug:threshold11 ,
+		plug:knee_width11 ,
+		plug:attack11 ,
+		plug:release11 ,
+		plug:dynamic_rms_length11 ,
+		plug:dynamic_rms_mix11 ,
+		plug:dynamic_smooth11 ,
+		plug:side_filter_type11 ,
+		plug:side_order11 ,
+		plug:side_freq11 ,
+		plug:side_q11 ,
+		plug:filter_status12 ,
+		plug:filter_type12 ,
+		plug:order12 ,
+		plug:lr_mode12 ,
+		plug:freq12 ,
+		plug:gain12 ,
+		plug:target_gain12 ,
+		plug:q12 ,
+		plug:dynamic_on12 ,
+		plug:dynamic_learn12 ,
+		plug:dynamic_bypass12 ,
+		plug:dynamic_relative12 ,
+		plug:side_swap12 ,
+		plug:side_link12 ,
+		plug:threshold12 ,
+		plug:knee_width12 ,
+		plug:attack12 ,
+		plug:release12 ,
+		plug:dynamic_rms_length12 ,
+		plug:dynamic_rms_mix12 ,
+		plug:dynamic_smooth12 ,
+		plug:side_filter_type12 ,
+		plug:side_order12 ,
+		plug:side_freq12 ,
+		plug:side_q12 ,
+		plug:filter_status13 ,
+		plug:filter_type13 ,
+		plug:order13 ,
+		plug:lr_mode13 ,
+		plug:freq13 ,
+		plug:gain13 ,
+		plug:target_gain13 ,
+		plug:q13 ,
+		plug:dynamic_on13 ,
+		plug:dynamic_learn13 ,
+		plug:dynamic_bypass13 ,
+		plug:dynamic_relative13 ,
+		plug:side_swap13 ,
+		plug:side_link13 ,
+		plug:threshold13 ,
+		plug:knee_width13 ,
+		plug:attack13 ,
+		plug:release13 ,
+		plug:dynamic_rms_length13 ,
+		plug:dynamic_rms_mix13 ,
+		plug:dynamic_smooth13 ,
+		plug:side_filter_type13 ,
+		plug:side_order13 ,
+		plug:side_freq13 ,
+		plug:side_q13 ,
+		plug:filter_status14 ,
+		plug:filter_type14 ,
+		plug:order14 ,
+		plug:lr_mode14 ,
+		plug:freq14 ,
+		plug:gain14 ,
+		plug:target_gain14 ,
+		plug:q14 ,
+		plug:dynamic_on14 ,
+		plug:dynamic_learn14 ,
+		plug:dynamic_bypass14 ,
+		plug:dynamic_relative14 ,
+		plug:side_swap14 ,
+		plug:side_link14 ,
+		plug:threshold14 ,
+		plug:knee_width14 ,
+		plug:attack14 ,
+		plug:release14 ,
+		plug:dynamic_rms_length14 ,
+		plug:dynamic_rms_mix14 ,
+		plug:dynamic_smooth14 ,
+		plug:side_filter_type14 ,
+		plug:side_order14 ,
+		plug:side_freq14 ,
+		plug:side_q14 ,
+		plug:filter_status15 ,
+		plug:filter_type15 ,
+		plug:order15 ,
+		plug:lr_mode15 ,
+		plug:freq15 ,
+		plug:gain15 ,
+		plug:target_gain15 ,
+		plug:q15 ,
+		plug:dynamic_on15 ,
+		plug:dynamic_learn15 ,
+		plug:dynamic_bypass15 ,
+		plug:dynamic_relative15 ,
+		plug:side_swap15 ,
+		plug:side_link15 ,
+		plug:threshold15 ,
+		plug:knee_width15 ,
+		plug:attack15 ,
+		plug:release15 ,
+		plug:dynamic_rms_length15 ,
+		plug:dynamic_rms_mix15 ,
+		plug:dynamic_smooth15 ,
+		plug:side_filter_type15 ,
+		plug:side_order15 ,
+		plug:side_freq15 ,
+		plug:side_q15 ,
+		plug:filter_status16 ,
+		plug:filter_type16 ,
+		plug:order16 ,
+		plug:lr_mode16 ,
+		plug:freq16 ,
+		plug:gain16 ,
+		plug:target_gain16 ,
+		plug:q16 ,
+		plug:dynamic_on16 ,
+		plug:dynamic_learn16 ,
+		plug:dynamic_bypass16 ,
+		plug:dynamic_relative16 ,
+		plug:side_swap16 ,
+		plug:side_link16 ,
+		plug:threshold16 ,
+		plug:knee_width16 ,
+		plug:attack16 ,
+		plug:release16 ,
+		plug:dynamic_rms_length16 ,
+		plug:dynamic_rms_mix16 ,
+		plug:dynamic_smooth16 ,
+		plug:side_filter_type16 ,
+		plug:side_order16 ,
+		plug:side_freq16 ,
+		plug:side_q16 ,
+		plug:filter_status17 ,
+		plug:filter_type17 ,
+		plug:order17 ,
+		plug:lr_mode17 ,
+		plug:freq17 ,
+		plug:gain17 ,
+		plug:target_gain17 ,
+		plug:q17 ,
+		plug:dynamic_on17 ,
+		plug:dynamic_learn17 ,
+		plug:dynamic_bypass17 ,
+		plug:dynamic_relative17 ,
+		plug:side_swap17 ,
+		plug:side_link17 ,
+		plug:threshold17 ,
+		plug:knee_width17 ,
+		plug:attack17 ,
+		plug:release17 ,
+		plug:dynamic_rms_length17 ,
+		plug:dynamic_rms_mix17 ,
+		plug:dynamic_smooth17 ,
+		plug:side_filter_type17 ,
+		plug:side_order17 ,
+		plug:side_freq17 ,
+		plug:side_q17 ,
+		plug:filter_status18 ,
+		plug:filter_type18 ,
+		plug:order18 ,
+		plug:lr_mode18 ,
+		plug:freq18 ,
+		plug:gain18 ,
+		plug:target_gain18 ,
+		plug:q18 ,
+		plug:dynamic_on18 ,
+		plug:dynamic_learn18 ,
+		plug:dynamic_bypass18 ,
+		plug:dynamic_relative18 ,
+		plug:side_swap18 ,
+		plug:side_link18 ,
+		plug:threshold18 ,
+		plug:knee_width18 ,
+		plug:attack18 ,
+		plug:release18 ,
+		plug:dynamic_rms_length18 ,
+		plug:dynamic_rms_mix18 ,
+		plug:dynamic_smooth18 ,
+		plug:side_filter_type18 ,
+		plug:side_order18 ,
+		plug:side_freq18 ,
+		plug:side_q18 ,
+		plug:filter_status19 ,
+		plug:filter_type19 ,
+		plug:order19 ,
+		plug:lr_mode19 ,
+		plug:freq19 ,
+		plug:gain19 ,
+		plug:target_gain19 ,
+		plug:q19 ,
+		plug:dynamic_on19 ,
+		plug:dynamic_learn19 ,
+		plug:dynamic_bypass19 ,
+		plug:dynamic_relative19 ,
+		plug:side_swap19 ,
+		plug:side_link19 ,
+		plug:threshold19 ,
+		plug:knee_width19 ,
+		plug:attack19 ,
+		plug:release19 ,
+		plug:dynamic_rms_length19 ,
+		plug:dynamic_rms_mix19 ,
+		plug:dynamic_smooth19 ,
+		plug:side_filter_type19 ,
+		plug:side_order19 ,
+		plug:side_freq19 ,
+		plug:side_q19 ,
+		plug:filter_status20 ,
+		plug:filter_type20 ,
+		plug:order20 ,
+		plug:lr_mode20 ,
+		plug:freq20 ,
+		plug:gain20 ,
+		plug:target_gain20 ,
+		plug:q20 ,
+		plug:dynamic_on20 ,
+		plug:dynamic_learn20 ,
+		plug:dynamic_bypass20 ,
+		plug:dynamic_relative20 ,
+		plug:side_swap20 ,
+		plug:side_link20 ,
+		plug:threshold20 ,
+		plug:knee_width20 ,
+		plug:attack20 ,
+		plug:release20 ,
+		plug:dynamic_rms_length20 ,
+		plug:dynamic_rms_mix20 ,
+		plug:dynamic_smooth20 ,
+		plug:side_filter_type20 ,
+		plug:side_order20 ,
+		plug:side_freq20 ,
+		plug:side_q20 ,
+		plug:filter_status21 ,
+		plug:filter_type21 ,
+		plug:order21 ,
+		plug:lr_mode21 ,
+		plug:freq21 ,
+		plug:gain21 ,
+		plug:target_gain21 ,
+		plug:q21 ,
+		plug:dynamic_on21 ,
+		plug:dynamic_learn21 ,
+		plug:dynamic_bypass21 ,
+		plug:dynamic_relative21 ,
+		plug:side_swap21 ,
+		plug:side_link21 ,
+		plug:threshold21 ,
+		plug:knee_width21 ,
+		plug:attack21 ,
+		plug:release21 ,
+		plug:dynamic_rms_length21 ,
+		plug:dynamic_rms_mix21 ,
+		plug:dynamic_smooth21 ,
+		plug:side_filter_type21 ,
+		plug:side_order21 ,
+		plug:side_freq21 ,
+		plug:side_q21 ,
+		plug:filter_status22 ,
+		plug:filter_type22 ,
+		plug:order22 ,
+		plug:lr_mode22 ,
+		plug:freq22 ,
+		plug:gain22 ,
+		plug:target_gain22 ,
+		plug:q22 ,
+		plug:dynamic_on22 ,
+		plug:dynamic_learn22 ,
+		plug:dynamic_bypass22 ,
+		plug:dynamic_relative22 ,
+		plug:side_swap22 ,
+		plug:side_link22 ,
+		plug:threshold22 ,
+		plug:knee_width22 ,
+		plug:attack22 ,
+		plug:release22 ,
+		plug:dynamic_rms_length22 ,
+		plug:dynamic_rms_mix22 ,
+		plug:dynamic_smooth22 ,
+		plug:side_filter_type22 ,
+		plug:side_order22 ,
+		plug:side_freq22 ,
+		plug:side_q22 ,
+		plug:filter_status23 ,
+		plug:filter_type23 ,
+		plug:order23 ,
+		plug:lr_mode23 ,
+		plug:freq23 ,
+		plug:gain23 ,
+		plug:target_gain23 ,
+		plug:q23 ,
+		plug:dynamic_on23 ,
+		plug:dynamic_learn23 ,
+		plug:dynamic_bypass23 ,
+		plug:dynamic_relative23 ,
+		plug:side_swap23 ,
+		plug:side_link23 ,
+		plug:threshold23 ,
+		plug:knee_width23 ,
+		plug:attack23 ,
+		plug:release23 ,
+		plug:dynamic_rms_length23 ,
+		plug:dynamic_rms_mix23 ,
+		plug:dynamic_smooth23 ,
+		plug:side_filter_type23 ,
+		plug:side_order23 ,
+		plug:side_freq23 ,
+		plug:side_q23 ;
+	patch:readable
+		plug:total_filter_structure ,
+		plug:total_external_side ,
+		plug:total_bypass ,
+		plug:total_output_gain ,
+		plug:total_gain_scale ,
+		plug:total_auto_gain ,
+		plug:total_static_gain ,
+		plug:total_phase_flip ,
+		plug:total_lookahead ,
+		plug:filter_status0 ,
+		plug:filter_type0 ,
+		plug:order0 ,
+		plug:lr_mode0 ,
+		plug:freq0 ,
+		plug:gain0 ,
+		plug:target_gain0 ,
+		plug:q0 ,
+		plug:dynamic_on0 ,
+		plug:dynamic_learn0 ,
+		plug:dynamic_bypass0 ,
+		plug:dynamic_relative0 ,
+		plug:side_swap0 ,
+		plug:side_link0 ,
+		plug:threshold0 ,
+		plug:knee_width0 ,
+		plug:attack0 ,
+		plug:release0 ,
+		plug:dynamic_rms_length0 ,
+		plug:dynamic_rms_mix0 ,
+		plug:dynamic_smooth0 ,
+		plug:side_filter_type0 ,
+		plug:side_order0 ,
+		plug:side_freq0 ,
+		plug:side_q0 ,
+		plug:filter_status1 ,
+		plug:filter_type1 ,
+		plug:order1 ,
+		plug:lr_mode1 ,
+		plug:freq1 ,
+		plug:gain1 ,
+		plug:target_gain1 ,
+		plug:q1 ,
+		plug:dynamic_on1 ,
+		plug:dynamic_learn1 ,
+		plug:dynamic_bypass1 ,
+		plug:dynamic_relative1 ,
+		plug:side_swap1 ,
+		plug:side_link1 ,
+		plug:threshold1 ,
+		plug:knee_width1 ,
+		plug:attack1 ,
+		plug:release1 ,
+		plug:dynamic_rms_length1 ,
+		plug:dynamic_rms_mix1 ,
+		plug:dynamic_smooth1 ,
+		plug:side_filter_type1 ,
+		plug:side_order1 ,
+		plug:side_freq1 ,
+		plug:side_q1 ,
+		plug:filter_status2 ,
+		plug:filter_type2 ,
+		plug:order2 ,
+		plug:lr_mode2 ,
+		plug:freq2 ,
+		plug:gain2 ,
+		plug:target_gain2 ,
+		plug:q2 ,
+		plug:dynamic_on2 ,
+		plug:dynamic_learn2 ,
+		plug:dynamic_bypass2 ,
+		plug:dynamic_relative2 ,
+		plug:side_swap2 ,
+		plug:side_link2 ,
+		plug:threshold2 ,
+		plug:knee_width2 ,
+		plug:attack2 ,
+		plug:release2 ,
+		plug:dynamic_rms_length2 ,
+		plug:dynamic_rms_mix2 ,
+		plug:dynamic_smooth2 ,
+		plug:side_filter_type2 ,
+		plug:side_order2 ,
+		plug:side_freq2 ,
+		plug:side_q2 ,
+		plug:filter_status3 ,
+		plug:filter_type3 ,
+		plug:order3 ,
+		plug:lr_mode3 ,
+		plug:freq3 ,
+		plug:gain3 ,
+		plug:target_gain3 ,
+		plug:q3 ,
+		plug:dynamic_on3 ,
+		plug:dynamic_learn3 ,
+		plug:dynamic_bypass3 ,
+		plug:dynamic_relative3 ,
+		plug:side_swap3 ,
+		plug:side_link3 ,
+		plug:threshold3 ,
+		plug:knee_width3 ,
+		plug:attack3 ,
+		plug:release3 ,
+		plug:dynamic_rms_length3 ,
+		plug:dynamic_rms_mix3 ,
+		plug:dynamic_smooth3 ,
+		plug:side_filter_type3 ,
+		plug:side_order3 ,
+		plug:side_freq3 ,
+		plug:side_q3 ,
+		plug:filter_status4 ,
+		plug:filter_type4 ,
+		plug:order4 ,
+		plug:lr_mode4 ,
+		plug:freq4 ,
+		plug:gain4 ,
+		plug:target_gain4 ,
+		plug:q4 ,
+		plug:dynamic_on4 ,
+		plug:dynamic_learn4 ,
+		plug:dynamic_bypass4 ,
+		plug:dynamic_relative4 ,
+		plug:side_swap4 ,
+		plug:side_link4 ,
+		plug:threshold4 ,
+		plug:knee_width4 ,
+		plug:attack4 ,
+		plug:release4 ,
+		plug:dynamic_rms_length4 ,
+		plug:dynamic_rms_mix4 ,
+		plug:dynamic_smooth4 ,
+		plug:side_filter_type4 ,
+		plug:side_order4 ,
+		plug:side_freq4 ,
+		plug:side_q4 ,
+		plug:filter_status5 ,
+		plug:filter_type5 ,
+		plug:order5 ,
+		plug:lr_mode5 ,
+		plug:freq5 ,
+		plug:gain5 ,
+		plug:target_gain5 ,
+		plug:q5 ,
+		plug:dynamic_on5 ,
+		plug:dynamic_learn5 ,
+		plug:dynamic_bypass5 ,
+		plug:dynamic_relative5 ,
+		plug:side_swap5 ,
+		plug:side_link5 ,
+		plug:threshold5 ,
+		plug:knee_width5 ,
+		plug:attack5 ,
+		plug:release5 ,
+		plug:dynamic_rms_length5 ,
+		plug:dynamic_rms_mix5 ,
+		plug:dynamic_smooth5 ,
+		plug:side_filter_type5 ,
+		plug:side_order5 ,
+		plug:side_freq5 ,
+		plug:side_q5 ,
+		plug:filter_status6 ,
+		plug:filter_type6 ,
+		plug:order6 ,
+		plug:lr_mode6 ,
+		plug:freq6 ,
+		plug:gain6 ,
+		plug:target_gain6 ,
+		plug:q6 ,
+		plug:dynamic_on6 ,
+		plug:dynamic_learn6 ,
+		plug:dynamic_bypass6 ,
+		plug:dynamic_relative6 ,
+		plug:side_swap6 ,
+		plug:side_link6 ,
+		plug:threshold6 ,
+		plug:knee_width6 ,
+		plug:attack6 ,
+		plug:release6 ,
+		plug:dynamic_rms_length6 ,
+		plug:dynamic_rms_mix6 ,
+		plug:dynamic_smooth6 ,
+		plug:side_filter_type6 ,
+		plug:side_order6 ,
+		plug:side_freq6 ,
+		plug:side_q6 ,
+		plug:filter_status7 ,
+		plug:filter_type7 ,
+		plug:order7 ,
+		plug:lr_mode7 ,
+		plug:freq7 ,
+		plug:gain7 ,
+		plug:target_gain7 ,
+		plug:q7 ,
+		plug:dynamic_on7 ,
+		plug:dynamic_learn7 ,
+		plug:dynamic_bypass7 ,
+		plug:dynamic_relative7 ,
+		plug:side_swap7 ,
+		plug:side_link7 ,
+		plug:threshold7 ,
+		plug:knee_width7 ,
+		plug:attack7 ,
+		plug:release7 ,
+		plug:dynamic_rms_length7 ,
+		plug:dynamic_rms_mix7 ,
+		plug:dynamic_smooth7 ,
+		plug:side_filter_type7 ,
+		plug:side_order7 ,
+		plug:side_freq7 ,
+		plug:side_q7 ,
+		plug:filter_status8 ,
+		plug:filter_type8 ,
+		plug:order8 ,
+		plug:lr_mode8 ,
+		plug:freq8 ,
+		plug:gain8 ,
+		plug:target_gain8 ,
+		plug:q8 ,
+		plug:dynamic_on8 ,
+		plug:dynamic_learn8 ,
+		plug:dynamic_bypass8 ,
+		plug:dynamic_relative8 ,
+		plug:side_swap8 ,
+		plug:side_link8 ,
+		plug:threshold8 ,
+		plug:knee_width8 ,
+		plug:attack8 ,
+		plug:release8 ,
+		plug:dynamic_rms_length8 ,
+		plug:dynamic_rms_mix8 ,
+		plug:dynamic_smooth8 ,
+		plug:side_filter_type8 ,
+		plug:side_order8 ,
+		plug:side_freq8 ,
+		plug:side_q8 ,
+		plug:filter_status9 ,
+		plug:filter_type9 ,
+		plug:order9 ,
+		plug:lr_mode9 ,
+		plug:freq9 ,
+		plug:gain9 ,
+		plug:target_gain9 ,
+		plug:q9 ,
+		plug:dynamic_on9 ,
+		plug:dynamic_learn9 ,
+		plug:dynamic_bypass9 ,
+		plug:dynamic_relative9 ,
+		plug:side_swap9 ,
+		plug:side_link9 ,
+		plug:threshold9 ,
+		plug:knee_width9 ,
+		plug:attack9 ,
+		plug:release9 ,
+		plug:dynamic_rms_length9 ,
+		plug:dynamic_rms_mix9 ,
+		plug:dynamic_smooth9 ,
+		plug:side_filter_type9 ,
+		plug:side_order9 ,
+		plug:side_freq9 ,
+		plug:side_q9 ,
+		plug:filter_status10 ,
+		plug:filter_type10 ,
+		plug:order10 ,
+		plug:lr_mode10 ,
+		plug:freq10 ,
+		plug:gain10 ,
+		plug:target_gain10 ,
+		plug:q10 ,
+		plug:dynamic_on10 ,
+		plug:dynamic_learn10 ,
+		plug:dynamic_bypass10 ,
+		plug:dynamic_relative10 ,
+		plug:side_swap10 ,
+		plug:side_link10 ,
+		plug:threshold10 ,
+		plug:knee_width10 ,
+		plug:attack10 ,
+		plug:release10 ,
+		plug:dynamic_rms_length10 ,
+		plug:dynamic_rms_mix10 ,
+		plug:dynamic_smooth10 ,
+		plug:side_filter_type10 ,
+		plug:side_order10 ,
+		plug:side_freq10 ,
+		plug:side_q10 ,
+		plug:filter_status11 ,
+		plug:filter_type11 ,
+		plug:order11 ,
+		plug:lr_mode11 ,
+		plug:freq11 ,
+		plug:gain11 ,
+		plug:target_gain11 ,
+		plug:q11 ,
+		plug:dynamic_on11 ,
+		plug:dynamic_learn11 ,
+		plug:dynamic_bypass11 ,
+		plug:dynamic_relative11 ,
+		plug:side_swap11 ,
+		plug:side_link11 ,
+		plug:threshold11 ,
+		plug:knee_width11 ,
+		plug:attack11 ,
+		plug:release11 ,
+		plug:dynamic_rms_length11 ,
+		plug:dynamic_rms_mix11 ,
+		plug:dynamic_smooth11 ,
+		plug:side_filter_type11 ,
+		plug:side_order11 ,
+		plug:side_freq11 ,
+		plug:side_q11 ,
+		plug:filter_status12 ,
+		plug:filter_type12 ,
+		plug:order12 ,
+		plug:lr_mode12 ,
+		plug:freq12 ,
+		plug:gain12 ,
+		plug:target_gain12 ,
+		plug:q12 ,
+		plug:dynamic_on12 ,
+		plug:dynamic_learn12 ,
+		plug:dynamic_bypass12 ,
+		plug:dynamic_relative12 ,
+		plug:side_swap12 ,
+		plug:side_link12 ,
+		plug:threshold12 ,
+		plug:knee_width12 ,
+		plug:attack12 ,
+		plug:release12 ,
+		plug:dynamic_rms_length12 ,
+		plug:dynamic_rms_mix12 ,
+		plug:dynamic_smooth12 ,
+		plug:side_filter_type12 ,
+		plug:side_order12 ,
+		plug:side_freq12 ,
+		plug:side_q12 ,
+		plug:filter_status13 ,
+		plug:filter_type13 ,
+		plug:order13 ,
+		plug:lr_mode13 ,
+		plug:freq13 ,
+		plug:gain13 ,
+		plug:target_gain13 ,
+		plug:q13 ,
+		plug:dynamic_on13 ,
+		plug:dynamic_learn13 ,
+		plug:dynamic_bypass13 ,
+		plug:dynamic_relative13 ,
+		plug:side_swap13 ,
+		plug:side_link13 ,
+		plug:threshold13 ,
+		plug:knee_width13 ,
+		plug:attack13 ,
+		plug:release13 ,
+		plug:dynamic_rms_length13 ,
+		plug:dynamic_rms_mix13 ,
+		plug:dynamic_smooth13 ,
+		plug:side_filter_type13 ,
+		plug:side_order13 ,
+		plug:side_freq13 ,
+		plug:side_q13 ,
+		plug:filter_status14 ,
+		plug:filter_type14 ,
+		plug:order14 ,
+		plug:lr_mode14 ,
+		plug:freq14 ,
+		plug:gain14 ,
+		plug:target_gain14 ,
+		plug:q14 ,
+		plug:dynamic_on14 ,
+		plug:dynamic_learn14 ,
+		plug:dynamic_bypass14 ,
+		plug:dynamic_relative14 ,
+		plug:side_swap14 ,
+		plug:side_link14 ,
+		plug:threshold14 ,
+		plug:knee_width14 ,
+		plug:attack14 ,
+		plug:release14 ,
+		plug:dynamic_rms_length14 ,
+		plug:dynamic_rms_mix14 ,
+		plug:dynamic_smooth14 ,
+		plug:side_filter_type14 ,
+		plug:side_order14 ,
+		plug:side_freq14 ,
+		plug:side_q14 ,
+		plug:filter_status15 ,
+		plug:filter_type15 ,
+		plug:order15 ,
+		plug:lr_mode15 ,
+		plug:freq15 ,
+		plug:gain15 ,
+		plug:target_gain15 ,
+		plug:q15 ,
+		plug:dynamic_on15 ,
+		plug:dynamic_learn15 ,
+		plug:dynamic_bypass15 ,
+		plug:dynamic_relative15 ,
+		plug:side_swap15 ,
+		plug:side_link15 ,
+		plug:threshold15 ,
+		plug:knee_width15 ,
+		plug:attack15 ,
+		plug:release15 ,
+		plug:dynamic_rms_length15 ,
+		plug:dynamic_rms_mix15 ,
+		plug:dynamic_smooth15 ,
+		plug:side_filter_type15 ,
+		plug:side_order15 ,
+		plug:side_freq15 ,
+		plug:side_q15 ,
+		plug:filter_status16 ,
+		plug:filter_type16 ,
+		plug:order16 ,
+		plug:lr_mode16 ,
+		plug:freq16 ,
+		plug:gain16 ,
+		plug:target_gain16 ,
+		plug:q16 ,
+		plug:dynamic_on16 ,
+		plug:dynamic_learn16 ,
+		plug:dynamic_bypass16 ,
+		plug:dynamic_relative16 ,
+		plug:side_swap16 ,
+		plug:side_link16 ,
+		plug:threshold16 ,
+		plug:knee_width16 ,
+		plug:attack16 ,
+		plug:release16 ,
+		plug:dynamic_rms_length16 ,
+		plug:dynamic_rms_mix16 ,
+		plug:dynamic_smooth16 ,
+		plug:side_filter_type16 ,
+		plug:side_order16 ,
+		plug:side_freq16 ,
+		plug:side_q16 ,
+		plug:filter_status17 ,
+		plug:filter_type17 ,
+		plug:order17 ,
+		plug:lr_mode17 ,
+		plug:freq17 ,
+		plug:gain17 ,
+		plug:target_gain17 ,
+		plug:q17 ,
+		plug:dynamic_on17 ,
+		plug:dynamic_learn17 ,
+		plug:dynamic_bypass17 ,
+		plug:dynamic_relative17 ,
+		plug:side_swap17 ,
+		plug:side_link17 ,
+		plug:threshold17 ,
+		plug:knee_width17 ,
+		plug:attack17 ,
+		plug:release17 ,
+		plug:dynamic_rms_length17 ,
+		plug:dynamic_rms_mix17 ,
+		plug:dynamic_smooth17 ,
+		plug:side_filter_type17 ,
+		plug:side_order17 ,
+		plug:side_freq17 ,
+		plug:side_q17 ,
+		plug:filter_status18 ,
+		plug:filter_type18 ,
+		plug:order18 ,
+		plug:lr_mode18 ,
+		plug:freq18 ,
+		plug:gain18 ,
+		plug:target_gain18 ,
+		plug:q18 ,
+		plug:dynamic_on18 ,
+		plug:dynamic_learn18 ,
+		plug:dynamic_bypass18 ,
+		plug:dynamic_relative18 ,
+		plug:side_swap18 ,
+		plug:side_link18 ,
+		plug:threshold18 ,
+		plug:knee_width18 ,
+		plug:attack18 ,
+		plug:release18 ,
+		plug:dynamic_rms_length18 ,
+		plug:dynamic_rms_mix18 ,
+		plug:dynamic_smooth18 ,
+		plug:side_filter_type18 ,
+		plug:side_order18 ,
+		plug:side_freq18 ,
+		plug:side_q18 ,
+		plug:filter_status19 ,
+		plug:filter_type19 ,
+		plug:order19 ,
+		plug:lr_mode19 ,
+		plug:freq19 ,
+		plug:gain19 ,
+		plug:target_gain19 ,
+		plug:q19 ,
+		plug:dynamic_on19 ,
+		plug:dynamic_learn19 ,
+		plug:dynamic_bypass19 ,
+		plug:dynamic_relative19 ,
+		plug:side_swap19 ,
+		plug:side_link19 ,
+		plug:threshold19 ,
+		plug:knee_width19 ,
+		plug:attack19 ,
+		plug:release19 ,
+		plug:dynamic_rms_length19 ,
+		plug:dynamic_rms_mix19 ,
+		plug:dynamic_smooth19 ,
+		plug:side_filter_type19 ,
+		plug:side_order19 ,
+		plug:side_freq19 ,
+		plug:side_q19 ,
+		plug:filter_status20 ,
+		plug:filter_type20 ,
+		plug:order20 ,
+		plug:lr_mode20 ,
+		plug:freq20 ,
+		plug:gain20 ,
+		plug:target_gain20 ,
+		plug:q20 ,
+		plug:dynamic_on20 ,
+		plug:dynamic_learn20 ,
+		plug:dynamic_bypass20 ,
+		plug:dynamic_relative20 ,
+		plug:side_swap20 ,
+		plug:side_link20 ,
+		plug:threshold20 ,
+		plug:knee_width20 ,
+		plug:attack20 ,
+		plug:release20 ,
+		plug:dynamic_rms_length20 ,
+		plug:dynamic_rms_mix20 ,
+		plug:dynamic_smooth20 ,
+		plug:side_filter_type20 ,
+		plug:side_order20 ,
+		plug:side_freq20 ,
+		plug:side_q20 ,
+		plug:filter_status21 ,
+		plug:filter_type21 ,
+		plug:order21 ,
+		plug:lr_mode21 ,
+		plug:freq21 ,
+		plug:gain21 ,
+		plug:target_gain21 ,
+		plug:q21 ,
+		plug:dynamic_on21 ,
+		plug:dynamic_learn21 ,
+		plug:dynamic_bypass21 ,
+		plug:dynamic_relative21 ,
+		plug:side_swap21 ,
+		plug:side_link21 ,
+		plug:threshold21 ,
+		plug:knee_width21 ,
+		plug:attack21 ,
+		plug:release21 ,
+		plug:dynamic_rms_length21 ,
+		plug:dynamic_rms_mix21 ,
+		plug:dynamic_smooth21 ,
+		plug:side_filter_type21 ,
+		plug:side_order21 ,
+		plug:side_freq21 ,
+		plug:side_q21 ,
+		plug:filter_status22 ,
+		plug:filter_type22 ,
+		plug:order22 ,
+		plug:lr_mode22 ,
+		plug:freq22 ,
+		plug:gain22 ,
+		plug:target_gain22 ,
+		plug:q22 ,
+		plug:dynamic_on22 ,
+		plug:dynamic_learn22 ,
+		plug:dynamic_bypass22 ,
+		plug:dynamic_relative22 ,
+		plug:side_swap22 ,
+		plug:side_link22 ,
+		plug:threshold22 ,
+		plug:knee_width22 ,
+		plug:attack22 ,
+		plug:release22 ,
+		plug:dynamic_rms_length22 ,
+		plug:dynamic_rms_mix22 ,
+		plug:dynamic_smooth22 ,
+		plug:side_filter_type22 ,
+		plug:side_order22 ,
+		plug:side_freq22 ,
+		plug:side_q22 ,
+		plug:filter_status23 ,
+		plug:filter_type23 ,
+		plug:order23 ,
+		plug:lr_mode23 ,
+		plug:freq23 ,
+		plug:gain23 ,
+		plug:target_gain23 ,
+		plug:q23 ,
+		plug:dynamic_on23 ,
+		plug:dynamic_learn23 ,
+		plug:dynamic_bypass23 ,
+		plug:dynamic_relative23 ,
+		plug:side_swap23 ,
+		plug:side_link23 ,
+		plug:threshold23 ,
+		plug:knee_width23 ,
+		plug:attack23 ,
+		plug:release23 ,
+		plug:dynamic_rms_length23 ,
+		plug:dynamic_rms_mix23 ,
+		plug:dynamic_smooth23 ,
+		plug:side_filter_type23 ,
+		plug:side_order23 ,
+		plug:side_freq23 ,
+		plug:side_q23 ;
+	lv2:port [
+		a lv2:InputPort , lv2:AudioPort ;
+		lv2:index 0 ;
+		lv2:symbol "audio_in_1" ;
+		lv2:name "Audio In 1" ;
+		pg:group plug:input_group_1 ;
+		lv2:designation <http://lv2plug.in/ns/ext/port-groups#left> ;
+	] , [
+		a lv2:InputPort , lv2:AudioPort ;
+		lv2:index 1 ;
+		lv2:symbol "audio_in_2" ;
+		lv2:name "Audio In 2" ;
+		pg:group plug:input_group_1 ;
+		lv2:designation <http://lv2plug.in/ns/ext/port-groups#right> ;
+	] , [
+		a lv2:InputPort , lv2:AudioPort ;
+		lv2:index 2 ;
+		lv2:symbol "audio_in_3" ;
+		lv2:name "Audio In 3" ;
+		pg:group plug:input_group_2 ;
+		lv2:designation <http://lv2plug.in/ns/ext/port-groups#left> ;
+	] , [
+		a lv2:InputPort , lv2:AudioPort ;
+		lv2:index 3 ;
+		lv2:symbol "audio_in_4" ;
+		lv2:name "Audio In 4" ;
+		pg:group plug:input_group_2 ;
+		lv2:designation <http://lv2plug.in/ns/ext/port-groups#right> ;
+	] , [
+		a lv2:OutputPort , lv2:AudioPort ;
+		lv2:index 4 ;
+		lv2:symbol "audio_out_1" ;
+		lv2:name "Audio Out 1" ;
+		pg:group plug:output_group_1 ;
+		lv2:designation <http://lv2plug.in/ns/ext/port-groups#left> ;
+	] , [
+		a lv2:OutputPort , lv2:AudioPort ;
+		lv2:index 5 ;
+		lv2:symbol "audio_out_2" ;
+		lv2:name "Audio Out 2" ;
+		pg:group plug:output_group_1 ;
+		lv2:designation <http://lv2plug.in/ns/ext/port-groups#right> ;
+	] , [
+		a lv2:InputPort , atom:AtomPort ;
+		rsz:minimumSize 52040 ;
+		atom:bufferType atom:Sequence ;
+		atom:supports
+			patch:Message ,
+			time:Position ;
+		lv2:designation lv2:control ;
+		lv2:index 6 ;
+		lv2:symbol "in" ;
+		lv2:name "In" ;
+	] , [
+		a lv2:OutputPort , atom:AtomPort ;
+		rsz:minimumSize 52040 ;
+		atom:bufferType atom:Sequence ;
+		atom:supports
+			patch:Message ;
+		lv2:designation lv2:control ;
+		lv2:index 7 ;
+		lv2:symbol "out" ;
+		lv2:name "Out" ;
+	] , [
+		a lv2:OutputPort , lv2:ControlPort ;
+		lv2:designation lv2:latency ;
+		lv2:symbol "latency" ;
+		lv2:name "Latency" ;
+		lv2:index 8 ;
+		lv2:portProperty lv2:reportsLatency , lv2:integer , lv2:connectionOptional , pprop:notOnGUI ;
+		units:unit units:frame ;
+	] , [
+		a lv2:InputPort , lv2:ControlPort ;
+		lv2:designation lv2:freeWheeling ;
+		lv2:symbol "freeWheeling" ;
+		lv2:name "Free Wheeling" ;
+		lv2:default 0.0 ;
+		lv2:minimum 0.0 ;
+		lv2:maximum 1.0 ;
+		lv2:index 9 ;
+		lv2:portProperty lv2:toggled , lv2:connectionOptional , pprop:notOnGUI ;
+	] , [
+		a lv2:InputPort , lv2:ControlPort ;
+		lv2:designation lv2:enabled ;
+		lv2:symbol "enabled" ;
+		lv2:name "Enabled" ;
+		lv2:default 1.0 ;
+		lv2:minimum 0.0 ;
+		lv2:maximum 1.0 ;
+		lv2:index 10 ;
+		lv2:portProperty lv2:toggled , lv2:connectionOptional , pprop:notOnGUI ;
+	] ;
+	opts:supportedOption
+		bufs:maxBlockLength .

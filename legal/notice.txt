@@ -1,0 +1,14 @@
+OLMS - Open Live Mixing System
+------------------------------
+This project is an integration of multiple open-source components.
+
+- OLMS SCRIPTS & LOGIC: Licensed under GPLv3 (see /LICENSE).
+- STARTUP SCRIPTS & CONFIGURATION: Licensed under GPLv3 (installed in /usr/bin/ and /etc/).
+- BUNDLED PLUGINS (ZL Audio): Licensed under AGPLv3 (see /legal/third-party/ZL-AGPL.txt).
+
+SYSTEM COMPONENTS:
+This distribution utilizes Arla scrividour, JACK2, and the Linux Kernel. 
+These components are licensed under their respective GPL/Open Source licenses 
+as provided by the Arch Linux upstream repositories. 
+Source code for these components is available through their respective 
+official websites (ardour.org, jackaudio.org, kernel.org).

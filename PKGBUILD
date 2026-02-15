@@ -15,13 +15,12 @@
 
 # Maintainer: Francesco Nano <francesco.nano@openlivemixingsystem.org>
 pkgname=olms-core
-pkgver=0.1.0
 pkgrel=1
 install=olms.install
 pkgdesc="Open Live Mixing System core files and scripts"
 arch=('any')
 url="https://github.com/Open-Live-Mixing-System-OLMS/Open-Live-Mixing-System"
-license=('GPLv3')
+license=('GPLv3' 'AGPLv3')
 groups=()
 depends=(
     'alsa-utils'        # aplay, arecord, amixer
@@ -67,34 +66,32 @@ package() {
     install -d "${pkgdir}/usr/share/doc/${pkgname}"
 
     # Copia script essenziali in /usr/bin
-    install -m755 scripts/rt_tuning.sh "${pkgdir}/usr/bin/"
-    install -m755 scripts/audio_virtual.sh "${pkgdir}/usr/bin/"
-    install -m755 scripts/audio_engine.sh "${pkgdir}/usr/bin/ardour_launcher"
-    install -m755 scripts/olms-startup.sh "${pkgdir}/usr/bin/olms-startup"
-    install -m755 scripts/olms-test-launcher.sh "${pkgdir}/usr/bin/olms-test-launcher"
-    install -m755 scripts/olms-prod-launcher.sh "${pkgdir}/usr/bin/olms-prod-launcher"
-    install -m755 scripts/prepare_machine.sh "${pkgdir}/usr/bin/prepare_machine"
-    install -m755 scripts/disk_guard.sh "${pkgdir}/usr/bin/"
-    install -m755 scripts/olms-apply-affinity.sh "${pkgdir}/usr/bin/olms-apply-affinity"
-    install -m755 scripts/irq_pinning.sh "${pkgdir}/usr/bin/irq_pinning"
-    install -m755 scripts/cpu_shielding.sh "${pkgdir}/usr/bin/cpu_shielding"
-    install -m755 scripts/setup_realtime_privileges.sh "${pkgdir}/usr/bin/setup_realtime_privileges"
-    install -m755 scripts/usb_audio_session_adapter.sh "${pkgdir}/usr/bin/usb_audio_session_adapter"
-    
-    # Copia script di test latenza
-    install -m755 scripts/olms-latency-test.sh "${pkgdir}/usr/bin/olms-latency-test"
-    install -m755 scripts/olms-alsa-latency-test.sh "${pkgdir}/usr/bin/olms-alsa-latency-test"
-    
-    # Copia script JACK socket permissions
-    install -m755 Startup2/phase3-jack-init.sh "${pkgdir}/usr/bin/olms-jack-init"
-    install -m755 Startup2/phase5-ardour-startup.sh "${pkgdir}/usr/bin/olms-ardour-startup"
-    install -m755 Startup2/test_jack_stability.sh "${pkgdir}/usr/bin/olms-test-jack-stability"
-    
-    # Copia script ottimizzazione JACK
-    install -m755 Startup2/phase3-jack-init-fixed.sh "${pkgdir}/usr/bin/olms-jack-init-fixed"
-    install -m755 Startup2/fix_jack_links.sh "${pkgdir}/usr/bin/olms-fix-jack-links"
-    install -m755 Startup2/jack_system_reset.sh "${pkgdir}/usr/bin/olms-jack-system-reset"
-    install -m755 Startup2/olms-jack-setup.sh "${pkgdir}/usr/bin/olms-jack-setup"
+    install -m755 Startup/phase0-audio-cleanup.sh "${pkgdir}/usr/bin/olms-phase0-audio-cleanup"
+    install -m755 Startup/phase0-lock-management.sh "${pkgdir}/usr/bin/olms-phase0-lock-management"
+    install -m755 Startup/phase1-rt-optimization.sh "${pkgdir}/usr/bin/olms-phase1-rt-optimization"
+    install -m755 Startup/phase2-hardware-config.sh "${pkgdir}/usr/bin/olms-phase2-hardware-config"
+    install -m755 Startup/phase3-jack-init-fixed.sh "${pkgdir}/usr/bin/olms-phase3-jack-init-fixed"
+    install -m755 Startup/phase4-x11-setup.sh "${pkgdir}/usr/bin/olms-phase4-x11-setup"
+    install -m755 Startup/phase5-ardour-startup.sh "${pkgdir}/usr/bin/olms-phase5-ardour-startup"
+    install -m755 Startup/phase6-final-report.sh "${pkgdir}/usr/bin/olms-phase6-final-report"
+    install -m755 Startup/_olms-launcher.sh "${pkgdir}/usr/bin/olms-launcher"
+    install -m755 Startup/olms-orchestrator.sh "${pkgdir}/usr/bin/olms-orchestrator"
+    install -m755 Startup/olms-unified-startup.sh "${pkgdir}/usr/bin/olms-unified-startup"
+    install -m755 Startup/olms-system-monitor.sh "${pkgdir}/usr/bin/olms-system-monitor"
+    install -m755 Startup/olms-runtime-permissions.sh "${pkgdir}/usr/bin/olms-runtime-permissions"
+    install -m755 Startup/olms-path-utils.sh "${pkgdir}/usr/bin/olms-path-utils"
+    install -m755 Startup/fix_jack_links.sh "${pkgdir}/usr/bin/olms-fix-jack-links"
+    install -m755 Startup/jack_system_reset.sh "${pkgdir}/usr/bin/olms-jack-system-reset"
+    install -m755 Startup/olms-jack-setup.sh "${pkgdir}/usr/bin/olms-jack-setup"
+    install -m755 Startup/olms-jack-force-init.sh "${pkgdir}/usr/bin/olms-jack-force-init"
+    install -m755 Startup/jack_connectivity_test.sh "${pkgdir}/usr/bin/olms-jack-connectivity-test"
+    install -m755 Startup/audio_output_diagnostic.sh "${pkgdir}/usr/bin/olms-audio-output-diagnostic"
+    install -m755 Startup/test_jack_detection.sh "${pkgdir}/usr/bin/olms-test-jack-detection"
+    install -m755 Startup/test_jack_ardour_fixes.sh "${pkgdir}/usr/bin/olms-test-jack-ardour-fixes"
+    install -m755 Startup/test_jack_stability.sh "${pkgdir}/usr/bin/olms-test-jack-stability"
+    install -m755 Startup/test_session_adaptation.sh "${pkgdir}/usr/bin/olms-test-session-adaptation"
+    install -m755 Startup/test_variables.sh "${pkgdir}/usr/bin/olms-test-variables"
+    install -m755 test/olms-latency-test.sh "${pkgdir}/usr/bin/olms-latency-test"
 
     # Copia file configurazione
     install -d "${pkgdir}/etc/security/limits.d/"
@@ -113,14 +110,13 @@ package() {
     install -m644 config/systemd/user.conf.d/10-olms-realtime.conf "${pkgdir}/etc/systemd/user.conf.d/10-olms-realtime.conf"
     
     # Copia script override realtime
-    install -m755 scripts/olms-rt-override.sh "${pkgdir}/usr/bin/olms-rt-override"
+    install -m755 Startup/olms-rt-override.sh "${pkgdir}/usr/bin/olms-rt-override"
     
     # Rende script eseguibili
     chmod +x "${pkgdir}/usr/bin/olms-rt-override"
 
-    # Copia struttura progetto (engine, ui) in /usr/lib/${pkgname}
+    # Copia struttura progetto (engine) in /usr/lib/${pkgname}
     cp -r engine "${pkgdir}/usr/lib/${pkgname}/"
-    cp -r ui "${pkgdir}/usr/lib/${pkgname}/"
 
     # Copia specifiche in documentazione
     install -m644 OLMS_specs.md "${pkgdir}/usr/share/doc/${pkgname}/"

@@ -50,9 +50,12 @@ else
     echo ""
 fi
 
-# Verify that the script exists before executing it
-if [[ ! -f "Startup/olms-orchestrator.sh" ]]; then
-    echo "ERROR: olms-orchestrator.sh script does not exist in Startup directory"
+# Get the directory where this script is located
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Verify that the orchestrator script exists
+if [[ ! -f "$SCRIPT_DIR/olms-orchestrator.sh" ]]; then
+    echo "ERROR: olms-orchestrator.sh script does not exist in $SCRIPT_DIR"
     echo "Please check that you are in the correct directory."
     exit 1
 fi
@@ -62,4 +65,6 @@ export OLMS_AUDIO_DEVICE="$OLMS_AUDIO_DEVICE"
 export OLMS_BUFFER_CONFIG="$OLMS_BUFFER_CONFIG"
 export OLMS_BIT_DEPTH="$OLMS_BIT_DEPTH"
 
-clear && sudo OLMS_AUDIO_DEVICE="$OLMS_AUDIO_DEVICE" OLMS_BUFFER_CONFIG="$OLMS_BUFFER_CONFIG" OLMS_BIT_DEPTH="$OLMS_BIT_DEPTH" ./Startup/olms-orchestrator.sh
+# Change to the script directory and run the orchestrator
+cd "$SCRIPT_DIR"
+clear && sudo OLMS_AUDIO_DEVICE="$OLMS_AUDIO_DEVICE" OLMS_BUFFER_CONFIG="$OLMS_BUFFER_CONFIG" OLMS_BIT_DEPTH="$OLMS_BIT_DEPTH" ./olms-orchestrator.sh

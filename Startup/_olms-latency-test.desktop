@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=OLMS Latency Test
+Comment=Run OLMS latency test as normal user
+Exec=bash -c "for term in xfce4-terminal gnome-terminal konsole xterm; do if command -v $term >/dev/null 2>&1; then $term --hold -e 'bash -c \"cd \\\"$(dirname %k)\\\" && bash ../olms-latency-test.sh; read -p \\\"Press ENTER to close...\\\"\"'; exit 0; fi; done; echo 'Nessun terminale grafico disponibile'; read -p 'Premi INVIO per chiudere...'"
+Icon=system-run
+Terminal=false
+Type=Application
+Categories=Audio;AudioVideo;
+StartupNotify=false

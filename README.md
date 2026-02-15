@@ -165,162 +165,90 @@ The system includes an advanced Real-Time (RT) kernel configuration. It focuses 
 
 ### 0. Install OLMS (Arch Linux)
 
-**Using PKGBUILD (Recommended for Arch Linux users):**
+**For complete installation instructions, see:**
+- **[Installation Guide](INSTALL_GUIDE.md)** - Step-by-step installation and configuration
+- **[OLMS Specifications](OLMS_specs.md)** - Technical specifications and requirements
 
+**Quick Installation:**
 ```bash
-# Build and install the package
+# Using PKGBUILD (Recommended)
 makepkg -si
 
-# Or install from AUR (when available)
-yay -S olms-core
-
-# The installer will guide you through post-installation setup
-# Follow the instructions displayed after installation
-```
-
-**Post-Installation Setup:**
-
-After installation, the installer will automatically configure:
-- Audio services optimization
-- Realtime privileges setup
-- JACK audio server configuration
-- X11 authentication support
-
-For detailed configuration options, see [OLMS Specifications](OLMS_specs.md).
-
-**Bootstrap Method:**
-
-```bash
-# Run the bootstrap script for complete system configuration
+# Or bootstrap method
 sudo ./setup-env.sh
-
-# Restart your user session (log out/in or reboot)
 ```
 
 ### 1. Launch OLMS
 
-**For OLMS POC (Proof of Concept):**
+**Important: Always start with automatic detection first!**
 
+**Option A: Command Line**
 ```bash
-# After setting up the environment with setup-env.sh, use the test launcher
-# This will show Ardour GUI for visual monitoring and debugging
+# Test mode (with Ardour GUI for monitoring)
 ./_olms-launcher-test.sh
 
-# Standard production startup (headless)
-./_olms-launcher.sh
-
-# Custom configuration (skip detection phases for faster startup)
-OLMS_AUDIO_DEVICE="hw:1" OLMS_BUFFER_CONFIG="32:2" OLMS_BIT_DEPTH="24" ./_olms-launcher.sh
-```
-
-**Important for POC Testing:**
-- Use `./_olms-launcher-test.sh` to see Ardour GUI
-- This allows visual monitoring of the audio engine during testing
-- Essential for debugging and latency measurement
-
-**Fast Startup with Custom Configuration:**
-
-For faster startup when you know your optimal audio settings, you can bypass the automatic detection phases by setting environment variables:
-
-```bash
-# Set your known audio configuration
-OLMS_AUDIO_DEVICE="hw:1"        # Your audio device (find with: aplay -l)
-OLMS_BUFFER_CONFIG="64:3"       # Buffer size:periods (e.g., 64:3, 32:2, 128:2)
-OLMS_BIT_DEPTH="32"            # Bit depth (e.g., 32, 24, 16)
-
-# Launch with custom configuration
+# Production mode (headless)
 ./_olms-launcher.sh
 ```
 
-**Configuration Variables Explained:**
+**Option B: Desktop Files (Double-Click)**
+- **Test Mode:** Double-click `_olms-launcher-test.desktop` for GUI monitoring
+- **Production Mode:** Double-click `_olms-launcher.desktop` for headless operation
+- **Latency Test:** Double-click `_olms-latency-test.desktop` to measure system performance
 
-- **OLMS_AUDIO_DEVICE**: Your audio interface device identifier (e.g., "hw:1", "hw:0")
-  - Find your device with: `aplay -l` or `arecord -l`
-  - Leave empty for automatic detection (default)
+**⚠️ First-time users:** Always run without custom configuration to let the system automatically detect your audio hardware and find optimal settings.
 
-- **OLMS_BUFFER_CONFIG**: JACK buffer configuration in format "buffer_size:periods"
-  - **buffer_size**: Number of samples per buffer (lower = lower latency, higher = more stable)
-  - **periods**: Number of buffer periods (more periods = more stable but higher latency)
-  - Common configurations:
-    - `32:2` - Lowest latency (32 samples, 2 periods = 64 total frames)
-    - `32:3` - Low latency with better stability (32 samples, 3 periods = 96 total frames)
-    - `64:2` - Balanced performance (64 samples, 2 periods = 128 total frames)
-    - `64:3` - Default stable configuration (64 samples, 3 periods = 192 total frames)
-    - `128:2` - Higher stability (128 samples, 2 periods = 256 total frames)
-    - `128:3` - Very stable (128 samples, 3 periods = 384 total frames)
+### 2. Configuration Variables
 
-- **OLMS_BIT_DEPTH**: Audio bit depth for JACK
-  - `32` - 32-bit (recommended for CPU efficiency)
-  - `24` - 24-bit (for Ardour compatibility)
-  - `16` - 16-bit (fallback for older hardware)
+After initial testing, you can optimize performance by configuring these variables in the launcher files:
 
-**Benefits of Custom Configuration:**
-- **Faster Startup**: Skip 30-60 seconds of hardware detection phases
-- **Stability**: Use known good configurations that work with your hardware
-- **Consistency**: Always use the same optimal settings
-
-**When to Use Custom Configuration:**
-- **IMPORTANT: Do NOT use initially** - Always run automatic detection first to find optimal settings for your hardware
-- You have tested and found stable settings for your hardware through automatic detection
-- You want faster startup times for regular use after determining optimal settings
-- You're using the same audio interface consistently with known working configuration
-
-**⚠️ Recommendation:**
-- **First-time users**: Always use automatic detection (default behavior) to discover your hardware's optimal settings
-- **After testing**: Once you've identified stable settings that work with your specific audio interface, then use custom configuration for faster startup
-- **Hardware changes**: If you change audio interfaces or system configuration, revert to automatic detection first
-
-**Default Values (if not specified):**
-- `OLMS_BUFFER_CONFIG="64:3"` (64 samples, 3 periods)
-- `OLMS_BIT_DEPTH="32"` (32-bit)
-- `OLMS_AUDIO_DEVICE=""` (auto-detect)
-
-**Phase 3 Detection Process:**
-
-When using automatic detection (default), Phase 3 performs two detection phases:
-
-1. **Phase 1: Bit-Depth Detection** - Tests 32-bit → 24-bit → 16-bit to find the optimal bit depth
-2. **Phase 2: Buffer Detection** - Tests various buffer configurations from lowest latency to highest stability
-
-The custom configuration bypasses both phases when all three variables are set, providing immediate startup with your specified settings.
-
-### 2. Measure Latency
-
-After launching OLMS POC, measure the system latency:
+**In `olms-launcher.sh` and `olms-launcher-test.sh`:**
 
 ```bash
-# Run the latency test to measure Round-Trip Latency (RTL)
+# Audio device (e.g., "hw:1", "hw:0")
+OLMS_AUDIO_DEVICE=""
+
+# Buffer configuration (e.g., "64:3", "32:2")
+OLMS_BUFFER_CONFIG="64:3"
+
+# Bit depth (e.g., "32", "24", "16")
+OLMS_BIT_DEPTH="32"
+```
+
+**Variables explained:**
+- **OLMS_AUDIO_DEVICE**: Audio interface identifier (find with `aplay -l`)
+- **OLMS_BUFFER_CONFIG**: Format "buffer_size:periods" - lower values = lower latency, higher values = more stability
+- **OLMS_BIT_DEPTH**: Audio bit depth (32-bit recommended for performance)
+
+**Important: Automatic vs Manual Configuration**
+- **Automatic detection** prioritizes lowest latency, potentially at the cost of stability and higher X-run probability
+- **Manual configuration** allows fine-tuning to balance latency and stability for your specific hardware
+
+**Common buffer configurations:**
+- `32:2` - Lowest latency (64 total frames) - Higher X-run risk
+- `32:3` - Low latency with better stability (96 total frames)
+- `64:3` - Default stable configuration (192 total frames)
+- `128:3` - Very stable (384 total frames) - Higher latency
+
+### 3. Measure Latency
+
+After launching, test system performance:
+```bash
 ./test/olms-latency-test.sh
-
-# This will show the actual latency in milliseconds
-# Target: < 5ms for professional audio performance
 ```
 
-### 3. Access the Web Interface
+**Target:** < 5ms Round-Trip Latency for professional audio performance.
 
-Once OLMS is running, access the web interface at:
+### 4. Access the Web Interface
+
+Once OLMS is running:
 ```
 http://localhost:8080
 ```
 
-### 4. System Verification
-
-Verify the complete system setup:
-```bash
-# Run comprehensive system test
-./config/scripts/test_complete_system.sh
-
-# Check realtime privileges
-ulimit -r  # Should return 99
-ulimit -l  # Should return unlimited
-
-# Verify user groups
-groups $USER  # Should include audio and realtime
-```
-
-**For detailed installation instructions, see:**
-- **[OLMS Specifications](OLMS_specs.md)** - Complete installation methods and system requirements
-- **[Startup Process Specification](OLMS_STARTUP_SPECIFICATION.md)** - Detailed startup procedures
+**For detailed configuration and troubleshooting, see:**
+- **[Installation Guide](INSTALL_GUIDE.md)** - Complete setup instructions
+- **[OLMS Specifications](OLMS_specs.md)** - Technical details and requirements
 
 ---
 

@@ -98,11 +98,22 @@ ARD_SESSION_DIR="$EFFECTIVE_HOME/Progetti/OLMS-Core/engine/session-template/OLMS
 
 # Try to detect if we're running from within OLMS-Core
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-if [[ "$script_dir" == */Startup2 ]]; then
+if [[ "$script_dir" == */Startup ]]; then
     # We're running from within OLMS-Core, use the parent directory
     olms_core_root="$(dirname "$script_dir")"
     ARD_SESSION_PATH="$olms_core_root/engine/session-template/OLMS-POC/OLMS-POC.ardour"
     ARD_SESSION_DIR="$olms_core_root/engine/session-template/OLMS-POC"
+else
+    # Fallback: assume we're in OLMS-Core directory
+    olms_core_root="$(pwd)"
+    if [[ ! -d "$olms_core_root/Plugins" ]]; then
+        # If we're not in OLMS-Core, try to find it
+        olms_core_root="$(find /home -name "OLMS-Core" -type d 2>/dev/null | head -1)"
+        if [[ -z "$olms_core_root" ]]; then
+            # Last fallback: use current directory
+            olms_core_root="$(pwd)"
+        fi
+    fi
 fi
 
 ARD_USER="$EFFECTIVE_USER"
@@ -114,6 +125,36 @@ ARD_HOME="$EFFECTIVE_HOME"
 JACK_SERVER_NAME="olms"
 SESSION_BACKUP_PATH="${ARD_SESSION_PATH}.backup"
 SESSION_TEMP_PATH="${ARD_SESSION_PATH}.temp"
+
+# Plugin paths detection
+OLMS_LV2_DIR="$olms_core_root/Plugins/LV2"
+OLMS_VST3_DIR="$olms_core_root/Plugins/VST3"
+
+# Architecture detection function
+detect_architecture() {
+    local arch=$(uname -m)
+    case "$arch" in
+        "x86_64"|"amd64") echo "x86_64" ;;
+        "aarch64"|"arm64") echo "arm64" ;;
+        "i386"|"i686") echo "i386" ;;
+        *) echo "unknown" ;;
+    esac
+}
+
+# Detect system architecture
+ARCHITECTURE=$(detect_architecture)
+log "Architettura sistema rilevata: $ARCHITECTURE"
+
+# Plugin paths with architecture-specific subdirectories
+OLMS_LV2_DIR_ARCH="$OLMS_LV2_DIR/$ARCHITECTURE"
+OLMS_VST3_DIR_ARCH="$OLMS_VST3_DIR/$ARCHITECTURE"
+
+# Create directories if they don't exist
+mkdir -p "$OLMS_LV2_DIR" "$OLMS_VST3_DIR" "$OLMS_LV2_DIR_ARCH" "$OLMS_VST3_DIR_ARCH"
+
+# Log plugin paths
+log "Path LV2 plugin: $OLMS_LV2_DIR_ARCH"
+log "Path VST3 plugin: $OLMS_VST3_DIR_ARCH"
 
 # Logging functions (consistent with other scripts)
 log() { echo -e "\e[32m[$(date '+%Y-%m-%d %H:%M:%S')]\e[0m $1"; }
@@ -512,33 +553,42 @@ create_ardour_wrapper() {
     local wrapper_path="$EFFECTIVE_HOME/.olms_ardour_launcher.sh"
     mkdir -p "$(dirname "$wrapper_path")"
     
+    # Elimina il wrapper vecchio se esiste
+    rm -f "$wrapper_path"
+    
     log "🏗️ Creating wrapper script (NO-START MODE) in $wrapper_path..." >&2
     
     cat << EOF > "$wrapper_path"
 #!/bin/bash
-# OLMS Ardour Launcher - Forced Connection Mode
+# OLMS Ardour Launcher - Forced Connection Mode con Plugin Bundle
 
-# 1. Environment variables to force JACK libraries not to start a server
+# 1. SELECTIVE PLUGIN PATHS
+# We point directly to the specific architecture folder ($ARCHITECTURE)
+# This prevents Ardour from trying to read the folder of the other architecture.
+export LV2_PATH="$OLMS_LV2_DIR_ARCH:\${LV2_PATH:-/usr/lib/lv2:/usr/local/lib/lv2:~/.lv2}"
+export VST3_PATH="$OLMS_VST3_DIR_ARCH:\${VST3_PATH:-/usr/lib/vst3:/usr/local/lib/vst3:~/.vst3}"
+
+# 2. Environment variables to force JACK libraries not to start a server
 export JACK_DEFAULT_SERVER="$JACK_SERVER_NAME"
 export JACK_NO_START_SERVER=1
 export JACK_PROMISCUOUS_SERVER=1
 export JACK_SESSION_DIR="/dev/shm/jack_olms_0"
 
-# 2. Graphics Variables
+# 3. Graphics Variables
 export DISPLAY=:0
 export XAUTHORITY=$EFFECTIVE_HOME/.Xauthority
 
-# 3. Verify Socket existence before starting
+# 4. Verify Socket existence before starting
 if [ ! -S "/dev/shm/jack_olms_0" ]; then
     echo "ERROR: JACK socket not found. Server '$JACK_SERVER_NAME' is not running."
     exit 1
 fi
 
-# 4. RT Limits
+# 5. RT Limits
 ulimit -r 99
 ulimit -l unlimited
 
-# 5. ATOMIC Launch
+# 6. ATOMIC Launch
 exec taskset -c $CPU_CORES chrt -f $RT_PRIORITY /usr/bin/ardour8 \\
     --no-splash \\
     "$ARD_SESSION_PATH"

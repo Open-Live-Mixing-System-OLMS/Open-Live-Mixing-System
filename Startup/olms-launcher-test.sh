@@ -33,11 +33,11 @@ OLMS_AUDIO_DEVICE=""
 # Buffer configuration (e.g., "64:3", "32:2", "128:2")
 # Format: buffer_size:periods
 # Default: 64 samples, 3 cycles (periods)
-OLMS_BUFFER_CONFIG="64:3"
+OLMS_BUFFER_CONFIG=""
 
 # Bit depth (e.g., "24", "32", "16")
 # Default: 32-bit for optimal performance
-OLMS_BIT_DEPTH="32"
+OLMS_BIT_DEPTH=""
 
 # === END USER CONFIGURATION SECTION ===
 
@@ -52,11 +52,21 @@ echo "  Current user: $(whoami)"
 echo "  HOME: $HOME"
 echo ""
 
-# Verify that the script exists before executing it
-if [[ ! -f "Startup/olms-orchestrator.sh" ]]; then
-    echo "ERROR: olms-orchestrator.sh script does not exist in Startup directory"
+# Get the directory where this script is located
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Verify that the orchestrator script exists
+if [[ ! -f "$SCRIPT_DIR/olms-orchestrator.sh" ]]; then
+    echo "ERROR: olms-orchestrator.sh script does not exist in $SCRIPT_DIR"
     echo "Please check that you are in the correct directory."
     exit 1
 fi
 
-clear && sudo OLMS_AUDIO_DEVICE="$OLMS_AUDIO_DEVICE" OLMS_BUFFER_CONFIG="$OLMS_BUFFER_CONFIG" OLMS_BIT_DEPTH="$OLMS_BIT_DEPTH" ./Startup/olms-orchestrator.sh --test
+# Pass configuration variables to orchestrator
+export OLMS_AUDIO_DEVICE="$OLMS_AUDIO_DEVICE"
+export OLMS_BUFFER_CONFIG="$OLMS_BUFFER_CONFIG"
+export OLMS_BIT_DEPTH="$OLMS_BIT_DEPTH"
+
+# Change to the script directory and run the orchestrator
+cd "$SCRIPT_DIR"
+clear && sudo OLMS_AUDIO_DEVICE="$OLMS_AUDIO_DEVICE" OLMS_BUFFER_CONFIG="$OLMS_BUFFER_CONFIG" OLMS_BIT_DEPTH="$OLMS_BIT_DEPTH" ./olms-orchestrator.sh --test
