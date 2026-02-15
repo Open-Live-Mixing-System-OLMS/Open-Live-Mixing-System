@@ -13,6 +13,48 @@
 # In no event will the authors be held liable for any damages arising from
 # the use of this software.
 
+## 🖥️ Hardware Testing Platform
+
+This project is currently being prototyped and tested on the following hardware configuration:
+
+### Primary Test System
+**Lenovo V520-15IKL Desktop**
+- **CPU:** Intel Core i5-7500 @ 3.40GHz (4 cores, 4 threads)
+- **RAM:** 16GB DDR4
+- **BIOS:** M16KT40A (10/05/2017)
+- **Audio:** Intel 200 Series PCH HD Audio (Integrated)
+- **USB Audio Interfaces:** 
+  - Focusrite Scarlett Solo (3rd Gen.) - ID 1235:8211
+  - Behringer UMC202HD - ID 03f0:3341
+
+### Audio Interface Specifications
+
+#### Focusrite Scarlett Solo (3rd Gen.)
+- **Type:** USB 2.0 Audio Interface
+- **Channels:** 1x Input, 2x Output
+- **Sample Rates:** 44.1kHz, 48kHz, 88.2kHz, 96kHz
+- **Bit Depth:** 24-bit
+- **Connectivity:** USB-C, XLR/TRS Combo Input, 1/4" Output
+- **Driver Support:** ALSA, JACK2 compatible
+
+#### Behringer UMC202HD
+- **Type:** USB 2.0 Audio Interface  
+- **Channels:** 2x Input, 2x Output
+- **Sample Rates:** 44.1kHz, 48kHz, 88.2kHz, 96kHz
+- **Bit Depth:** 24-bit
+- **Connectivity:** USB-B, XLR/TRS Inputs, 1/4" Outputs
+- **Driver Support:** ALSA, JACK2 compatible
+
+### Testing Configuration
+This hardware setup provides a realistic testing environment for:
+- **Real-time audio performance** validation
+- **Latency measurement** and optimization
+- **Multi-interface compatibility** testing
+- **USB audio stability** under Linux RT kernel
+- **Professional audio workflow** simulation
+
+The Lenovo V520-15IKL serves as the primary development and testing platform, while the two USB audio interfaces (Focusrite Scarlett Solo and Behringer UMC202HD) provide comparative performance data for different hardware configurations and driver implementations.
+
 # Open Live Mixing System (OLMS) - GPL Core Engine and Logic (v 1.3)
 
 ## TARGET FOLDER STRUCTURE

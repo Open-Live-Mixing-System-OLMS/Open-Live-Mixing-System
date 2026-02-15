@@ -6,7 +6,7 @@
 [![RTL Target](https://img.shields.io/badge/RTL%20Target-%3C%205ms%20(Goal)-brightgreen.svg)]()
 [![Stability](https://img.shields.io/badge/Stability-<2%20X--runs/hour-orange.svg)]()
 
-**OLMS:** The Open Live Mixing System. A project aimed at transforming any compatible Mini-PC into a professional, dedicated digital mixing console. Built on a Real-Time Linux core, Ardour Headless, and JACK2/ALSA, it targets a Round-Trip Latency (RTL) of less than $< 5 \text{ ms}$ and **<2 X-runs/hour**. 
+**OLMS:** The Open Live Mixing System. A project created by **Francesco Nano** (Italian author, ideator, and visionary) aimed at transforming any compatible Mini-PC into a professional, dedicated digital mixing console. Built on a Real-Time Linux core, Ardour Headless, and JACK2/ALSA, it targets a Round-Trip Latency (RTL) of less than $< 5 \text{ ms}$ and **<2 X-runs/hour**. 
 
 **Current Phase:** Engine-only POC with Ardour interface for performance testing. **No web interface yet** - this is pure audio engine development.
 
