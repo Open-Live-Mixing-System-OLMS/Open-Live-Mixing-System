@@ -417,7 +417,7 @@ This document summarizes the changes regarding User Management, Access Control, 
 The system implements functional access control based on the principle that **network security is handled externally (Wi-Fi/LAN control)**, making the internal system's goal functional segmentation rather than cryptographic security.
 ### Key Architectural Choices:
 - **Engine & Protocol:** **Ardour Headless** remains the audio core, controlled exclusively via **OSC**.
-- **UI/Middleware:** **Open Stage Control** acts as the integrated Web Server and the WebSocket ↔ OSC Bridge. **No custom proprietary middleware is required.**
+- **UI/Middleware:** **Open Stage Control** acts as the integrated Web Server and the WebSocket ↔ OSC Bridge. **No proprietary middleware is required.**
 - **Authentication Logic:** Authentication, Authorization, and UI rendering logic are handled entirely by **Client-Side JavaScript (JS)** within the Open Stage Control interface.
 ## 2. User & Role Management
 User data is stored in plain text/JSON within the OLMS configuration directory, accessible by the UI's JS engine.

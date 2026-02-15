@@ -15,6 +15,23 @@
 
 ---
 
+## 🚀 Architecture Overview and Key Concepts
+
+For detailed technical specifications, refer to the [OLMS Specifications](OLMS_specs.md) document.
+
+OLMS is built on a Simplified 2-Layer Architecture that ensures stability and performance:
+
+1.  **Open Stage Control (GPL):** HTML5/JS/CSS-based user interface for controlling faders, mute, solo, pan, plugins, routing matrix, and metering. Acts as the integrated Web Server and WebSocket ↔ OSC Bridge.
+2.  **Ardour Headless (GPL):** The main audio engine, configured with 48-channel templates (6 banks of 8 channels), bypassed plugins, and static routing. It integrates Lua Scripts for Session, Bank, Scene Management, and Dynamic I/O Patching.
+
+### Block Track Management
+The system supports multi-channel configurations via 8-track "banks." At startup, a script detects available physical ports and activates only the necessary banks (e.g., 16 I/O → Banks 1-2). Inactive banks have their tracks disabled in Ardour and hidden in the UI but can be activated at runtime via OSC. Pre-configured templates are available for 16ch, 24ch, 32ch, and 48ch.
+
+### Real-Time Configuration and CPU Pinning
+The system includes an advanced Real-Time (RT) kernel configuration. It focuses on simplifying IRQ pinning to a dedicated core for the audio card and using high RT priority for JACK/Ardour/Carla processes, rather than complex CPU core allocation. This also includes disabling features like Hyper-Threading and deep C-states to maximize stability and reduce latency.
+
+---
+
 ## 🛣️ Project Roadmap
 
 OLMS follows a structured development roadmap with clear milestones. We are currently in **Phase 1: Engine POC**.
@@ -59,11 +76,11 @@ OLMS follows a structured development roadmap with clear milestones. We are curr
 **Testing Instructions:**
 ```bash
 # Launch in test mode to see Ardour interface
-./_olms-launcher-test.sh
+./olms-launcher-test.sh
 
 # Measure performance
 ./test/olms-latency-test.sh
-
+```
 
 ### Phase 2: OSC Controller & Web Interface
 **Objective:** Add OSC communication layer and basic web interface for remote control.
@@ -144,23 +161,6 @@ OLMS follows a structured development roadmap with clear milestones. We are curr
 
 ---
 
-## 🚀 Architecture Overview and Key Concepts
-
-For detailed technical specifications, refer to the [OLMS Specifications](OLMS_specs.md) document.
-
-OLMS is built on a Simplified 2-Layer Architecture that ensures stability and performance:
-
-1.  **Web UI (Proprietary):** HTML5/JS/CSS-based user interface for controlling faders, mute, solo, pan, plugins, routing matrix, and metering.
-2.  **Ardour Headless (GPL):** The main audio engine, configured with 48-channel templates (6 banks of 8 channels), bypassed plugins, and static routing. It integrates Lua Scripts for Session, Bank, Scene Management, and Dynamic I/O Patching.
-
-### Block Track Management
-The system supports multi-channel configurations via 8-track "banks." At startup, a script detects available physical ports and activates only the necessary banks (e.g., 16 I/O → Banks 1-2). Inactive banks have their tracks disabled in Ardour and hidden in the UI but can be activated at runtime via OSC. Pre-configured templates are available for 16ch, 24ch, 32ch, and 48ch.
-
-### Real-Time Configuration and CPU Pinning
-The system includes an advanced Real-Time (RT) kernel configuration. It focuses on simplifying IRQ pinning to a dedicated core for the audio card and using high RT priority for JACK/Ardour/Carla processes, rather than complex CPU core allocation. This also includes disabling features like Hyper-Threading and deep C-states to maximize stability and reduce latency.
-
----
-
 ## 🚀 Quick Start
 
 ### 0. Install OLMS (Arch Linux)
@@ -185,10 +185,10 @@ sudo ./setup-env.sh
 **Option A: Command Line**
 ```bash
 # Test mode (with Ardour GUI for monitoring)
-./_olms-launcher-test.sh
+./olms-launcher-test.sh
 
 # Production mode (headless)
-./_olms-launcher.sh
+./olms-launcher.sh
 ```
 
 **Option B: Desktop Files (Double-Click)**
