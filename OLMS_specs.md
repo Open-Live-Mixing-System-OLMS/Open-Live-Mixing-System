@@ -648,6 +648,39 @@ The core architecture manages 56 input channels, structured into standard banks 
 │   - Tracks can be disabled per bank │
 └─────────────────────────────────────┘
 
+---
+
+### V. Hybrid Master/Slave Audio Architecture & Asynchronous Resampling (zita-ajbridge)
+
+To accommodate multi-interface setups, modular stage boxes, and remote musician nodes without compromising real-time stability or generating digital clock drift, OLMS adopts a **Hybrid Master/Slave (Backfill Saturation) Architecture**.
+
+#### 1. Master Node (Hardware Clock & Native Low-Latency Engine)
+* **Master Hardware Clock:** The primary physical audio interface on the Master Engine (e.g., Focusrite Scarlett Solo / 18i20 or primary PCIe/USB card) serves as the indisputable master word clock for the entire system.
+* **Engine Configuration:** `jackd` operates directly on the ALSA backend locked to this master card at a fixed sample rate of **48 kHz** and ultra-low buffer periods (e.g., `64 samples` $\approx 1.33\text{ ms}$ at $48\text{ kHz}$, yielding an overall RTL $\sim 3.35\text{ ms}$).
+* **Direct Local Monitoring (Zero-Latency Feel):** Master inputs ($1 \to N$) patch natively and directly through JACK / Ardour without any software resampling, providing near-zero perceived latency for performers connected directly to the Master node.
+
+#### 2. Slave Nodes & Integration via `zita-ajbridge` (`zita-a2j` / `zita-j2a`)
+* **Slave Node Definition:** Any secondary audio source—such as secondary USB audio interfaces connected to the same engine, auxiliary machines, remote stage boxes, or networked audio endpoints—that does not share an identical physical WordClock generator with the Master card.
+* **Adaptive Asynchronous Resampling:** Direct ALSA/JACK multi-device patching without hardware word clock synchronization inevitably produces drift, leading to buffer slippage, clicks, and xruns. OLMS integrates `zita-ajbridge` (`zita-a2j` for inputs, `zita-j2a` for outputs) to bridge secondary ALSA devices to JACK:
+  - Continuously measures the rate ratio and phase deviation between the secondary hardware clock and JACK's master clock.
+  - Applies a dynamic, high-quality real-time mathematical resampling filter.
+  - Maintains a dedicated, isolated jitter buffer (e.g., `256 samples` $\approx 10\text{--}12\text{ ms}$) on the bridge, insulating the primary JACK engine from external clock jitter or USB bus scheduling variations.
+
+#### 3. 48-Channel Saturation Architecture (Backfill Logic)
+* **Pre-allocated 48-Channel Layout:** Ardour initializes with a fixed 48-channel input structure (Banks 1–6).
+* **Deterministic Backfill Allocation:**
+  - **Channels $1 \to N$ (Physical Master):** Directly assigned to the physical inputs of the Master audio interface at ultra-low latency.
+  - **Channels $(N+1) \to 48$ (Virtual Slave Backfill):** Dynamically "saturated" (populated) by mapping JACK input ports exposed by running `zita-a2j` instances or network streams.
+  - Channels without physical or slave connections remain inactive (`Route.State.INACTIVE`) to prevent unnecessary DSP overhead.
+
+#### 4. Decentralized Local Mixing for In-Ear Monitoring (IEM)
+* **Distributed Self-Monitoring:** When musicians connect through a Slave node (or remote smart stage box), the Slave device processes a **local direct mix of its own inputs** to its headphone/IEM outputs (local round-trip $\sim 3\text{--}4\text{ ms}$).
+* **Separation of Concerns:** 
+  - The performer hears their own immediate instrument/vocal with zero perceptible delay.
+  - The Slave streams its individual channels to the Master Engine via `zita-a2j` (incurring the $\sim 10\text{--}12\text{ ms}$ anti-jitter buffer) exclusively for the Master FOH/House mix and band-wide summing.
+  - The Master Engine returns a stereo backline/band mix to the Slave node via `zita-j2a` or network stream, which is mixed locally into the performer's IEM alongside their local zero-latency feed.
+
+
 ## 🚀 OLMS Startup Process Overview
 
 The OLMS system implements a comprehensive multi-phase startup process designed for professional real-time audio processing. The startup sequence ensures optimal system configuration, hardware detection, and audio engine initialization.

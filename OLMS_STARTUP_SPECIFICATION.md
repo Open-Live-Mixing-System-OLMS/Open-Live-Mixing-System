@@ -17,6 +17,14 @@ The OLMS startup system follows a multi-phase approach designed for real-time au
 5. **Real-Time Optimization**: Comprehensive system tuning for low-latency audio processing
 6. **Robust Error Handling**: Graceful degradation and fallback mechanisms throughout the process
 
+
+### Execution Model: Stand-alone vs. Distribution Deployment
+The OLMS startup process is designed to operate in two distinct modes depending on the deployment scenario:
+
+1. **Stand-alone Execution**: Uses the `olms-orchestrator.sh` script to manage the multi-phase startup sequence in a synchronous, sequential manner. This provides granular control, easy debugging, and is ideal for manual configuration and testing.
+
+2. **Distribution/System Integration**: In the final OLMS distribution (ISO/Live USB), the sequential orchestration is migrated to native `systemd` units. This conversion utilizes parallel service execution and dependency management (using `After=` and `Requires=` directives), ensuring optimal boot speed, robust service monitoring, and full system integration, effectively replacing the linear bash-orchestrated flow with a native, robust OS initialization process.
+
 ### System Components
 
 - **Orchestrator**: Central control script (`olms-orchestrator.sh`) that manages the entire startup sequence
