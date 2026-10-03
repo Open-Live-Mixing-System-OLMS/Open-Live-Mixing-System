@@ -16,3 +16,7 @@ engine/session-template/OLMS-POC/instant.xml
 
 # To get the base Ardour session template, use the file at:
 # engine/session-template/OLMS-POC/OLMS-POC.ardour
+
+# Appunti personali
+AppuntiFra.MD
+
