@@ -390,40 +390,40 @@ _olms-launcher.sh / _olms-launcher-test.sh (Entry Point)
 
 ## 🌐 Network Architecture & Addressing Specification (Point-to-Point Ethernet)
 
-### 1. Architettura di Rete (Point-to-Point Ethernet)
-- **Infrastruttura:** Non viene più utilizzato un router/access point esterno né un server DHCP per la comunicazione critica tra le macchine.
-- **Collegamento:** Connessione diretta via cavo Ethernet tra il PC di Controllo (iMac con Linux Mint) e il PC Engine (PC con Arch Linux).
-- **Internet:** Gestito in modo indipendente dal PC di Controllo tramite hotspot Wi-Fi mobile su interfaccia wireless (`wlp3s0`).
+### 1. Network Architecture (Point-to-Point Ethernet)
+- **Infrastructure:** No external router/access point or DHCP server is used for critical communication between machines.
+- **Link:** Direct Ethernet cable connection between the Control PC (iMac with Linux Mint) and the Engine PC (PC with Arch Linux).
+- **Internet:** Managed independently by the Control PC via mobile Wi-Fi hotspot on the wireless interface (`wlp3s0`).
 
-### 2. Schema Indirizzamento IP Statico (Sottorete `192.168.10.0/24`)
-Le interfacce cablate Ethernet (`en*`) devono essere configurate con IP statici manuali senza gateway predefinito per la LAN locale:
+### 2. Static IP Addressing Scheme (Subnet `192.168.10.0/24`)
+Wired Ethernet interfaces (`en*`) must be configured with manual static IPs without a default gateway for the local LAN:
 
 - **Control PC (iMac / Linux Mint):**
-  - **IP Statico:** `192.168.10.1/24` (`255.255.255.0`)
-  - **Interfaccia:** `enp2s0` (o equivalente `en*`)
-  - **Configurazione IPv4:** `manual`
-  - **Configurazione IPv6:** `disabled`
+  - **Static IP:** `192.168.10.1/24` (`255.255.255.0`)
+  - **Interface:** `enp2s0` (or equivalent `en*`)
+  - **IPv4 Configuration:** `manual`
+  - **IPv6 Configuration:** `disabled`
 
 - **Engine PC (Arch Linux):**
-  - **IP Statico:** `192.168.10.2/24` (`255.255.255.0`)
-  - **Interfaccia:** `enp1s0` (o equivalente `en*`)
-  - **Utente SSH:** `francesco_ssh`
+  - **Static IP:** `192.168.10.2/24` (`255.255.255.0`)
+  - **Interface:** `enp1s0` (or equivalent `en*`)
+  - **SSH User:** `francesco_ssh`
   - **MAC Address:** `6c:4b:90:3d:9e:56`
-  - **Configurazione IPv4:** `manual`
-  - **Configurazione IPv6:** `disabled`
+  - **IPv4 Configuration:** `manual`
+  - **IPv6 Configuration:** `disabled`
 
-### 3. Specifiche per Remote SSH e Wake-on-LAN (`olms`)
-- **Connessione Remote-SSH / VS Code / Antigravity:**
-  - **Host:** `192.168.10.2` (alias SSH: `arch-pc`)
-  - **Utente:** `francesco_ssh`
+### 3. Remote SSH and Wake-on-LAN Specifications (`olms`)
+- **Remote-SSH / VS Code / Antigravity Connection:**
+  - **Host:** `192.168.10.2` (SSH alias: `arch-pc`)
+  - **User:** `francesco_ssh`
 
-- **Comando Wake-on-LAN (`olms`):**
-  - Deve inviare il *Magic Packet* direttamente sull'interfaccia Ethernet o sull'indirizzo di broadcast della sottorete locale `192.168.10.255`.
+- **Wake-on-LAN Command (`olms`):**
+  - The *Magic Packet* must be sent directly to the Ethernet interface or the local subnet broadcast address `192.168.10.255`.
   - **Target MAC:** `6c:4b:90:3d:9e:56`
-  - **Esempi di comando:**
+  - **Command examples:**
     ```bash
     wakeonlan -i 192.168.10.255 6c:4b:90:3d:9e:56
-    # oppure
+    # or
     etherwake -i enp2s0 6c:4b:90:3d:9e:56
     ```
 
@@ -690,49 +690,70 @@ The OLMS system implements a comprehensive multi-phase startup process designed 
 The startup process follows an **8-phase sequential approach** orchestrated by `olms-orchestrator.sh` (invoked via `_olms-launcher.sh` or `_olms-launcher-test.sh`), with intelligent bypass capabilities:
 
 1. **Phase 0.1: Pre-Startup Audio Environment Nuclear Cleanup (`phase0-audio-cleanup.sh`)**
-   - Reset totale dell'ambiente audio e terminazione aggressiva dei processi concorrenti (JACK, PipeWire, PulseAudio, Ardour)
-   - Pulizia approfondita dei socket file (`/tmp`, `/dev/shm`, `/var/run`) e rimozione IPC di memoria condivisa (semafori e segmenti)
-   - Reset hardware tramite scaricamento e ricaricamento moduli kernel (`snd-usb-audio`, `snd_hda_intel`, `snd_hda_codec`, `snd_seq`)
-   - Rilevamento delle schede audio USB via SysFS e `/proc/asound/cards` con finestra di attesa fino a 30s
+   - Total audio environment reset and aggressive termination of concurrent processes (JACK, PipeWire, PulseAudio, Ardour)
+   - Deep cleaning of socket files (`/tmp`, `/dev/shm`, `/var/run`) and removal of shared memory IPC (semaphores and segments)
+   - Hardware reset via unloading and reloading kernel modules (`snd-usb-audio`, `snd_hda_intel`, `snd_hda_codec`, `snd_seq`)
+   - Detection of USB audio cards via SysFS and `/proc/asound/cards` with a wait window of up to 30s
 
 2. **Phase 0.2: Process Synchronization & Lock Management (`phase0-lock-management.sh`)**
-   - Gestione sincronizzazione processi e creazione/verifica file PID e lock per prevenire conflitti ed esecuzioni concorrenti
-   - Chiusura sicura e aggraziata delle sessioni Ardour attive con invio segnale di salvataggio (`SIGUSR1`)
-   - Terminazione graduale dei processi (SIGTERM → SIGKILL con timeout) e verifica integrità file di sessione
+   - Manage process synchronization and create/verify PID and lock files to prevent conflicts and concurrent executions.
+   - Securely and gracefully close active Ardour sessions by sending a save signal (`SIGUSR1`).
+   - Gradual termination of processes (SIGTERM → SIGKILL with timeout) and verification of session file integrity.
 
 3. **Phase 1: Real-Time System Optimization (`phase1-rt-optimization.sh`)**
-   - Configurazione parametri kernel: allocazione runtime RT (95% prod, 80% test, 60% light), periodo RT (1s), migrazione CPU e granularità wakeup
-   - Applicazione del governor `performance` su tutti i core CPU, blocco della frequenza minima al massimo e disabilitazione Turbo Boost
-   - Power management: disabilitazione stati C-state profondi (C3, C6) e verifica `irqbalance`
-   - Configurazione e verifica limiti PAM Real-Time (`rtprio 99`, `memlock unlimited`, appartenenza ai gruppi `audio` e `realtime`)
+   - Kernel parameter configuration: RT runtime allocation (95% prod, 80% test, 60% light), RT period (1s), CPU migration, and wakeup granularity.
+   - Apply `performance` governor to all CPU cores, lock minimum frequency to maximum, and disable Turbo Boost.
+   - Power management: disable deep C-states (C3, C6) and verify `irqbalance`.
+   - Configure and verify Real-Time PAM limits (`rtprio 99`, `memlock unlimited`, membership in `audio` and `realtime` groups).
 
 4. **Phase 2: Hardware Configuration & Pinning (`phase2-hardware-config.sh`)**
-   - Gestione affinità CPU: isolamento processi di sistema su Core 0, IRQ pinning su Core 1, elaborazione audio RT dedicata sui Core 2-N
-   - Identificazione hardware ALSA e schede USB audio
-   - Pinning interrupt IRQ del controller USB sul core dedicato (`/proc/irq/*/smp_affinity`)
+   - CPU affinity management: isolate system processes on Core 0, IRQ pinning on Core 1, dedicated RT audio processing on Cores 2-N.
+   - ALSA hardware and USB audio card identification.
+   - Pinning USB controller IRQ interrupts to the dedicated core (`/proc/irq/*/smp_affinity`).
 
 5. **Phase 3: JACK Server Initialization (Smart Detection & Bypass) (`phase3-jack-init-fixed.sh`)**
-   - **Fast Mode (Bypass Intelligente):** Se `OLMS_BUFFER_CONFIG` e `OLMS_BIT_DEPTH` sono passate dal launcher, salta il rilevamento hardware risparmiando 30–60 secondi
-   - **Standard Mode:** Sequenza di calibrazione automatica a 2 fasi:
-     - *Fase 1 (Bit-Depth):* test 32-bit → 24-bit → 16-bit a buffer conservativo (256:3)
-     - *Fase 2 (Buffer Latency):* ottimizzazione buffer (32:2 → 32:3 → 64:2 → 64:3...)
-   - Modalità anti-zombie con monitoraggio esteso della stabilità (10s), gestione permessi socket, symlink e fallback su dummy backend
+   - **Fast Mode (Smart Bypass):** If `OLMS_BUFFER_CONFIG` and `OLMS_BIT_DEPTH` are passed from the launcher, skip hardware detection saving 30–60 seconds.
+   - **Standard Mode:** 2-phase automatic calibration sequence:
+     - *Phase 1 (Bit-Depth):* test 32-bit → 24-bit → 16-bit with conservative buffer (256:3).
+     - *Phase 2 (Buffer Latency):* buffer optimization (32:2 → 32:3 → 64:2 → 64:3...).
+   - Anti-zombie mode with extended stability monitoring (10s), socket permission management, symlinks, and fallback to dummy backend.
 
 6. **Phase 4: X11 Environment & Display Management (`phase4-x11-setup.sh`)**
-   - Rilevamento display multi-metodo (socket X11, xauth, Wayland/XWayland, processi attivi)
-   - Configurazione permessi XAUTHORITY e transizione d'ambiente root-to-user per esecuzioni con sudo
-   - Gestione directory di runtime `XDG_RUNTIME_DIR` e sessione D-Bus isolata per utente
-   - Supporto per modalità headless tramite display virtuale Xvfb
+   - Multi-method display detection (X11 socket, xauth, Wayland/XWayland, active processes).
+   - XAUTHORITY permission configuration and root-to-user environment transition for sudo executions.
+   - Manage `XDG_RUNTIME_DIR` runtime directory and isolated per-user D-Bus session.
+   - Support for headless mode via Xvfb virtual display.
 
 7. **Phase 5: Ardour DAW Startup & Session Adaptation (`phase5-ardour-startup.sh`)**
-   - Adattamento automatico della sessione e mappatura dinamica delle porte JACK in base all'hardware rilevato
-   - Transizione ambiente utente e gestione permessi sui file di progetto/audio
-   - Avvio del motore Ardour con priorità Real-Time e assegnazione affinità CPU, con supporto headless o interfaccia grafica (GUI)
+   - Automatic session adaptation and dynamic JACK port mapping based on detected hardware.
+   - User environment transition and permission management for project/audio files.
+   - Start Ardour engine with Real-Time priority and CPU affinity assignment, with headless or graphical interface (GUI) support.
 
 8. **Phase 6: Final System Report & Technical Verification (`phase6-final-report.sh`)**
-   - Verifica di stato di tutti i processi (isolamento Core 0, demone JACK, Ardour DAW, affinità IRQ)
-   - Estrazione dei dati tecnici RT in tempo reale: configurazione JACK, calcolo latenza effettiva, stato socket
-   - Report riassuntivo con metriche prestazionali, conteggio errori/warning e assessment di idoneità operativa (*Operational Readiness*)
+   - Status verification of all processes (Core 0 isolation, JACK daemon, Ardour DAW, IRQ affinity).
+   - Extraction of real-time RT technical data: JACK configuration, effective latency calculation, socket status.
+   - Summary report with performance metrics, error/warning count, and Operational Readiness assessment.
+
+
+### Key Startup Features
+
+- **Modular Design**: Each phase can be tested and debugged independently
+- **Smart Bypass Capabilities**: Phase 3 includes intelligent bypass when optimal audio settings are known
+- **Hardware Agnostic**: Universal compatibility across Linux distributions
+
+---
+
+## 🚀 Advanced Core Specifications
+
+### 1. Sponsor Splash Page (Integrated in OLMS Core)
+* **Objective**: Permanently showcase and value project supporters at system startup, both in studio and live event environments.
+* **User Flow (UX)**: 
+  * Upon opening the web interface (before loading the mixer or control screen), the client displays the Sponsor Splash Page.
+  * **100-Position Grid**: Grid layout containing logos of supporting companies.
+  * **Detail Card**: Clicking a logo opens an info card with company description and web link.
+  * **Mixer Access**: An explicit **"OLMS Start"** button allows access to the mixer screen (or login/user roles).
+  * **Sponsor Updates**: The list and cards can be updated via an official sync endpoint without requiring OS reinstallation.
+
 
 ### Key Startup Features
 
