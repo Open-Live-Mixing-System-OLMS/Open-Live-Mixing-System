@@ -908,11 +908,19 @@ One-time system setup and configuration for OLMS operation
 - System compatibility updates
 - Performance optimization updates
 
-### Update Procedures
-- Configuration migration procedures
-- Compatibility verification procedures
-- Performance verification procedures
-- Error condition resolution procedures
+### Update Procedures & Package Pinning (Stability Freeze)
+- **Immutable Core / Package Freeze**:
+  - All critical real-time audio packages (`linux-rt`, `jack2`, `ardour`, `alsa-lib`, USB audio drivers) are locked in `/etc/pacman.conf` via `IgnorePkg` to prevent regressions during live deployment.
+  - No automated rolling-release package updates are executed on the host.
+- **Targeted Security Patches**:
+  - Updates are strictly restricted to security patches for remaining network-facing libraries (e.g., `openssl`, `avahi-daemon`).
+
+### Network Sandbox & Walled Garden Policy
+- **Host Isolation**: The machine functions as a dedicated mixing appliance.
+- **Firewall Configuration (`nftables` / `iptables`)**:
+  - Outbound traffic from the host to the public Internet is blocked by default.
+  - **Exclusive Whitelist**: Outbound traffic is permitted solely to the official backend endpoint (X-Console Marketplace for license verification, add-on acquisition, and sponsor list sync).
+  - External network clients (tablets, phones) connected through the local router maintain standard Internet access unaffected by the appliance firewall.
 
 ### Troubleshooting
 - Common issue resolution
