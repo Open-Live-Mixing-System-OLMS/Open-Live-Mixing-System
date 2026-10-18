@@ -45,7 +45,7 @@ LIMITS_FILE="/etc/security/limits.d/99-realtime.conf"
 MODE="${OLMS_RT_MODE:-prod}"  # prod, test, light
 
 # Environment variables for the "all as same user" approach
-export TARGET_USER="$(whoami)"
+export TARGET_USER="${SUDO_USER:-$(whoami)}"
 export DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$(id -u)/bus"
 
 # Colors
@@ -310,7 +310,7 @@ ensure_sysfs_permissions() {
     log "Ensuring correct sysfs permissions..."
     
     # Get the user's primary group
-    local user_group=$(id -gn "$(whoami)")
+    local user_group=$(id -gn "$TARGET_USER")
     
     # Get the number of CPU cores dynamically
     local num_cores=$(nproc)
@@ -336,9 +336,9 @@ ensure_sysfs_permissions() {
                 local current_owner=$(stat -c "%U:%G" "$file" 2>/dev/null || echo "unknown:unknown")
                 
                 # If permissions are not correct, apply them
-                if [[ "$current_perms" != "666" ]] || [[ "$current_owner" != "$(whoami):$user_group" ]]; then
-                    if chmod 666 "$file" 2>/dev/null && chown "$(whoami):$user_group" "$file" 2>/dev/null; then
-                        log "Permissions applied to $file (666, $(whoami):$user_group)"
+                if [[ "$current_perms" != "666" ]] || [[ "$current_owner" != "$TARGET_USER:$user_group" ]]; then
+                    if chmod 666 "$file" 2>/dev/null && chown "$TARGET_USER:$user_group" "$file" 2>/dev/null; then
+                        log "Permissions applied to $file (666, $TARGET_USER:$user_group)"
                         applied_count=$((applied_count + 1))
                     else
                         warn "Unable to apply permissions to $file (permissions: $current_perms, owner: $current_owner)"
@@ -360,9 +360,9 @@ ensure_sysfs_permissions() {
                 local current_owner=$(stat -c "%U:%G" "$disable_file" 2>/dev/null || echo "unknown:unknown")
                 
                 # If permissions are not correct, apply them
-                if [[ "$current_perms" != "666" ]] || [[ "$current_owner" != "$(whoami):$user_group" ]]; then
-                    if chmod 666 "$disable_file" 2>/dev/null && chown "$(whoami):$user_group" "$disable_file" 2>/dev/null; then
-                        log "Permissions applied to $disable_file (666, $(whoami):$user_group)"
+                if [[ "$current_perms" != "666" ]] || [[ "$current_owner" != "$TARGET_USER:$user_group" ]]; then
+                    if chmod 666 "$disable_file" 2>/dev/null && chown "$TARGET_USER:$user_group" "$disable_file" 2>/dev/null; then
+                        log "Permissions applied to $disable_file (666, $TARGET_USER:$user_group)"
                         applied_count=$((applied_count + 1))
                     else
                         warn "Unable to apply permissions to $disable_file (permissions: $current_perms, owner: $current_owner)"
@@ -383,9 +383,9 @@ ensure_sysfs_permissions() {
         local current_owner=$(stat -c "%U:%G" "$turbo_file" 2>/dev/null || echo "unknown:unknown")
         
         # If permissions are not correct, apply them
-        if [[ "$current_perms" != "666" ]] || [[ "$current_owner" != "$(whoami):$user_group" ]]; then
-            if chmod 666 "$turbo_file" 2>/dev/null && chown "$(whoami):$user_group" "$turbo_file" 2>/dev/null; then
-                log "Permissions applied to $turbo_file (666, $(whoami):$user_group)"
+        if [[ "$current_perms" != "666" ]] || [[ "$current_owner" != "$TARGET_USER:$user_group" ]]; then
+            if chmod 666 "$turbo_file" 2>/dev/null && chown "$TARGET_USER:$user_group" "$turbo_file" 2>/dev/null; then
+                log "Permissions applied to $turbo_file (666, $TARGET_USER:$user_group)"
                 applied_count=$((applied_count + 1))
             else
                 warn "Unable to apply permissions to $turbo_file (permissions: $current_perms, owner: $current_owner)"
@@ -442,7 +442,7 @@ configure_realtime_privileges() {
     log "Current limits: rtprio=$current_rtprio, memlock=${current_memlock}KB"
     
     # Verify group membership
-    local current_user=$(whoami)
+    local current_user=$TARGET_USER
     if groups "$current_user" | grep -q "realtime"; then
         log "User $current_user belongs to the 'realtime' group"
     else

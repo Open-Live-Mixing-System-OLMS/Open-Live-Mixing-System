@@ -94,7 +94,10 @@ kill_audio_processes() {
     # Verify termination
     local remaining_audio=$(pgrep -f "jackd|pipewire|pulseaudio" 2>/dev/null || true)
     if [[ -n "$remaining_audio" ]]; then
-        warn "Some audio processes were not terminated: $remaining_audio"
+        # Do not use warn() here: it calls exit 1, so the forced termination
+        # below would never run (and socket-activated or respawned audio
+        # servers would abort the startup before we even try to kill them).
+        log "Some audio processes were not terminated: $remaining_audio"
         # Attempt forced termination with sudo for root processes
         for pid in $remaining_audio; do
             if kill -0 "$pid" 2>/dev/null; then
@@ -241,7 +244,11 @@ disable_internal_audio() {
         if [[ $remaining_pci_audio -eq 0 ]]; then
             log "All PCI audio cards disabled successfully"
         else
-            warn "Some PCI audio cards might still be active"
+            # lspci keeps listing a PCI device even after it has been disabled
+            # (and on recent laptops the card is driven by SOF, not snd_hda_intel),
+            # so this check can never reach zero. warn() aborts the whole startup,
+            # so only log it: the audio device is selected explicitly later on.
+            log "Note: $remaining_pci_audio PCI audio device(s) still listed by lspci - continuing startup"
         fi
     else
         log "No PCI audio cards found to disable"
